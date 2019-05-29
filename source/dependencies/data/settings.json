@@ -1,0 +1,10 @@
+{
+    "server_port":80,
+    "executions_per_second":60,
+    "jwt_token":"",
+    "user_id":"",
+    "tmi":"",
+    "twitch_channel":"",
+    "tmi_twitch_username":"",
+    "use_node":false
+}

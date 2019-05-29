@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>StreamElements Local Cloudbot</title>
+    <link rel= "stylesheet" type= "text/css" href= "{{ url_for('static',filename='styles/index.css') }}">
+    <link href="https://fonts.googleapis.com/css?family=Roboto:400,700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header id="MainHeader">
+        <h1>StreamElements<br>Local Cloudbot</h1>
+        <nav>
+            <a href="#extensions">Extensions</a>
+            <a href="#events">Events</a>
+            <a href="#logs">Logs</a>
+            <a href="#messages">Messages</a>
+            <a href="#setup">Setup</a>
+        </nav>
+    </header>
+
+    <article id="extensions">
+        <header>
+            <h1>Extensions</h1>
+            <div id="ResetExtensions">RESET</div>
+        </header>
+        <section class="data"></section>
+    </article>
+    <article id="events">
+        <header>
+            <h1>Events</h1>
+            <div id="ClearEvents">CLEAR</div>
+        </header>
+        <section class="data"></section>
+    </article>
+    <article id="logs">
+        <header>
+            <h1>Logs</h1>
+            <div id="ClearLogs">CLEAR</div>
+        </header>
+        <section class="data"></section>
+    </article>
+    <article id="messages">
+        <header>
+            <h1>Messages</h1>
+            <div id="ClearMessages">CLEAR</div>
+        </header>
+        <section class="data"></section>
+    </article>
+    <article id="setup">
+        <header>
+            <h1>Setup</h1>
+        </header>
+        <section class="data">
+            <section>
+                <p>Server port</p>
+                <input type="number" id="server_port-input"><div>SAVE</div>
+            </section>
+            <section>
+                <p>Script executions per second</p>
+                <input type="number" id="exec_per_second-input"><div>SAVE</div>
+            </section>
+            <section>
+                <p>JWT token (found on StreamElements profile)</p>
+                <input type="password" id="jwt-input"><div>SAVE</div>
+            </section>
+            <section>
+                <p>User ID (found on StreamElements profile, "Account ID")</p>
+                <input type="text" id="user_id-input"><div>SAVE</div>
+            </section>
+            <section>
+                <p>TMI (generate <a target="_blank" rel="noopener noreferrer" href="https://twitchapps.com/tmi/">HERE</a>)</p>
+                <input type="password" id="tmi-input"><div>SAVE</div>
+            </section>
+            <section>
+                <p>The username which connected to TMI</p>
+                <input type="text" id="tmi_username-input"><div>SAVE</div>
+            </section>
+            <section>
+                <p>The twitch channel to listen on</p>
+                <input type="text" id="twitch_channel-input"><div>SAVE</div>
+            </section>
+            <section>
+                <p>Use node for the StreamElements socket (use if errors only!)</p>
+                <input type="checkbox" id="use_node-input">
+            </section>
+        </section>
+    </article>
+
+    <script>
+        let data = {{ data|tojson }}
+        let logs = {{ ExtensionLogs|tojson }}
+        let events = {{ events|tojson }}
+        let SetupValues = {{ SetupValues|tojson }}
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js"></script>
+    <script src="{{ url_for('static',filename='scripts/index.js') }}"></script>
+</body>
+</html>
