@@ -4,6 +4,9 @@ from datetime import datetime
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO
 
+if not os.getcwd() in sys.path:
+    sys.path.append(os.getcwd())
+
 SoftwareVersion = 1
 
 NewestVersion = json.loads(requests.get('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json').text)
@@ -18,6 +21,7 @@ EventHandles = []
 TestEventHandles = []
 ToggleHandles = []
 CrossScriptTalkHandles = []
+InitializeHandles = []
 
 def WaitForYN():
     while True:
@@ -39,6 +43,7 @@ def LoadExtensions():
                         extensions.append({"state":True, "module":importlib.import_module("extensions." + i + "." + j[:-3])})
                     else:
                         extensions.append({"state":False, "module":importlib.import_module("extensions." + i + "." + j[:-3])})
+    InitializeHandles.append({'port':settings['server_port']})
 
 def HandleExtensionError(item, e, action):
     logs.append({'module':item['module'].__name__.replace('extensions.', ''), 'message':str(e) + ' (' + action + ')'})
@@ -50,7 +55,9 @@ def extensionThread():
         time.sleep(1)
     time.sleep(1)
     while True:
-        if len(CrossScriptTalkHandles) > 0:
+        if len(InitializeHandles) > 0:
+            ExecType = 'initialize'
+        elif len(CrossScriptTalkHandles) > 0:
             ExecType = 'talk'
         elif len(ToggleHandles) > 0:
             ExecType = 'toggle'
@@ -83,6 +90,12 @@ def extensionThread():
                         i['module'].Execute(ExtensionHandles[0])
                     except Exception as e:
                         HandleExtensionError(i, e, ExecType)
+            elif ExecType == 'initialize':
+                if 'Initialize' in dir(i['module']):
+                    try:
+                        i['module'].Initialize(InitializeHandles[0])
+                    except Exception as e:
+                        HandleExtensionError(i, e, ExecType)
             elif ExecType == 'talk':
                 if i['module'].__name__[11:] == CrossScriptTalkHandles[0]['module'] and i['state'] and 'CrossTalk' in dir(i['module']):
                     try:
@@ -112,6 +125,8 @@ def extensionThread():
             CrossScriptTalkHandles.pop(0)
         elif ExecType == 'toggle':
             ToggleHandles.pop(0)
+        elif ExecType == 'initialize':
+            InitializeHandles.pop(0)
         time.sleep(1/settings['executions_per_second'])
 
 def handleAPIRequest(endpoint, options):
