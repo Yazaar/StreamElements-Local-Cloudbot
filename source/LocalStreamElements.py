@@ -440,7 +440,7 @@ if __name__ == '__main__':
     if NewestVersion['version'] > SoftwareVersion:
         print('\n\n\n\n\nNew version found!\nWould you like to update? (y/n)')
         if WaitForYN():
-            os.system('SoftwareUpdater.py ' + NewestVersion['download'])
+            subprocess.Popen('SoftwareUpdater.exe ' + NewestVersion['download'], creationflags=0x00000008, shell=True)
             raise SystemExit
 
     #load settings.json
