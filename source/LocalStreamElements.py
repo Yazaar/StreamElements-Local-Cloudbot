@@ -7,7 +7,7 @@ from flask_socketio import SocketIO
 if not os.getcwd() in sys.path:
     sys.path.append(os.getcwd())
 
-SoftwareVersion = 1
+SoftwareVersion = 2
 
 NewestVersion = json.loads(requests.get('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json').text)
 
@@ -240,7 +240,6 @@ def chatThread():
         for line in temp:
             if line == "PING :tmi.twitch.tv\r":
                 s.send(b"PONG :tmi.twitch.tv\r\n")
-                print("Sent: PONG :tmi.twitch.tv")
             elif "PRIVMSG #" in line:
                 GeneratedMessage = processMessage(line[:-1])
                 socketio.emit('TwitchMessage', GeneratedMessage)
@@ -305,7 +304,7 @@ def processExtensions():
 
 def startFlask():
     f = open('dependencies\\data\\url.js', 'w')
-    f.write('let server_url = "localhost:' + str(settings['server_port']) + '"')
+    f.write('let server_url = "http://localhost:' + str(settings['server_port']) + '"')
     f.close()
     global socketio
     app = Flask(__name__, template_folder="dependencies\\web\\HTML", static_folder="dependencies\\web")
@@ -330,6 +329,19 @@ def startFlask():
         if type(message['options']) != dict:
             return json.dumps({'error':'The dict key "options" have to be a dict'})
         return json.dumps(handleAPIRequest(message['endpoint'], message['options']))
+
+    @app.route('/ScriptTalk', methods=['post'])
+    def web_ScriptTalk():
+        message = json.loads(request.data.decode('UTF-8'))
+        if type(message) != dict:
+            return json.dumps({'type':'error', 'message':'Please forward json... requests.post(url, json=JSON_DATA)'})
+        keys = message.keys()
+        if not 'module' in keys:
+            return json.dumps({'type':'error', 'message':'No module found, please include the key module'})
+        if not 'data' in keys:
+            return json.dumps({'type':'error', 'message':'No data found, please include the key data'})
+        CrossScriptTalkHandles.append(message)
+        return json.dumps({'type':'success'})
 
     @app.route('/CrossTalk', methods=['post'])
     def web_CrossTalk():
@@ -392,28 +404,45 @@ def startFlask():
     @socketio.on("StreamElementsAPI")
     def websocket_StreamElementsAPI(message):
         if type(message) != dict:
-            socketio.emit('StreamElementsAPI', {'type':'error', 'message':'The StreamElementsAPI socket endpoint requires a dict as input'})
+            socketio.emit('StreamElementsAPI', {'type':'error', 'message':'The StreamElementsAPI socket endpoint requires a dict as input'}, room=request.sid)
             return
         keys = message.keys()
         if not 'endpoint' in keys:
-            socketio.emit('StreamElementsAPI', {'type':'error', 'message':'The dict have to include the key "endpoint"'})
+            socketio.emit('StreamElementsAPI', {'type':'error', 'message':'The dict have to include the key "endpoint"'}, room=request.sid)
             return
         if not 'options' in keys:
-            socketio.emit('StreamElementsAPI', {'type':'error', 'message':'The dict have to include the key "options"'})
+            socketio.emit('StreamElementsAPI', {'type':'error', 'message':'The dict have to include the key "options"'}, room=request.sid)
             return
         if type(message['endpoint']) != str:
-            socketio.emit('StreamElementsAPI', {'type':'error', 'message':'The dict key "endpoint" have to be a string'})
+            socketio.emit('StreamElementsAPI', {'type':'error', 'message':'The dict key "endpoint" have to be a string'}, room=request.sid)
             return
         if type(message['options']) != dict:
-            socketio.emit('StreamElementsAPI', {'type':'error', 'message':'The dict key "options" have to be a dict'})
+            socketio.emit('StreamElementsAPI', {'type':'error', 'message':'The dict key "options" have to be a dict'}, room=request.sid)
             return
-        socketio.emit('StreamElementsAPI', handleAPIRequest(message['endpoint'], message['options']))
+        socketio.emit('StreamElementsAPI', handleAPIRequest(message['endpoint'], message['options']), room=request.sid)
         return
 
     @socketio.on('ReloadExtensions')
     def websocket_RebootExtensions():
         rebootExtensionsThread()
-        socketio.emit('ReloadChange', {'type':'success', 'data':processExtensions()})
+        socketio.emit('ReloadChange', {'type':'success', 'data':processExtensions()}, room=request.sid)
+
+    @socketio.on('ScriptTalk')
+    def websocket_ScriptTalk(message):
+        if type(message) != dict:
+            socketio.emit('ScriptTalk', {'type':'error', 'message':'The data argument have to be a dict'}, room=request.sid)
+            return
+        keys = message.keys()
+        if not 'event' in keys:
+            socketio.emit('ScriptTalk', {'type':'error', 'message':'No event found, please include the key event'}, room=request.sid)
+            return
+        if not 'data' in keys:
+            socketio.emit('ScriptTalk', {'type':'error', 'message':'No data found, please include the key data'}, room=request.sid)
+            return
+        if not message['event'].startswith('p-'):
+            socketio.emit('ScriptTalk', {'type':'error', 'message':'The event have to start with p-'}, room=request.sid)
+            return
+        socketio.emit(message['event'], message['data'], broadcast=True)
 
     @socketio.on('CrossTalk')
     def websocket_CrossTalk(message):
@@ -421,13 +450,13 @@ def startFlask():
             return
         keys = message.keys()
         if not 'module' in keys:
-            socketio.emit('CrossTalk', {'type':'error', 'message':'No module found, please include the key module'})
+            socketio.emit('CrossTalk', {'type':'error', 'message':'No module found, please include the key module'}, room=request.sid)
             return
         if not 'data' in keys:
-            socketio.emit('CrossTalk', {'type':'error', 'message':'No data found, please include the key data'})
+            socketio.emit('CrossTalk', {'type':'error', 'message':'No data found, please include the key data'}, room=request.sid)
             return
         CrossScriptTalkHandles.append(message)
-        socketio.emit('CrossTalk', {'type':'success'})
+        socketio.emit('CrossTalk', {'type':'success'}, room=request.sid)
 
     @socketio.on('toggle')
     def websocket_toggle(message):
@@ -441,7 +470,7 @@ def startFlask():
                         enabled.append(message['item'])
                         with open('dependencies\\data\\enabled.json', 'w') as f:
                             json.dump(enabled, f)
-                    socketio.emit("toggle", {"type":"success"})
+                    socketio.emit("toggle", {"type":"success"}, room=request.sid)
                     return
                 else:
                     i['state'] = False
@@ -451,9 +480,9 @@ def startFlask():
                         enabled.remove(message['item'])
                         with open('dependencies\\data\\enabled.json', 'w') as f:
                             json.dump(enabled, f)
-                    socketio.emit("toggle", {"type":"success"})
+                    socketio.emit("toggle", {"type":"success"}, room=request.sid)
                     return
-        socketio.emit("toggle", {"type":"error"})
+        socketio.emit("toggle", {"type":"error"}, room=request.sid)
 
     print('starting website: http://localhost:' + str(settings['server_port']) + '\nSaving website shortcut to website.html!')
     with open('website.html', 'w') as f:
@@ -463,7 +492,10 @@ def startFlask():
 
 if __name__ == '__main__':
     if NewestVersion['version'] > SoftwareVersion:
-        print('\n\n\n\n\nNew version found!\nWould you like to update? (y/n)')
+        print('\n\n\n\n\nNew version found!')
+        print('\n\nChanges:')
+        print(NewestVersion['log'])
+        print('\n\nWould you like to update? (y/n)')
         if WaitForYN():
             subprocess.Popen('SoftwareUpdater.exe ' + NewestVersion['download'], creationflags=0x00000008, shell=True)
             raise SystemExit
