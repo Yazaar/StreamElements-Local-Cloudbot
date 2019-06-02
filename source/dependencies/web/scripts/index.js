@@ -39,7 +39,14 @@ function createExtentions(data) {
 }
 
 function createLog(title, message) {
-    return '<div>' + '<h2>' + title + '</h2>' + '<p>' + message + '</p>' + '</div>'
+    let new_element = document.createElement('div')
+    let new_h2 = document.createElement('h2')
+    let new_p = document.createElement('p')
+    new_h2.innerText = title
+    new_p.innerText = message
+    new_element.appendChild(new_h2)
+    new_element.appendChild(new_p)
+    return new_element
 }
 
 let s = io.connect(window.location.origin)
@@ -164,7 +171,7 @@ s.on("message", (message) => {
 })
 
 s.on('log', (message) => {
-    document.querySelector('article#logs section.data').innerHTML += createLog(message.module, message.message)
+    document.querySelector('article#logs section.data').appendChild(createLog(message.module, message.message))
     for (let i of document.querySelectorAll('section.ExtensionItem p')) {
         if (i.innerHTML === message.module) {
             if (i.parentNode.querySelector('input').checked) {
@@ -175,13 +182,12 @@ s.on('log', (message) => {
 })
 
 s.on('StreamElementsEvent', (data) => {
-    if (!data.listener.includes('latest')){
-        return
-    }
     if (document.querySelector('article#events section.data').childElementCount > 99){
         document.querySelector('article#events section.data').removeChild(document.querySelector('article#events section.data').firstElementChild)
     }
-    document.querySelector('article#events section.data').innerHTML += '<p>' + data.event.type + ' => ' + data.event.name + '</p>'
+    let new_element = document.createElement('p')
+    new_element.innerText = data.type + ' => ' + data.data.username
+    document.querySelector('article#events section.data').appendChild(new_element)
 })
 
 s.on('StreamElementsTestEvent', (data) => {
@@ -191,7 +197,9 @@ s.on('StreamElementsTestEvent', (data) => {
     if (document.querySelector('article#events section.data').childElementCount > 99){
         document.querySelector('article#events section.data').removeChild(document.querySelector('article#events section.data').firstElementChild)
     }
-    document.querySelector('article#events section.data').innerHTML += '<p>' + data.event.type + ' => ' + data.event.name + '</p>'
+    let new_element = document.createElement('p')
+    new_element.innerText = data.event.type + ' => ' + data.event.name
+    document.querySelector('article#events section.data').appendChild(new_element)
 })
 
 s.on("toggle", (message) => {
@@ -207,11 +215,13 @@ s.on('TwitchMessage', (message) => {
     if (document.querySelector('article#messages section.data').childElementCount > 99){
         document.querySelector('article#messages section.data').removeChild(document.querySelector('article#messages section.data').firstElementChild)
     }
-    document.querySelector('article#messages section.data').innerHTML += '<p>' + message.name + ': ' + message.message + '</p>'
+    let new_element = document.createElement('p')
+    new_element.innerText = message.name + ': ' + message.message
+    document.querySelector('article#messages section.data').appendChild(new_element)
 })
 
 createExtentions(data)
 
 for (let i of logs) {
-    document.querySelector('article#logs section.data').innerHTML += createLog(i.module, i.message)
+    document.querySelector('article#logs section.data').appendChild(createLog(i.module, i.message))
 }
