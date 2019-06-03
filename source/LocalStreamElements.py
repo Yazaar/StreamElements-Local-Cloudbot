@@ -7,7 +7,7 @@ from flask_socketio import SocketIO
 if not os.getcwd() in sys.path:
     sys.path.append(os.getcwd())
 
-SoftwareVersion = 2
+SoftwareVersion = 3
 
 NewestVersion = json.loads(requests.get('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json').text)
 
@@ -22,6 +22,7 @@ TestEventHandles = []
 ToggleHandles = []
 CrossScriptTalkHandles = []
 InitializeHandles = []
+MessagesToSend = []
 
 def WaitForYN():
     while True:
@@ -246,7 +247,7 @@ def chatThread():
                 ExtensionHandles.append(GeneratedMessage)
 
 def rebootExtensionsThread():
-    global extensionThread
+    global ExtensionVariable
     for i in threading._active.items():
         if i[1].name == 'ExtensionThread':
             ctypes.pythonapi.PyThreadState_SetAsyncExc(i[0], ctypes.py_object(SystemExit))
@@ -256,6 +257,16 @@ def rebootExtensionsThread():
     LoadExtensions()
     ExtensionVariable = threading.Thread(target=extensionThread, daemon=True, name='ExtensionThread')
     ExtensionVariable.start()
+
+def sendMessagesHandler():
+    while ChatThreadRuns == False:
+        time.sleep(1)
+    time.sleep(1)
+    while True:
+        if len(MessagesToSend) > 0:
+            requests.post('https://api.streamelements.com/kappa/v2/bot/' + settings['user_id'] + '/say', headers={'Content-Type':'application/json', 'Authorization': 'Bearer ' + settings['jwt_token']}, json={'message':MessagesToSend[0]})
+            MessagesToSend.pop(0)
+        time.sleep(1.5)
 
 def StreamElementsThread():
     print('[StreamElements Socket] Loading python solution')
@@ -321,14 +332,28 @@ def startFlask():
             return {'error':'The StreamElementsAPI socket endpoint requires a dict as input'}
         keys = message.keys()
         if not 'endpoint' in keys:
-            return json.dumps({'error':'The dict have to include the key "endpoint"'})
+            return json.dumps({'type':'error', 'message':'The dict have to include the key "endpoint"'})
         if not 'options' in keys:
-            return json.dumps({'error':'The dict have to include the key "options"'})
+            return json.dumps({'type':'error', 'message':'The dict have to include the key "options"'})
         if type(message['endpoint']) != str:
-            return json.dumps({'error:''The dict key "endpoint" have to be a string'})
+            return json.dumps({'type':'error', 'message':'The dict key "endpoint" have to be a string'})
         if type(message['options']) != dict:
-            return json.dumps({'error':'The dict key "options" have to be a dict'})
+            return json.dumps({'type':'error', 'message':'The dict key "options" have to be a dict'})
         return json.dumps(handleAPIRequest(message['endpoint'], message['options']))
+    
+    @app.route('/SendMessage', methods=['post'])
+    def web_SendMessage():
+        message = json.loads(request.data.decode('UTF-8'))
+        if type(message) != dict:
+            return json.dumps({'type':'error', 'message':'The input have to be a dictionary'})
+        if not 'message' in message.keys():
+            return json.dumps({'type':'error', 'message':'The dict have to include the key message'})
+        
+        if type(message['message']) != str:
+            MessagesToSend.append(str(message['message']))
+        else:
+            MessagesToSend.append(message['message'])
+        return json.dumps({'type':'success'})
 
     @app.route('/ScriptTalk', methods=['post'])
     def web_ScriptTalk():
@@ -447,6 +472,7 @@ def startFlask():
     @socketio.on('CrossTalk')
     def websocket_CrossTalk(message):
         if type(message) != dict:
+            socketio.emit('CrossTalk', {'type':'error', 'message':'The data argument have to be a dict'}, room=request.sid)
             return
         keys = message.keys()
         if not 'module' in keys:
@@ -457,6 +483,15 @@ def startFlask():
             return
         CrossScriptTalkHandles.append(message)
         socketio.emit('CrossTalk', {'type':'success'}, room=request.sid)
+    
+    @socketio.on('SendMessage')
+    def websocket_SendMessage(message):
+        if type(message) != str:
+            MessagesToSend.append(str(message))
+        else:
+            MessagesToSend.append(message)
+        socketio.emit('SendMessage', {'type':'success'}, room=request.sid)
+
 
     @socketio.on('toggle')
     def websocket_toggle(message):
@@ -624,7 +659,10 @@ if __name__ == '__main__':
     ExtensionVariable = threading.Thread(target=extensionThread, daemon=True, name='ExtensionThread')
     ExtensionVariable.start()
 
-    ChatVariable = threading.Thread(target=chatThread, daemon=True)
+    sendMessageThread = threading.Thread(target=sendMessagesHandler, daemon=True, name='ChatOut')
+    sendMessageThread.start()
+
+    ChatVariable = threading.Thread(target=chatThread, daemon=True, name='ChatIn')
     ChatVariable.start()
 
     if settings['use_node'] == False:
