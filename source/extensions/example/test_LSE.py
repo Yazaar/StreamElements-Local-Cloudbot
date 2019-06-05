@@ -1,3 +1,8 @@
+def Initialize(data):
+    global port
+    port = data['port']
+    print(port)
+
 # Executed on each chat message
 # Data structure >> https://github.com/Yazaar/StreamElements-Local-Cloudbot/wiki/Script-structure#execute
 def Execute(data):
@@ -9,7 +14,7 @@ def Execute(data):
 a = 0
 def Tick():
     global a
-    print(a)
+    #print(a)
     a += 1
 
 
@@ -42,6 +47,9 @@ def Event(data):
 def TestEvent(data):
     print(data)
 
+# Triggerd each time that new settings are saved, the script have to be specified inside of the SettingsUI.json manually!
+def NewSettings(data):
+    print(data)
 
 # state = True or False
 # Whenever this script is enabled (True) or disabled (False).

@@ -13,6 +13,7 @@
         <h1>StreamElements<br>Local Cloudbot</h1>
         <nav>
             <a href="#extensions">Extensions</a>
+            <a href="#settings">Settings</a>
             <a href="#events">Events</a>
             <a href="#logs">Logs</a>
             <a href="#messages">Messages</a>
@@ -24,6 +25,12 @@
         <header>
             <h1>Extensions</h1>
             <div id="ResetExtensions">RESET</div>
+        </header>
+        <section class="data"></section>
+    </article>
+    <article id="settings">
+        <header>
+            <h1>Settings</h1>
         </header>
         <section class="data"></section>
     </article>
@@ -93,6 +100,7 @@
         let logs = {{ ExtensionLogs|tojson }}
         let events = {{ events|tojson }}
         let SetupValues = {{ SetupValues|tojson }}
+        let ExtensionSettings = {{ ExtensionSettings|tojson }}
     </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js"></script>
     <script src="{{ url_for('static',filename='scripts/index.js') }}"></script>

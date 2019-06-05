@@ -1,0 +1,24 @@
+{
+    "name":"example test",
+    "path":"extensions\\example",
+    "scripts":["example.test_LSE"],
+    "event":"p-ExampleScriptSettingsUpdateEvent",
+    "settings":{
+        "NameOfVariable":{
+            "type":"range",
+            "min":0,
+            "max":10,
+            "tip":"Input a number"
+        },
+        "NameOfVariable2":{
+            "type":"text",
+            "tip":"Input some awesome text"
+        },
+        "NameOfVariable3":{
+            "type":"number",
+            "tip":"Input a number",
+            "max":10,
+            "min":-10
+        }
+    }
+}

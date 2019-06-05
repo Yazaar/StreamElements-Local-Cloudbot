@@ -7,7 +7,7 @@ from flask_socketio import SocketIO
 if not os.getcwd() in sys.path:
     sys.path.append(os.getcwd())
 
-SoftwareVersion = 3
+SoftwareVersion = 4
 
 NewestVersion = json.loads(requests.get('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json').text)
 
@@ -15,6 +15,7 @@ logs = []
 events = []
 enabled = []
 extensions = []
+ExtensionSettings = {}
 
 ExtensionHandles = []
 EventHandles = []
@@ -22,6 +23,7 @@ TestEventHandles = []
 ToggleHandles = []
 CrossScriptTalkHandles = []
 InitializeHandles = []
+UpdatedScriptsHandles = []
 MessagesToSend = []
 
 def WaitForYN():
@@ -33,8 +35,9 @@ def WaitForYN():
             return False
 
 def LoadExtensions():
-    global extensions
+    global extensions, ExtensionSettings
     extensions = []
+    ExtensionSettings = {}
     for i in os.listdir("extensions"):
         temp = "extensions\\" + i
         if os.path.isdir(temp):
@@ -44,6 +47,13 @@ def LoadExtensions():
                         extensions.append({"state":True, "module":importlib.import_module("extensions." + i + "." + j[:-3])})
                     else:
                         extensions.append({"state":False, "module":importlib.import_module("extensions." + i + "." + j[:-3])})
+                if j == 'SettingsUI.json':
+                    with open(temp + '\\SettingsUI.json', 'r') as f:
+                        ui = json.load(f)
+                        ExtensionSettings[ui['name']] = ui
+                    if 'settings.json' in os.listdir(temp):
+                        with open(temp + '\\settings.json', 'r') as f:
+                            ExtensionSettings[ui['name']]['current'] = json.load(f)
     InitializeHandles.append({'port':settings['server_port']})
 
 def HandleExtensionError(item, e, action):
@@ -58,6 +68,8 @@ def extensionThread():
     while True:
         if len(InitializeHandles) > 0:
             ExecType = 'initialize'
+        elif len(UpdatedScriptsHandles) > 0:
+            ExecType = 'newsettings'
         elif len(CrossScriptTalkHandles) > 0:
             ExecType = 'talk'
         elif len(ToggleHandles) > 0:
@@ -109,6 +121,12 @@ def extensionThread():
                         i['module'].Toggle(ToggleHandles[0]['state'])
                     except Exception as e:
                         HandleExtensionError(i, e, ExecType)
+            elif ExecType == 'newsettings':
+                if i['state'] and i['module'].__name__ == UpdatedScriptsHandles[0]['module'] and 'NewSettings' in dir(i['module']):
+                    try:
+                        i['module'].NewSettings(UpdatedScriptsHandles[0]['settings'])
+                    except Exception as e:
+                        HandleExtensionError(i, e, ExecType)
             else:
                 if i['state'] and 'Event' in dir(i['module']):
                     try:
@@ -128,6 +146,8 @@ def extensionThread():
             ToggleHandles.pop(0)
         elif ExecType == 'initialize':
             InitializeHandles.pop(0)
+        elif ExecType == 'newsettings':
+            UpdatedScriptsHandles.pop(0)
         time.sleep(1/settings['executions_per_second'])
 
 def handleAPIRequest(endpoint, options):
@@ -264,9 +284,16 @@ def sendMessagesHandler():
     time.sleep(1)
     while True:
         if len(MessagesToSend) > 0:
-            requests.post('https://api.streamelements.com/kappa/v2/bot/' + settings['user_id'] + '/say', headers={'Content-Type':'application/json', 'Authorization': 'Bearer ' + settings['jwt_token']}, json={'message':MessagesToSend[0]})
-            MessagesToSend.pop(0)
-        time.sleep(1.5)
+            if MessagesToSend[0]['bot'].lower() == 'local':
+                s.send(('PRIVMSG #' + settings['twitch_channel'] + ' :' + MessagesToSend[0]['message'] + '\r\n').encode('UTF-8'))
+                MessagesToSend.pop(0)
+                time.sleep(0.4)
+            else:
+                requests.post('https://api.streamelements.com/kappa/v2/bot/' + settings['user_id'] + '/say', headers={'Content-Type':'application/json', 'Authorization': 'Bearer ' + settings['jwt_token']}, json={'message':MessagesToSend[0]['message']})
+                MessagesToSend.pop(0)
+                time.sleep(1.5)
+        else:
+            time.sleep(0.5)
 
 def StreamElementsThread():
     print('[StreamElements Socket] Loading python solution')
@@ -323,7 +350,7 @@ def startFlask():
 
     @app.route("/")
     def web_index():
-        return render_template("index.html", data=processExtensions(), ExtensionLogs=logs, events=events, SetupValues=settings)
+        return render_template("index.html", data=processExtensions(), ExtensionLogs=logs, events=events, SetupValues=settings, ExtensionSettings=ExtensionSettings)
 
     @app.route("/StreamElementsAPI", methods=['post'])
     def web_StreamElementsAPI():
@@ -346,13 +373,18 @@ def startFlask():
         message = json.loads(request.data.decode('UTF-8'))
         if type(message) != dict:
             return json.dumps({'type':'error', 'message':'The input have to be a dictionary'})
-        if not 'message' in message.keys():
+        keys = message.keys()
+        if not 'message' in keys:
             return json.dumps({'type':'error', 'message':'The dict have to include the key message'})
+        if not 'bot' in keys:
+            return json.dumps({'type':'error', 'message':'The dict have to include the key bot with the value "local" or "streamelements"'})
+        if message['bot'].lower() != 'streamelements' and message['bot'].lower() != 'local':
+            return json.dumps({'type':'error', 'message':'The dict have to include the key bot with the value local or streamelements'})
         
         if type(message['message']) != str:
-            MessagesToSend.append(str(message['message']))
-        else:
-            MessagesToSend.append(message['message'])
+            message['message'] = str(message['message'])
+
+        MessagesToSend.append(message)
         return json.dumps({'type':'success'})
 
     @app.route('/ScriptTalk', methods=['post'])
@@ -420,7 +452,70 @@ def startFlask():
                 settings[i] = data[i]
         with open('dependencies\\data\\settings.json', 'w') as f:
             json.dump(settings, f)
-        socketio.emit('UpdatedSettings')
+        socketio.emit('UpdatedSettings', room=request.sid)
+    
+    @socketio.on('ScriptSettings')
+    def websocket_ScriptSettings(data):
+        if type(data) != dict:
+            socketio.emit('ScriptSettings', {'type':'error', 'message':'You have to forward data in form of a dict'}, room=request.sid)
+            return
+        keys = data.keys()
+        if not 'path' in keys:
+            socketio.emit('ScriptSettings', {'type':'error', 'message':'The dict have to include the key path'}, room=request.sid)
+            return
+        if not 'settings' in keys:
+            socketio.emit('ScriptSettings', {'type':'error', 'message':'The dict have to include the key settings'}, room=request.sid)
+            return
+        if not 'name' in keys:
+            socketio.emit('ScriptSettings', {'type':'error', 'message':'The dict have to include the key name'}, room=request.sid)
+            return
+        if type(data['settings']) != dict:
+            socketio.emit('ScriptSettings', {'type':'error', 'message':'The key settings requires a dict as a value'}, room=request.sid)
+            return
+        if not os.path.isdir(data['path']):
+            socketio.emit('ScriptSettings', {'type':'error', 'message':'The key path does not point on a valid directory'}, room=request.sid)
+            return
+        keys = data['settings'].keys()
+
+        if os.path.isfile(data['path'] + '\\settings.js'):
+            with open(data['path'] + '\\settings.js', 'r') as f:
+                JSScriptData = f.read()
+            JSScriptData = json.loads('{' + JSScriptData.split('{',1)[1])
+            for i in keys:
+                JSScriptData[i] = data['settings'][i]
+            with open(data['path'] + '\\settings.js', 'w') as f:
+                f.write('let settings = ' + json.dumps(JSScriptData))
+        else:
+            JSScriptData = data['settings']
+            with open(data['path'] + '\\settings.js', 'w') as f:
+                f.write('let settings = ' + json.dumps(data['settings']))
+
+        if os.path.isfile(data['path'] + '\\settings.json'):
+            with open(data['path'] + '\\settings.json', 'r') as f:
+                PyScriptData = json.load(f)
+            for i in keys:
+                PyScriptData[i] = data['settings'][i]
+            with open(data['path'] + '\\settings.json', 'w') as f:
+                json.dump(PyScriptData, f)
+        else:
+            PyScriptData = data['settings']
+            with open(data['path'] + '\\settings.json', 'w') as f:
+                json.dump(data['settings'], f)
+        
+        ExtensionSettings[data['name']]['current'] = json.loads(json.dumps(PyScriptData))
+        
+        if 'event' in data.keys():
+            if type(data['event']) == str:
+                if data['event'].startswith('p-'):
+                    socketio.emit(data['event'], JSScriptData)
+        
+        if 'scripts' in data.keys():
+            if type(data['scripts']) == list:
+                for i in data['scripts']:
+                    if type(i) == str:
+                        UpdatedScriptsHandles.append({'module':'extensions.'+i, 'settings':PyScriptData})
+        
+        socketio.emit('ScriptSettings', {'type':'success'}, room=request.sid)
 
     @socketio.on("message")
     def websocket_message(message):
@@ -486,12 +581,24 @@ def startFlask():
     
     @socketio.on('SendMessage')
     def websocket_SendMessage(message):
-        if type(message) != str:
-            MessagesToSend.append(str(message))
+        if type(message) != dict:
+            socketio.emit('SendMessage', {'type':'error', 'message':'The data that you send have to be in form of a dict.'}, room=request.sid)
+            return
+        keys = message.keys()
+        if not 'bot' in keys:
+            socketio.emit('SendMessage', {'type':'error', 'message':'The dict have to include the key bot with the value local or streamelements'}, room=request.sid)
+            return
+        if message['bot'].lower() != 'streamelements' and message['bot'].lower() != 'local':
+            socketio.emit('SendMessage', {'type':'error', 'message':'The dict have to include the key bot with the value local or streamelements'}, room=request.sid)
+            return
+        if not 'message' in keys:
+            socketio.emit('SendMessage', {'type':'error', 'message':'The dict have to include the key message with the value of your message to send'}, room=request.sid)
+            return
+        if type(message['message']) != str:
+            MessagesToSend.append({'bot':message['bot'], 'message':str(message['message'])})
         else:
             MessagesToSend.append(message)
         socketio.emit('SendMessage', {'type':'success'}, room=request.sid)
-
 
     @socketio.on('toggle')
     def websocket_toggle(message):

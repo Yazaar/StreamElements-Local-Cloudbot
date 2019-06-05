@@ -105,6 +105,56 @@ article section.data::-webkit-scrollbar-corner{
     background: transparent;
 }
 
+article#settings section.data div input {
+    color: #000000;
+}
+
+article#settings .OpenCloseButton {
+    cursor: pointer;
+    margin: .5rem 0;
+    padding: .5rem 1rem;
+    display: inline-block;
+    border: #000000 .1rem solid;
+    border-radius: 1rem;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+article#settings .OpenCloseButton:hover {
+    background: rgba(0, 0, 0, .25);
+}
+
+article#settings .save_settings {
+    border: #000000 .1rem solid;
+    border-radius: 1rem;
+    display: inline-block;
+    cursor: pointer;
+    margin: 0;
+    padding: .5rem 1rem;
+}
+
+article#settings .save_settings:hover {
+    background: rgba(0, 0, 0, .25);
+}
+
+article#settings section.data div section section p {
+    margin: .2rem 0;
+}
+
+article#settings section.data div section section h3 {
+    margin: .2rem 0;
+}
+
+article#settings section.data div section section {
+    margin: 1rem 0;
+}
+
+article#settings section.data div section {
+    margin: 1rem 0;
+}
+
 article#logs div h2{
     font-size: 1.3rem;
     margin: 0;
@@ -183,6 +233,8 @@ section.ExtensionItem input[type="checkbox"]{
     -webkit-appearance: none;
     width: 1.5rem;
     height: 1.5rem;
+    min-width: 1.5rem;
+    min-height: 1.5rem;
     background: rgba(0, 0, 0, .25);
     border-radius: 50%;
     outline: none;

@@ -11,6 +11,8 @@
     <script src="../../dependencies/data/url.js"></script>
     <!-- import socketio -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js"></script>
+    <!-- import py script settings -->
+    <script src="settings.js"></script>
     <script>
         // open socket connection with the imported server URL
         let s = io(server_url)
@@ -36,9 +38,11 @@
         })
 
         // when someone sends data sends data thru a custom event (all "p-" events are "private", not created by the main program) 
-        s.on('p-ExampleEvent', (data) => {
+        s.on('p-ExampleScriptSettingsUpdateEvent', (data) => {
             console.log(data)
         })
+        console.log('Script settings:')
+        console.log(settings)
     </script>
 </body>
 </html>
