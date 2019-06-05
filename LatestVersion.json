@@ -1,5 +1,5 @@
 {
-  "version":3,
+  "version":4,
   "download":"https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/update.zip",
-  "log":"- API response bugfixes\n- New functionality to send messages thru the local API"
+  "log":"- Socket bugfixes\n- New feature: Now with a settings UI\n- Updated feature: How you are supposed to send messages\n\n(important update)"
 }
