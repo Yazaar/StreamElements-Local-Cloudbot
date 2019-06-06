@@ -1,5 +1,5 @@
 {
   "version":5,
   "download":"https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/update.zip",
-  "log":"- Stability improvements\n- Bugfix for the settings tab\n- Increased functionality for the StreamElementsAPI endpoint\n- Twitch channel is now sent together with the port on initialize"
+  "log":"- Stability improvements\n- Bugfix for the settings tab (in browser)\n- Increased functionality for the StreamElementsAPI endpoint\n- Twitch channel is now sent together with the port on initialize"
 }
