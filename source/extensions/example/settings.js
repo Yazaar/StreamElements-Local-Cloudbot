@@ -1,1 +1,1 @@
-let settings = {"NameOfVariable": 7, "NameOfVariable2": "", "NameOfVariable3": 1}
+let settings = {"NameOfVariable": 7, "NameOfVariable2": "", "NameOfVariable3": 1, "NameOfVariable4": false}

@@ -7,7 +7,7 @@ from flask_socketio import SocketIO
 if not os.getcwd() in sys.path:
     sys.path.append(os.getcwd())
 
-SoftwareVersion = 4
+SoftwareVersion = 5
 
 NewestVersion = json.loads(requests.get('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json').text)
 
@@ -54,7 +54,7 @@ def LoadExtensions():
                     if 'settings.json' in os.listdir(temp):
                         with open(temp + '\\settings.json', 'r') as f:
                             ExtensionSettings[ui['name']]['current'] = json.load(f)
-    InitializeHandles.append({'port':settings['server_port']})
+    InitializeHandles.append({'port':settings['server_port'], 'twitch_channel':settings['twitch_channel']})
 
 def HandleExtensionError(item, e, action):
     logs.append({'module':item['module'].__name__.replace('extensions.', ''), 'message':str(e) + ' (' + action + ')'})
@@ -165,15 +165,20 @@ def handleAPIRequest(endpoint, options):
         headers = {"Authorization": "Bearer " + settings['jwt_token']}
     else:
         headers = {}
-    
+
     if 'headers' in keys:
         if type(options['headers']) != dict:
             return 'options["headers"] have to be a dict'
-        
+    
         for i in options['headers']:
             if i.lower() == 'authorization':
                 return 'you are not allowed to specify the authorization header, set options["include_jwt"] to True'
             headers[i] = options['headers'][i]
+
+    if 'json' in keys:
+        if type(options['json']) != dict:
+            return 'options["json"] have to be a dict'
+        return requests.request(options['type'], 'https://api.streamelements.com/'+endpoint.replace(':channel', settings['user_id']), headers=headers, json=options['json']).text
 
     return requests.request(options['type'], 'https://api.streamelements.com/'+endpoint.replace(':channel', settings['user_id']), headers=headers).text
 
@@ -354,7 +359,11 @@ def startFlask():
 
     @app.route("/StreamElementsAPI", methods=['post'])
     def web_StreamElementsAPI():
-        message = json.loads(request.data.decode('UTF-8'))
+        try:
+            message = json.loads(request.data.decode('UTF-8'))
+        except Exception:
+            return json.dumps({'type':'error', 'message':'Please forward json... requests.post(url, json=JSON_DATA)'})
+
         if type(message) != dict:
             return {'error':'The StreamElementsAPI socket endpoint requires a dict as input'}
         keys = message.keys()
@@ -370,7 +379,11 @@ def startFlask():
     
     @app.route('/SendMessage', methods=['post'])
     def web_SendMessage():
-        message = json.loads(request.data.decode('UTF-8'))
+        try:
+            message = json.loads(request.data.decode('UTF-8'))
+        except Exception:
+            return json.dumps({'type':'error', 'message':'Please forward json... requests.post(url, json=JSON_DATA)'})
+
         if type(message) != dict:
             return json.dumps({'type':'error', 'message':'The input have to be a dictionary'})
         keys = message.keys()
@@ -389,7 +402,11 @@ def startFlask():
 
     @app.route('/ScriptTalk', methods=['post'])
     def web_ScriptTalk():
-        message = json.loads(request.data.decode('UTF-8'))
+        try:
+            message = json.loads(request.data.decode('UTF-8'))
+        except Exception:
+            return json.dumps({'type':'error', 'message':'Please forward json... requests.post(url, json=JSON_DATA)'})
+
         if type(message) != dict:
             return json.dumps({'type':'error', 'message':'Please forward json... requests.post(url, json=JSON_DATA)'})
         keys = message.keys()
@@ -402,7 +419,11 @@ def startFlask():
 
     @app.route('/CrossTalk', methods=['post'])
     def web_CrossTalk():
-        message = json.loads(request.data.decode('UTF-8'))
+        try:
+            message = json.loads(request.data.decode('UTF-8'))
+        except Exception:
+            return json.dumps({'type':'error', 'message':'Please forward json... requests.post(url, json=JSON_DATA)'})
+
         if type(message) != dict:
             return json.dumps({'type':'error', 'message':'Please forward json... requests.post(url, json=JSON_DATA)'})
         keys = message.keys()
@@ -446,7 +467,7 @@ def startFlask():
         events.clear()
     
     @socketio.on('UpdateSettings')
-    def websocket_UpdateSettings(data):
+    def websocket_UpdateSettings(data=''):
         for i in data.keys():
             if i in SettingsKeys:
                 settings[i] = data[i]
@@ -455,7 +476,8 @@ def startFlask():
         socketio.emit('UpdatedSettings', room=request.sid)
     
     @socketio.on('ScriptSettings')
-    def websocket_ScriptSettings(data):
+    def websocket_ScriptSettings(data=''):
+        print(data)
         if type(data) != dict:
             socketio.emit('ScriptSettings', {'type':'error', 'message':'You have to forward data in form of a dict'}, room=request.sid)
             return
@@ -518,11 +540,11 @@ def startFlask():
         socketio.emit('ScriptSettings', {'type':'success'}, room=request.sid)
 
     @socketio.on("message")
-    def websocket_message(message):
+    def websocket_message(message=''):
         print(message)
 
     @socketio.on("StreamElementsAPI")
-    def websocket_StreamElementsAPI(message):
+    def websocket_StreamElementsAPI(message=''):
         if type(message) != dict:
             socketio.emit('StreamElementsAPI', {'type':'error', 'message':'The StreamElementsAPI socket endpoint requires a dict as input'}, room=request.sid)
             return
@@ -548,7 +570,7 @@ def startFlask():
         socketio.emit('ReloadChange', {'type':'success', 'data':processExtensions()}, room=request.sid)
 
     @socketio.on('ScriptTalk')
-    def websocket_ScriptTalk(message):
+    def websocket_ScriptTalk(message=''):
         if type(message) != dict:
             socketio.emit('ScriptTalk', {'type':'error', 'message':'The data argument have to be a dict'}, room=request.sid)
             return
@@ -565,7 +587,7 @@ def startFlask():
         socketio.emit(message['event'], message['data'], broadcast=True)
 
     @socketio.on('CrossTalk')
-    def websocket_CrossTalk(message):
+    def websocket_CrossTalk(message=''):
         if type(message) != dict:
             socketio.emit('CrossTalk', {'type':'error', 'message':'The data argument have to be a dict'}, room=request.sid)
             return
@@ -580,7 +602,7 @@ def startFlask():
         socketio.emit('CrossTalk', {'type':'success'}, room=request.sid)
     
     @socketio.on('SendMessage')
-    def websocket_SendMessage(message):
+    def websocket_SendMessage(message=''):
         if type(message) != dict:
             socketio.emit('SendMessage', {'type':'error', 'message':'The data that you send have to be in form of a dict.'}, room=request.sid)
             return
@@ -601,7 +623,7 @@ def startFlask():
         socketio.emit('SendMessage', {'type':'success'}, room=request.sid)
 
     @socketio.on('toggle')
-    def websocket_toggle(message):
+    def websocket_toggle(message=''):
         for i in extensions:
             if i['module'].__name__.replace('extensions.', '') == message['item']:
                 if message['to'] == True:

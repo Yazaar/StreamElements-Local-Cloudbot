@@ -1,10 +1,12 @@
+# Executed on load (even if disabled)
+# Data structure >> https://github.com/Yazaar/StreamElements-Local-Cloudbot/wiki/Script-structure-(Python)#initialize
 def Initialize(data):
     global port
     port = data['port']
-    print(port)
+    print(data)
 
 # Executed on each chat message
-# Data structure >> https://github.com/Yazaar/StreamElements-Local-Cloudbot/wiki/Script-structure#execute
+# Data structure >> https://github.com/Yazaar/StreamElements-Local-Cloudbot/wiki/Script-structure-(Python)#execute
 def Execute(data):
     print(data)
 

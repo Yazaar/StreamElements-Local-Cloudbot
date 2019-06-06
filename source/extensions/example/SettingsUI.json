@@ -19,6 +19,10 @@
             "tip":"Input a number",
             "max":10,
             "min":-10
+        },
+        "NameOfVariable4":{
+            "type":"checkbox",
+            "tip":"Check me"
         }
     }
 }

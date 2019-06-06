@@ -127,11 +127,13 @@ function createSettings(json_object) {
     new_save.innerText = 'Save settings'
     new_save.classList.add('save_settings')
     new_save.addEventListener('click', (e)=>{
-        let current_settings = {'path':e.target.parentNode.getAttribute('data-path').replace(/\\/g, '\\\\'), 'name':e.target.parentNode.getAttribute('data-name'), 'settings':{}}
+        let current_settings = {'path':e.target.parentNode.getAttribute('data-path'), 'name':e.target.parentNode.getAttribute('data-name'), 'settings':{}}
         let settings_nodes = e.target.parentNode.querySelectorAll('input')
         for (let i of settings_nodes){
             if (i.type.toLowerCase() === 'number' || i.type.toLowerCase() === 'range'){
                 current_settings.settings[i.name] = parseInt(i.value)
+            } else if (i.type.toLowerCase() === 'checkbox') {
+                current_settings.settings[i.name] = i.checked
             } else {
                 current_settings.settings[i.name] = i.value
             }
