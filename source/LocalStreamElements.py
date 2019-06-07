@@ -7,7 +7,7 @@ from flask_socketio import SocketIO
 if not os.getcwd() in sys.path:
     sys.path.append(os.getcwd())
 
-SoftwareVersion = 5
+SoftwareVersion = 6
 
 NewestVersion = json.loads(requests.get('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json').text)
 
@@ -375,7 +375,7 @@ def startFlask():
             return json.dumps({'type':'error', 'message':'The dict key "endpoint" have to be a string'})
         if type(message['options']) != dict:
             return json.dumps({'type':'error', 'message':'The dict key "options" have to be a dict'})
-        return json.dumps(handleAPIRequest(message['endpoint'], message['options']))
+        return handleAPIRequest(message['endpoint'], message['options'])
     
     @app.route('/SendMessage', methods=['post'])
     def web_SendMessage():
