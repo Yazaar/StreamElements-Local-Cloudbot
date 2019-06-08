@@ -1,5 +1,5 @@
 {
-  "version":6,
+  "version":7,
   "download":"https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/update.zip",
-  "log":"- Solved an important bug about the requests.post endpoint StreamElementsAPI"
+  "log":"- Performance boot for extensions by functionality update!"
 }
