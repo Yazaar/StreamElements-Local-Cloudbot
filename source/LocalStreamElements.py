@@ -4,28 +4,6 @@ from datetime import datetime
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO
 
-if not os.getcwd() in sys.path:
-    sys.path.append(os.getcwd())
-
-SoftwareVersion = 6
-
-NewestVersion = json.loads(requests.get('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json').text)
-
-logs = []
-events = []
-enabled = []
-extensions = []
-ExtensionSettings = {}
-
-ExtensionHandles = []
-EventHandles = []
-TestEventHandles = []
-ToggleHandles = []
-CrossScriptTalkHandles = []
-InitializeHandles = []
-UpdatedScriptsHandles = []
-MessagesToSend = []
-
 def WaitForYN():
     while True:
         temp = input().lower()
@@ -106,7 +84,7 @@ def extensionThread():
             elif ExecType == 'initialize':
                 if 'Initialize' in dir(i['module']):
                     try:
-                        i['module'].Initialize(InitializeHandles[0])
+                        i['module'].Initialize(InitializeHandles[0].copy(), ExtensionData)
                     except Exception as e:
                         HandleExtensionError(i, e, ExecType)
             elif ExecType == 'talk':
@@ -130,7 +108,7 @@ def extensionThread():
             else:
                 if i['state'] and 'Event' in dir(i['module']):
                     try:
-                        i['module'].Event(EventHandles[0])
+                        i['module'].Event(EventHandles[0].copy())
                     except Exception as e:
                         HandleExtensionError(i, e, ExecType)
         
@@ -300,6 +278,79 @@ def sendMessagesHandler():
         else:
             time.sleep(0.5)
 
+def ExtensionDataThread():
+    while True:
+        if len(ExtensionData['StreamElementsAPI']) > 0:
+            StreamElementsAPI(ExtensionData['StreamElementsAPI'][0])
+            ExtensionData['StreamElementsAPI'].pop(0)
+        if len(ExtensionData['SendMessage']) > 0:
+            SendMessage(ExtensionData['SendMessage'][0])
+            ExtensionData['SendMessage'].pop(0)
+        if len(ExtensionData['CrossTalk']) > 0:
+            CrossTalk(ExtensionData['CrossTalk'][0])
+            ExtensionData['CrossTalk'].pop(0)
+        if len(ExtensionData['ScriptTalk']) > 0:
+            ScriptTalk(ExtensionData['ScriptTalk'][0])
+            ExtensionData['ScriptTalk'].pop(0)
+        time.sleep(2/(settings['executions_per_second']))
+
+def StreamElementsAPI(message):
+    if type(message) != dict:
+        return {'error':'The StreamElementsAPI socket endpoint requires a dict as input'}
+    keys = message.keys()
+    if not 'endpoint' in keys:
+        return json.dumps({'type':'error', 'message':'The dict have to include the key "endpoint"'})
+    if not 'options' in keys:
+        return json.dumps({'type':'error', 'message':'The dict have to include the key "options"'})
+    if type(message['endpoint']) != str:
+        return json.dumps({'type':'error', 'message':'The dict key "endpoint" have to be a string'})
+    if type(message['options']) != dict:
+        return json.dumps({'type':'error', 'message':'The dict key "options" have to be a dict'})
+    return handleAPIRequest(message['endpoint'], message['options'])
+
+def SendMessage(message):
+    if type(message) != dict:
+        return json.dumps({'type':'error', 'message':'The input have to be a dictionary'})
+    keys = message.keys()
+    if not 'message' in keys:
+        return json.dumps({'type':'error', 'message':'The dict have to include the key message'})
+    if not 'bot' in keys:
+        return json.dumps({'type':'error', 'message':'The dict have to include the key bot with the value "local" or "streamelements"'})
+    if message['bot'].lower() != 'streamelements' and message['bot'].lower() != 'local':
+        return json.dumps({'type':'error', 'message':'The dict have to include the key bot with the value local or streamelements'})
+    
+    if type(message['message']) != str:
+        message['message'] = str(message['message'])
+
+    MessagesToSend.append(message)
+    return json.dumps({'type':'success'})
+
+def ScriptTalk(message):
+    if type(message) != dict:
+        return json.dumps({'type':'error', 'message':'Please forward json... requests.post(url, json=JSON_DATA)'})
+    keys = message.keys()
+    if not 'module' in keys:
+        return json.dumps({'type':'error', 'message':'No module found, please include the key module'})
+    if not 'data' in keys:
+        return json.dumps({'type':'error', 'message':'No data found, please include the key data'})
+    CrossScriptTalkHandles.append(message)
+    return json.dumps({'type':'success'})
+
+def CrossTalk(message):
+    if type(message) != dict:
+        return json.dumps({'type':'error', 'message':'Please forward json... requests.post(url, json=JSON_DATA)'})
+    keys = message.keys()
+    if not 'event' in keys:
+        return json.dumps({'type':'error', 'message':'json require the key "event"'})
+    if not 'data' in keys:
+        return json.dumps({'type':'error', 'message':'json require the key "data"'})
+    if type(message['event']) != str:
+        return json.dumps({'type':'error', 'message':'The value for the key "event" has to be a string'})
+    if not message['event'].startswith('p-'):
+        return json.dumps({'type':'error', 'message':'The value for the key "event" has to start with "p-", for example: p-example'})
+    socketio.emit(message['event'], message['data'])
+    return json.dumps({'type':'success', 'message':'The event was sent over socket!'})
+
 def StreamElementsThread():
     print('[StreamElements Socket] Loading python solution')
     while ChatThreadRuns == False:
@@ -363,19 +414,7 @@ def startFlask():
             message = json.loads(request.data.decode('UTF-8'))
         except Exception:
             return json.dumps({'type':'error', 'message':'Please forward json... requests.post(url, json=JSON_DATA)'})
-
-        if type(message) != dict:
-            return {'error':'The StreamElementsAPI socket endpoint requires a dict as input'}
-        keys = message.keys()
-        if not 'endpoint' in keys:
-            return json.dumps({'type':'error', 'message':'The dict have to include the key "endpoint"'})
-        if not 'options' in keys:
-            return json.dumps({'type':'error', 'message':'The dict have to include the key "options"'})
-        if type(message['endpoint']) != str:
-            return json.dumps({'type':'error', 'message':'The dict key "endpoint" have to be a string'})
-        if type(message['options']) != dict:
-            return json.dumps({'type':'error', 'message':'The dict key "options" have to be a dict'})
-        return handleAPIRequest(message['endpoint'], message['options'])
+        return StreamElementsAPI(message)
     
     @app.route('/SendMessage', methods=['post'])
     def web_SendMessage():
@@ -383,22 +422,7 @@ def startFlask():
             message = json.loads(request.data.decode('UTF-8'))
         except Exception:
             return json.dumps({'type':'error', 'message':'Please forward json... requests.post(url, json=JSON_DATA)'})
-
-        if type(message) != dict:
-            return json.dumps({'type':'error', 'message':'The input have to be a dictionary'})
-        keys = message.keys()
-        if not 'message' in keys:
-            return json.dumps({'type':'error', 'message':'The dict have to include the key message'})
-        if not 'bot' in keys:
-            return json.dumps({'type':'error', 'message':'The dict have to include the key bot with the value "local" or "streamelements"'})
-        if message['bot'].lower() != 'streamelements' and message['bot'].lower() != 'local':
-            return json.dumps({'type':'error', 'message':'The dict have to include the key bot with the value local or streamelements'})
-        
-        if type(message['message']) != str:
-            message['message'] = str(message['message'])
-
-        MessagesToSend.append(message)
-        return json.dumps({'type':'success'})
+        return SendMessage(message)
 
     @app.route('/ScriptTalk', methods=['post'])
     def web_ScriptTalk():
@@ -655,6 +679,29 @@ def startFlask():
     socketio.run(app, port=settings['server_port'], host='0.0.0.0')
 
 if __name__ == '__main__':
+    if not os.getcwd() in sys.path:
+        sys.path.append(os.getcwd())
+
+    SoftwareVersion = 7
+
+    NewestVersion = json.loads(requests.get('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json').text)
+
+    logs = []
+    events = []
+    enabled = []
+    extensions = []
+    ExtensionData = {'SendMessage':[], 'StreamElementsAPI':[], 'ScriptTalk':[], 'CrossTalk':[]}
+    ExtensionSettings = {}
+
+    ExtensionHandles = []
+    EventHandles = []
+    TestEventHandles = []
+    ToggleHandles = []
+    CrossScriptTalkHandles = []
+    InitializeHandles = []
+    UpdatedScriptsHandles = []
+    MessagesToSend = []
+
     if NewestVersion['version'] > SoftwareVersion:
         print('\n\n\n\n\nNew version found!')
         print('\n\nChanges:')
@@ -793,6 +840,9 @@ if __name__ == '__main__':
 
     ChatVariable = threading.Thread(target=chatThread, daemon=True, name='ChatIn')
     ChatVariable.start()
+
+    ExtensionDataVariable = threading.Thread(target=ExtensionDataThread, daemon=True, name='DataIn')
+    ExtensionDataVariable.start()
 
     if settings['use_node'] == False:
         StreamElementsActivity = threading.Thread(target=StreamElementsThread, daemon=True)
