@@ -1,5 +1,5 @@
 {
-  "version":7,
+  "version":8,
   "download":"https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/update.zip",
-  "log":"- Performance boot for extensions by functionality update!"
+  "log":"- Dropdown is now supported as a SettingsUI type\n- Cross computer file access!\n(example: http://localhost:80/extensions/MyExtension/index.html)"
 }
