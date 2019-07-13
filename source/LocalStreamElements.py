@@ -397,8 +397,9 @@ def processExtensions():
     return temp
 
 def startFlask():
+    IP = socket.gethostbyname(socket.gethostname())
     f = open('dependencies\\data\\url.js', 'w')
-    f.write('let server_url = "http://localhost:' + str(settings['server_port']) + '"')
+    f.write('let server_url = "http://' + IP + ':' + str(settings['server_port']) + '"')
     f.close()
     global socketio
     app = Flask(__name__, template_folder="dependencies\\web\\HTML", static_folder="dependencies\\web")
@@ -407,6 +408,14 @@ def startFlask():
     @app.route("/")
     def web_index():
         return render_template("index.html", data=processExtensions(), ExtensionLogs=logs, events=events, SetupValues=settings, ExtensionSettings=ExtensionSettings)
+    
+    @app.route("/<path:path>")
+    def web_CustomPath(path):
+        if not os.path.isfile(path):
+            return 'invalid path, have to target a file...'
+        with open(path) as f:
+            fileData = f.read()
+        return fileData
 
     @app.route("/StreamElementsAPI", methods=['post'])
     def web_StreamElementsAPI():
@@ -678,11 +687,12 @@ def startFlask():
 
     socketio.run(app, port=settings['server_port'], host='0.0.0.0')
 
-if __name__ == '__main__':
+def main():
+    global logs, events, enabled, extensions, ExtensionData, ExtensionSettings, ExtensionHandles, EventHandles, TestEventHandles, ToggleHandles, CrossScriptTalkHandles, InitializeHandles, UpdatedScriptsHandles, MessagesToSend, settings, ChatThreadRuns
     if not os.getcwd() in sys.path:
         sys.path.append(os.getcwd())
 
-    SoftwareVersion = 7
+    SoftwareVersion = 8
 
     NewestVersion = json.loads(requests.get('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json').text)
 
@@ -849,3 +859,9 @@ if __name__ == '__main__':
         StreamElementsActivity.start()
 
     startFlask()
+
+if __name__ == '__main__':
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass

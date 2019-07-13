@@ -23,6 +23,11 @@
         "NameOfVariable4":{
             "type":"checkbox",
             "tip":"Check me"
+        },
+        "NameOfVariable5":{
+            "tip":"Pick an option!",
+            "type":"dropdown",
+            "choices":["a", "b", "c", "d", "e"]
         }
     }
 }

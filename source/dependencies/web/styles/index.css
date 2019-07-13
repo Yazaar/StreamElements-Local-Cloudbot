@@ -34,6 +34,14 @@ h1 {
     margin: 0;
 }
 
+select {
+    color: #000000;
+}
+
+option {
+    color: #000000;
+}
+
 header#MainHeader{
     background: #346383;
     display: flex;

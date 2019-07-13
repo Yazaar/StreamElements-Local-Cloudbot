@@ -77,7 +77,22 @@ function createSettings(json_object) {
         let title = document.createElement('h3')
         title.innerText = i
         setting.appendChild(title)
-        let input = document.createElement('input')
+        let input
+        if (json_object.settings[i].type.toLowerCase() === 'dropdown'){
+            input = document.createElement('select')
+            let choices = json_object.settings[i].choices
+            if (choices === undefined){
+                continue
+            }
+            for (let choice of choices){
+                let ChoiceNode = document.createElement('option')
+                ChoiceNode.value = choice
+                ChoiceNode.innerText = choice
+                input.appendChild(ChoiceNode)
+            }
+        } else {
+            input = document.createElement('input')
+        }
         let sub_settings
         input.name = i
         try {
@@ -128,7 +143,7 @@ function createSettings(json_object) {
     new_save.classList.add('save_settings')
     new_save.addEventListener('click', (e)=>{
         let current_settings = {'path':e.target.parentNode.getAttribute('data-path'), 'name':e.target.parentNode.getAttribute('data-name'), 'settings':{}}
-        let settings_nodes = e.target.parentNode.querySelectorAll('input')
+        let settings_nodes = e.target.parentNode.querySelectorAll('input, select')
         for (let i of settings_nodes){
             if (i.type.toLowerCase() === 'number' || i.type.toLowerCase() === 'range'){
                 current_settings.settings[i.name] = parseInt(i.value)
