@@ -101,7 +101,10 @@ function createSettings(json_object) {
             sub_settings = []
         }
         for (let j of sub_settings) {
-            if (j === 'tip') {
+            if (j.toLowerCase() === 'choices'){
+                continue
+            }
+            if (j.toLowerCase() === 'tip') {
                 let input_tip = document.createElement('p')
                 input_tip.innerText = json_object.settings[i][j]
                 setting.appendChild(input_tip)
