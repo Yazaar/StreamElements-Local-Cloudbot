@@ -4,6 +4,152 @@ from datetime import datetime
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO
 
+class ExtensionCrossover:
+    def __init__(self):
+        self.__SendMessage = []
+        self.__StreamElementsAPI = []
+        self.__ScriptTalk = []
+        self.__CrossTalk = []
+    
+    def SendMessage(self, data=None):
+        '''
+        Send a twitch message.
+        input: dict with the keys "bot" and "message"
+        bot = "local"/"StreamElements" (depends on your bot target, local is recommended)
+        message = Your message that you wish to send in twitch chat (str)
+
+        returns a dict with the key "type", value = "error"/"success"
+        returns a dict with the key "message" on error, value = error message
+        '''
+        if type(data) != dict:
+            return {'type':'error', 'message':'The input have to be a dictionary'}
+        keys = data.keys()
+        if not 'message' in keys:
+            return {'type':'error', 'message':'The dict have to include the key message'}
+        if not 'bot' in keys:
+            return {'type':'error', 'message':'The dict have to include the key bot with the value "local" or "streamelements"'}
+        if data['bot'].lower() != 'streamelements' and data['bot'].lower() != 'local':
+            return {'type':'error', 'message':'The dict have to include the key bot with the value local or streamelements'}
+        
+        if type(data['message']) != str:
+            data['message'] = str(data['message'])
+
+        self.__SendMessage.append(data)
+        return {'type':'success'}
+
+    def StreamElementsAPI(self, data=None):
+        '''
+        Send an API request to StreamElements servers.
+        input: dict with the keys "endpoint" (str) and "options" (dict)
+
+        returns a dict with the key "type", value = "error"/"success"
+        returns a dict with the key "message" on error, value = error message
+        '''
+        if type(data) != dict:
+            return {'error':'The StreamElementsAPI endpoint requires a dict as input'}
+        keys = data.keys()
+        if not 'endpoint' in keys:
+            return {'type':'error', 'message':'The dict have to include the key "endpoint"'}
+        if not 'options' in keys:
+            return {'type':'error', 'message':'The dict have to include the key "options"'}
+        if type(data['endpoint']) != str:
+            return {'type':'error', 'message':'The dict key "endpoint" have to be a string'}
+        if type(data['options']) != dict:
+            return {'type':'error', 'message':'The dict key "options" have to be a dict'}
+        self.__StreamElementsAPI.append(data)
+        return {'type':'success'}
+
+    def ScriptTalk(self, data=None):
+        '''
+        Send data between python scripts.
+        input: dict with the keys "module" (str) and "data" (any)
+        module = Your target, example: "example.test_LSE"
+        data = Your data to forward over
+
+        returns a dict with the key "type", value = "error"/"success"
+        returns a dict with the key "message" on error, value = error message
+        '''
+        if type(data) != dict:
+            return {'type':'error', 'message':'The input have to be a dict'}
+        keys = data.keys()
+        if not 'module' in keys:
+            return {'type':'error', 'message':'No module found, please include the key module'}
+        if not 'data' in keys:
+            return {'type':'error', 'message':'No data found, please include the key data'}
+        self.__ScriptTalk.append(data)
+        return {'type':'success'}
+
+    def CrossTalk(self, data=None):
+        '''
+        Send data to HTML/JavaScript.
+        input: dict with the keys "event" (str) and "data" (any)
+        event = Your target, have to start with "p-", example: "p-MyTestEvent"
+        data = Your data to forward over
+
+        returns a dict with the key "type", value = "error"/"success"
+        returns a dict with the key "message" on error, value = error message
+        '''
+        if type(data) != dict:
+            return {'type':'error', 'message':'The input have to be a dict'}
+        keys = data.keys()
+        if not 'event' in keys:
+            return {'type':'error', 'message':'json require the key "event"'}
+        if not 'data' in keys:
+            return {'type':'error', 'message':'json require the key "data"'}
+        if type(data['event']) != str:
+            return {'type':'error', 'message':'The value for the key "event" has to be a string'}
+        if not data['event'].startswith('p-'):
+            return {'type':'error', 'message':'The value for the key "event" has to start with "p-", for example: p-example'}
+        self.__CrossTalk.append(data)
+        return {'type':'success', 'message':'The event has been sent over socket!'}
+    
+    def GetValue(self, ValueType: str='all'):
+        '''
+        Only accessible from the main thread.
+        Optional parameter: "streamelementsapi"/"sendmessage"/"crosstalk"/"scripttalk"/"all"
+        Returns a dict with the keys "type" ("error") and "message" (error message) on error
+        Returns a dict with the keys "type" ("success"), "data" (event handle), "event" (event type)
+        '''
+
+        if type(self.__StreamElementsAPI) != list:
+            self.__StreamElementsAPI = []
+        if type(self.__SendMessage) != list:
+            self.__SendMessage = []
+        if type(self.__CrossTalk) != list:
+            self.__CrossTalk = []
+        if type(self.__ScriptTalk) != list:
+            self.__ScriptTalk = []
+
+        if threading.current_thread().getName() != 'DataIn':
+            return {'type':'error', 'message':'You are not allowed to execute this function'}
+        
+        LowerValueType = ValueType.lower()
+
+        if LowerValueType != 'all' and LowerValueType != 'streamelementsapi' and LowerValueType != 'sendmessage' and LowerValueType != 'crosstalk' and LowerValueType != 'scripttalk':
+            return {'type': 'error', 'message':'invalid input'}
+        
+        if len(self.__StreamElementsAPI) > 0 and (LowerValueType == 'all' or LowerValueType == 'streamelementsapi'):
+            ReturnValue = self.__StreamElementsAPI[0].copy()
+            self.__StreamElementsAPI.pop(0)
+            return {'type':'success', 'data':ReturnValue, 'event':'StreamElementsAPI'}
+
+        if len(self.__SendMessage) > 0 and (LowerValueType == 'all' or LowerValueType == 'sendmessage'):
+            ReturnValue = self.__SendMessage[0].copy()
+            self.__SendMessage.pop(0)
+            return {'type':'success', 'data':ReturnValue, 'event':'SendMessage'}
+
+        if len(self.__CrossTalk) > 0 and (LowerValueType == 'all' or LowerValueType == 'crosstalk'):
+            ReturnValue = self.__CrossTalk[0].copy()
+            self.__CrossTalk.pop(0)
+            return {'type':'success', 'data':ReturnValue, 'event':'CrossTalk'}
+
+        if len(self.__ScriptTalk) > 0 and (LowerValueType == 'all' or LowerValueType == 'scripttalk'):
+            ReturnValue = self.__ScriptTalk[0].copy()
+            self.__ScriptTalk.pop(0)
+            return {'type':'success', 'data':ReturnValue, 'event':'ScriptTalk'}
+        
+        return {'type':'success', 'data':None, 'event':None}
+
 def WaitForYN():
     while True:
         temp = input().lower()
@@ -84,7 +230,7 @@ def extensionThread():
             elif ExecType == 'initialize':
                 if 'Initialize' in dir(i['module']):
                     try:
-                        i['module'].Initialize(InitializeHandles[0].copy(), ExtensionData)
+                        i['module'].Initialize(InitializeHandles[0].copy(), ExCrossover)
                     except Exception as e:
                         HandleExtensionError(i, e, ExecType)
             elif ExecType == 'talk':
@@ -280,23 +426,23 @@ def sendMessagesHandler():
 
 def ExtensionDataThread():
     while True:
-        if len(ExtensionData['StreamElementsAPI']) > 0:
-            StreamElementsAPI(ExtensionData['StreamElementsAPI'][0])
-            ExtensionData['StreamElementsAPI'].pop(0)
-        if len(ExtensionData['SendMessage']) > 0:
-            SendMessage(ExtensionData['SendMessage'][0])
-            ExtensionData['SendMessage'].pop(0)
-        if len(ExtensionData['CrossTalk']) > 0:
-            CrossTalk(ExtensionData['CrossTalk'][0])
-            ExtensionData['CrossTalk'].pop(0)
-        if len(ExtensionData['ScriptTalk']) > 0:
-            ScriptTalk(ExtensionData['ScriptTalk'][0])
-            ExtensionData['ScriptTalk'].pop(0)
+        temp = ExCrossover.GetValue('StreamElemenetsAPI')
+        if temp['type'] != 'error' and temp['data'] != None:
+            StreamElementsAPI(temp['data'])
+        temp = ExCrossover.GetValue('SendMessage')
+        if temp['type'] != 'error' and temp['data'] != None:
+            SendMessage(temp['data'])
+        temp = ExCrossover.GetValue('CrossTalk')
+        if temp['type'] != 'error' and temp['data'] != None:
+            CrossTalk(temp['data'])
+        temp = ExCrossover.GetValue('ScriptTalk')
+        if temp['type'] != 'error' and temp['data'] != None:
+            ScriptTalk(temp['data'])
         time.sleep(2/(settings['executions_per_second']))
 
 def StreamElementsAPI(message):
     if type(message) != dict:
-        return {'error':'The StreamElementsAPI socket endpoint requires a dict as input'}
+        return json.dumps({'error':'The StreamElementsAPI socket endpoint requires a dict as input'})
     keys = message.keys()
     if not 'endpoint' in keys:
         return json.dumps({'type':'error', 'message':'The dict have to include the key "endpoint"'})
@@ -349,7 +495,7 @@ def CrossTalk(message):
     if not message['event'].startswith('p-'):
         return json.dumps({'type':'error', 'message':'The value for the key "event" has to start with "p-", for example: p-example'})
     socketio.emit(message['event'], message['data'])
-    return json.dumps({'type':'success', 'message':'The event was sent over socket!'})
+    return json.dumps({'type':'success', 'message':'The event has been sent over socket!'})
 
 def StreamElementsThread():
     print('[StreamElements Socket] Loading python solution')
@@ -688,11 +834,11 @@ def startFlask():
     socketio.run(app, port=settings['server_port'], host='0.0.0.0')
 
 def main():
-    global logs, events, enabled, extensions, ExtensionData, ExtensionSettings, ExtensionHandles, EventHandles, TestEventHandles, ToggleHandles, CrossScriptTalkHandles, InitializeHandles, UpdatedScriptsHandles, MessagesToSend, settings, ChatThreadRuns
+    global logs, events, enabled, extensions, ExtensionSettings, ExtensionHandles, EventHandles, TestEventHandles, ToggleHandles, CrossScriptTalkHandles, InitializeHandles, UpdatedScriptsHandles, MessagesToSend, settings, ChatThreadRuns, SettingsKeys, ExCrossover
     if not os.getcwd() in sys.path:
         sys.path.append(os.getcwd())
 
-    SoftwareVersion = 8
+    SoftwareVersion = 9
 
     NewestVersion = json.loads(requests.get('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json').text)
 
@@ -700,7 +846,6 @@ def main():
     events = []
     enabled = []
     extensions = []
-    ExtensionData = {'SendMessage':[], 'StreamElementsAPI':[], 'ScriptTalk':[], 'CrossTalk':[]}
     ExtensionSettings = {}
 
     ExtensionHandles = []
@@ -839,6 +984,8 @@ def main():
         temp.write(str([]))
         temp.close()
 
+    ExCrossover = ExtensionCrossover()
+    
     LoadExtensions()
 
     ChatThreadRuns = False
@@ -853,6 +1000,7 @@ def main():
 
     ExtensionDataVariable = threading.Thread(target=ExtensionDataThread, daemon=True, name='DataIn')
     ExtensionDataVariable.start()
+
 
     if settings['use_node'] == False:
         StreamElementsActivity = threading.Thread(target=StreamElementsThread, daemon=True)
