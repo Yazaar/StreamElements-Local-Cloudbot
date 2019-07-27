@@ -162,14 +162,14 @@ def LoadExtensions():
     global extensions, ExtensionSettings
     extensions = []
     ExtensionSettings = {}
-    for i in os.listdir("extensions"):
-        temp = "extensions\\" + i
+    for i in os.listdir('extensions'):
+        temp = 'extensions\\' + i
         if os.path.isdir(temp):
             for j in os.listdir(temp):
-                if j[-7:] == "_LSE.py":
-                    if i + "." + j[:-3] in enabled:
+                if j[-7:] == '_LSE.py':
+                    if i + '.' + j[:-3] in enabled:
                         try:
-                            extensions.append({"state":True, "module":importlib.import_module("extensions." + i + "." + j[:-3])})
+                            extensions.append({'state':True, 'module':importlib.import_module('extensions.' + i + '.' + j[:-3])})
                         except Exception as e:
                             logs.append({'module':i, 'message':str(e) + ' (import)'})
                             try:
@@ -178,7 +178,7 @@ def LoadExtensions():
                                 pass
                     else:
                         try:
-                            extensions.append({"state":False, "module":importlib.import_module("extensions." + i + "." + j[:-3])})
+                            extensions.append({'state':False, 'module':importlib.import_module('extensions.' + i + '.' + j[:-3])})
                         except Exception as e:
                             logs.append({'module':i, 'message':str(e) + ' (import)'})
                             try:
@@ -300,7 +300,7 @@ def handleAPIRequest(endpoint, options):
         options['include_jwt'] = False
     
     if options['include_jwt'] == True:
-        headers = {"Authorization": "Bearer " + settings['jwt_token']}
+        headers = {'Authorization': 'Bearer ' + settings['jwt_token']}
     else:
         headers = {}
 
@@ -321,46 +321,46 @@ def handleAPIRequest(endpoint, options):
     return requests.request(options['type'], 'https://api.streamelements.com/'+endpoint.replace(':channel', settings['user_id']), headers=headers).text
 
 def processMessage(message):
-    res = {"raw":message, "badges":{}}
+    res = {'raw':message, 'badges':{}}
     
-    res["message"] = re.search(r"PRIVMSG #[^ ]* :(.*)", message).group(1)
+    res['message'] = re.search(r'PRIVMSG #[^ ]* :(.*)', message).group(1)
     
-    temp = re.search(r";badges=([^;]*)", message).group(1).split(",")
+    temp = re.search(r';badges=([^;]*)', message).group(1).split(',')
     if temp == ['']:
-        res["badges"] = {}
+        res['badges'] = {}
     else:
         for i in temp:
-            item = i.split("/")
+            item = i.split('/')
             res["badges"][item[0]] = item[1]
 
-    if re.search(r";mod=(\d)", message).group(1) == "1" or "broadcaster" in res["badges"].keys():
-        res["moderator"] = True
+    if re.search(r';mod=(\d)', message).group(1) == '1' or 'broadcaster' in res['badges'].keys():
+        res['moderator'] = True
     else:
-        res["moderator"] = False
+        res['moderator'] = False
     
-    if re.search(r";subscriber=(\d)", message).group(1) == "1" or "subscriber" in res["badges"].keys():
-        res["subscriber"] = True
+    if re.search(r';subscriber=(\d)', message).group(1) == '1' or 'subscriber' in res['badges'].keys():
+        res['subscriber'] = True
     else:
-        res["subscriber"] = False
+        res['subscriber'] = False
     
-    if re.search(r";turbo=(\d)", message).group(1) == "1" or "turbo" in res["badges"].keys():
-        res["turbo"] = True
+    if re.search(r';turbo=(\d)', message).group(1) == '1' or 'turbo' in res['badges'].keys():
+        res['turbo'] = True
     else:
-        res["turbo"] = False
+        res['turbo'] = False
     
-    res["name"] = re.search(r";display-name=([^;]*)", message).group(1)
+    res['name'] = re.search(r';display-name=([^;]*)', message).group(1)
 
-    res["room"] = re.search(r";room-id=([^;]*)", message).group(1)
+    res['room'] = re.search(r';room-id=([^;]*)', message).group(1)
 
-    res["id"] = re.search(r";id=([^;]*)", message).group(1)
+    res['id'] = re.search(r';id=([^;]*)', message).group(1)
     
-    res["utc-timestamp"] = datetime.utcfromtimestamp(int(re.search(r";tmi-sent-ts=([^;]*)", message).group(1))/1000).strftime('%Y-%m-%d %H:%M:%S')
-    res["emotes"] = {}
+    res['utc-timestamp'] = datetime.utcfromtimestamp(int(re.search(r';tmi-sent-ts=([^;]*)', message).group(1))/1000).strftime('%Y-%m-%d %H:%M:%S')
+    res['emotes'] = {}
 
-    temp = re.search(r";emotes=([^;]*)", message).group(1).split("/")
-    if temp[0] != "":
+    temp = re.search(r';emotes=([^;]*)', message).group(1).split('/')
+    if temp[0] != '':
         for i in temp:
-            res["emotes"][i.split(":")[0]] = i.split(":")[1].split(",")
+            res['emotes'][i.split(':')[0]] = i.split(':')[1].split(',')
     return res
 
 def chatThread():
@@ -371,40 +371,40 @@ def chatThread():
             break
         except Exception:
             time.sleep(1)
-    HOST = "irc.twitch.tv"
+    HOST = 'irc.twitch.tv'
     PORT = 6667
-    ReadBuffer = ""
+    ReadBuffer = ''
 
     s = socket.socket()
     s.connect((HOST, PORT))
-    s.send(b"PASS " + settings['tmi'].lower().encode("utf-8") + b"\r\n")
-    s.send(b"NICK " + settings['tmi_twitch_username'].lower().encode("utf-8") + b"\r\n")
-    s.send(b"JOIN #" + settings['twitch_channel'].lower().encode("utf-8") + b"\r\n")
-    s.send(b"CAP REQ :twitch.tv/tags\r\n")
+    s.send(b'PASS ' + settings['tmi'].lower().encode('utf-8') + b'\r\n')
+    s.send(b'NICK ' + settings['tmi_twitch_username'].lower().encode('utf-8') + b'\r\n')
+    s.send(b'JOIN #' + settings['twitch_channel'].lower().encode('utf-8') + b'\r\n')
+    s.send(b'CAP REQ :twitch.tv/tags\r\n')
 
     Loading = True
 
     while Loading:
-        ReadBuffer += s.recv(1024).decode("utf-8")
-        temp = ReadBuffer.split("\n")
+        ReadBuffer += s.recv(1024).decode('utf-8')
+        temp = ReadBuffer.split('\n')
         ReadBuffer = temp.pop()
 
         for line in temp:
-            if "End of /NAMES list" in line:
+            if 'End of /NAMES list' in line:
                 print('Connected to twitch chat: ' + settings['twitch_channel'].lower())
                 Loading = False
     global ChatThreadRuns
     ChatThreadRuns = True
-    ReadBuffer = ""
+    ReadBuffer = ''
     while True:
-        ReadBuffer += s.recv(1024).decode("utf-8")
-        temp = ReadBuffer.split("\n")
+        ReadBuffer += s.recv(1024).decode('utf-8')
+        temp = ReadBuffer.split('\n')
         ReadBuffer = temp.pop()
 
         for line in temp:
-            if line == "PING :tmi.twitch.tv\r":
-                s.send(b"PONG :tmi.twitch.tv\r\n")
-            elif "PRIVMSG #" in line:
+            if line == 'PING :tmi.twitch.tv\r':
+                s.send(b'PONG :tmi.twitch.tv\r\n')
+            elif 'PRIVMSG #' in line:
                 GeneratedMessage = processMessage(line[:-1])
                 socketio.emit('TwitchMessage', GeneratedMessage)
                 ExtensionHandles.append(GeneratedMessage)
@@ -552,7 +552,7 @@ def processExtensions():
     temp = []
     i = 0
     while i < len(extensions):
-        temp.append({"state":extensions[i]["state"], "module":extensions[i]["module"].__name__.replace('extensions.', '')})
+        temp.append({'state':extensions[i]['state'], 'module':extensions[i]['module'].__name__.replace('extensions.', '')})
         i += 1
     return temp
 
@@ -562,14 +562,14 @@ def startFlask():
     f.write('let server_url = "http://' + IP + ':' + str(settings['server_port']) + '"')
     f.close()
     global socketio
-    app = Flask(__name__, template_folder="dependencies\\web\\HTML", static_folder="dependencies\\web")
+    app = Flask(__name__, template_folder='dependencies\\web\\HTML', static_folder='dependencies\\web')
     socketio = SocketIO(app, async_mode='gevent')
 
-    @app.route("/")
+    @app.route('/')
     def web_index():
-        return render_template("index.html", data=processExtensions(), ExtensionLogs=logs, events=events, SetupValues=settings, ExtensionSettings=ExtensionSettings)
+        return render_template('index.html', data=processExtensions(), ExtensionLogs=logs, events=events, SetupValues=settings, ExtensionSettings=ExtensionSettings)
     
-    @app.route("/<path:path>")
+    @app.route('/<path:path>')
     def web_CustomPath(path):
         if not os.path.isfile(path):
             return 'invalid path, have to target a file...'
@@ -577,7 +577,7 @@ def startFlask():
             fileData = f.read()
         return fileData
 
-    @app.route("/StreamElementsAPI", methods=['post'])
+    @app.route('/StreamElementsAPI', methods=['post'])
     def web_StreamElementsAPI():
         try:
             message = json.loads(request.data.decode('UTF-8'))
@@ -670,7 +670,6 @@ def startFlask():
     
     @socketio.on('ScriptSettings')
     def websocket_ScriptSettings(data=''):
-        print(data)
         if type(data) != dict:
             socketio.emit('ScriptSettings', {'type':'error', 'message':'You have to forward data in form of a dict'}, room=request.sid)
             return
@@ -732,11 +731,11 @@ def startFlask():
         
         socketio.emit('ScriptSettings', {'type':'success'}, room=request.sid)
 
-    @socketio.on("message")
+    @socketio.on('message')
     def websocket_message(message=''):
         print(message)
 
-    @socketio.on("StreamElementsAPI")
+    @socketio.on('StreamElementsAPI')
     def websocket_StreamElementsAPI(message=''):
         if type(message) != dict:
             socketio.emit('StreamElementsAPI', {'type':'error', 'message':'The StreamElementsAPI socket endpoint requires a dict as input'}, room=request.sid)
@@ -827,7 +826,7 @@ def startFlask():
                         enabled.append(message['item'])
                         with open('dependencies\\data\\enabled.json', 'w') as f:
                             json.dump(enabled, f)
-                    socketio.emit("toggle", {"type":"success"}, room=request.sid)
+                    socketio.emit('toggle', {'type':'success'}, room=request.sid)
                     return
                 else:
                     i['state'] = False
@@ -837,9 +836,9 @@ def startFlask():
                         enabled.remove(message['item'])
                         with open('dependencies\\data\\enabled.json', 'w') as f:
                             json.dump(enabled, f)
-                    socketio.emit("toggle", {"type":"success"}, room=request.sid)
+                    socketio.emit('toggle', {'type':'success'}, room=request.sid)
                     return
-        socketio.emit("toggle", {"type":"error"}, room=request.sid)
+        socketio.emit('toggle', {'type':'error'}, room=request.sid)
 
     print('starting website: http://localhost:' + str(settings['server_port']) + '\nSaving website shortcut to website.html!')
     with open('website.html', 'w') as f:
@@ -881,8 +880,8 @@ def main():
             raise SystemExit
 
     #load settings.json
-    if os.path.isfile("dependencies\\data\\settings.json"):
-        with open("dependencies\\data\\settings.json", "r") as f:
+    if os.path.isfile('dependencies\\data\\settings.json'):
+        with open('dependencies\\data\\settings.json', 'r') as f:
             try:
                 settings = json.load(f)
                 SettingsKeys = settings.keys()
@@ -891,13 +890,13 @@ def main():
                 else:
                     print('\n\n\n\n\nYour settings are invalid. Would you like to reset? (y/n)')
                     if WaitForYN():
-                        with open("dependencies\\data\\settings.json", "w") as g:
+                        with open('dependencies\\data\\settings.json', 'w') as g:
                             g.write('{\n    "server_port":80,\n    "executions_per_second":60,\n    "jwt_token":"",\n    "user_id":"",\n    "tmi":"",\n    "twitch_channel":"",\n    "tmi_twitch_username":"",\n    "use_node":false\n}')
                     raise SystemExit
             except Exception:
                 print('\n\n\n\n\nYour settings are invalid. Would you like to reset? (y/n)')
                 if WaitForYN():
-                    with open("dependencies\\data\\settings.json", "w") as g:
+                    with open('dependencies\\data\\settings.json', 'w') as g:
                         g.write('{\n    "server_port":80,\n    "executions_per_second":60,\n    "jwt_token":"",\n    "user_id":"",\n    "tmi":"",\n    "twitch_channel":"",\n    "tmi_twitch_username":"",\n    "use_node":false\n}')
                 raise SystemExit
 
@@ -981,20 +980,20 @@ def main():
             raise SystemExit
 
     # load enabled files
-    if os.path.isfile("dependencies\\data\\enabled.json"):
-        with open("dependencies\\data\\enabled.json", "r") as f:
+    if os.path.isfile('dependencies\\data\\enabled.json'):
+        with open('dependencies\\data\\enabled.json', 'r') as f:
             try:
                 enabled = json.load(f)
                 if type(enabled) != list:
-                    with open("dependencies\\data\\enabled.json", "w") as g:
+                    with open('dependencies\\data\\enabled.json', 'w') as g:
                         g.write(str([]))
                         g.close()
             except Exception:
-                with open("dependencies\\data\\enabled.json", "w") as g:
+                with open('dependencies\\data\\enabled.json', 'w') as g:
                     g.write(str([]))
                     g.close()
     else:
-        temp = open("dependencies\\data\\enabled.json", "w")
+        temp = open('dependencies\\data\\enabled.json', 'w')
         temp.write(str([]))
         temp.close()
 
