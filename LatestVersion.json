@@ -1,5 +1,5 @@
 {
-  "version":9,
+  "version":10,
   "download":"https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/update.zip",
-  "log":"- Solved a software-breaking bug...\n - Changed how EDATA works (second arg in the Initialize function, now a class with error callbacks)"
+  "log":"- Solved a bug where the software would crash if an extension included a syntax error in root"
 }
