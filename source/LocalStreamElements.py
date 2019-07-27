@@ -168,9 +168,23 @@ def LoadExtensions():
             for j in os.listdir(temp):
                 if j[-7:] == "_LSE.py":
                     if i + "." + j[:-3] in enabled:
-                        extensions.append({"state":True, "module":importlib.import_module("extensions." + i + "." + j[:-3])})
+                        try:
+                            extensions.append({"state":True, "module":importlib.import_module("extensions." + i + "." + j[:-3])})
+                        except Exception as e:
+                            logs.append({'module':i, 'message':str(e) + ' (import)'})
+                            try:
+                                socketio.emit('log', logs[-1])
+                            except Exception as e:
+                                pass
                     else:
-                        extensions.append({"state":False, "module":importlib.import_module("extensions." + i + "." + j[:-3])})
+                        try:
+                            extensions.append({"state":False, "module":importlib.import_module("extensions." + i + "." + j[:-3])})
+                        except Exception as e:
+                            logs.append({'module':i, 'message':str(e) + ' (import)'})
+                            try:
+                                socketio.emit('log', logs[-1])
+                            except Exception as e:
+                                pass
                 if j == 'SettingsUI.json':
                     with open(temp + '\\SettingsUI.json', 'r') as f:
                         ui = json.load(f)
@@ -838,7 +852,7 @@ def main():
     if not os.getcwd() in sys.path:
         sys.path.append(os.getcwd())
 
-    SoftwareVersion = 9
+    SoftwareVersion = 10
 
     NewestVersion = json.loads(requests.get('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json').text)
 
