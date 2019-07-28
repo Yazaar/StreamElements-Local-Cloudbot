@@ -266,6 +266,35 @@ for (let i of document.querySelectorAll('article#setup section.data section div'
     })
 }
 
+document.getElementById('AddRegular').addEventListener('click', (e) => {
+    let user = document.getElementById('RegularInput').value.toLowerCase()
+    if(!regulars.includes(user)){
+        s.emit('AddRegular', user)
+        document.getElementById('RegularInput').value = ''
+        regulars.push(user)
+        document.querySelector('article#regulars section.data div#RegularList').innerHTML = ''
+        for (let i of regulars) {
+            let newChild = document.createElement('p')
+            newChild.innerText = i
+            document.querySelector('article#regulars section.data div#RegularList').appendChild(newChild)
+        }
+    }
+})
+document.getElementById('DeleteRegular').addEventListener('click', (e) => {
+    let user = document.getElementById('RegularInput').value.toLowerCase()
+    if(regulars.includes(user)){
+        s.emit('DeleteRegular', user)
+        document.getElementById('RegularInput').value = ''
+        regulars.splice(regulars.indexOf(user),1)
+        document.querySelector('article#regulars section.data div#RegularList').innerHTML = ''
+        for (let i of regulars) {
+            let newChild = document.createElement('p')
+            newChild.innerText = i
+            document.querySelector('article#regulars section.data div#RegularList').appendChild(newChild)
+        }
+    }
+})
+
 document.getElementById('use_node-input').addEventListener('change', () => {
     if (Waiting4Save === true) {
         if (document.getElementById('use_node-input').checked === true) {
@@ -366,4 +395,10 @@ createExtentions(data)
 
 for (let i of logs) {
     document.querySelector('article#logs section.data').appendChild(createLog(i.module, i.message))
+}
+
+for (let i of regulars) {
+    let newChild = document.createElement('p')
+    newChild.innerText = i
+    document.querySelector('article#regulars section.data div#RegularList').appendChild(newChild)
 }

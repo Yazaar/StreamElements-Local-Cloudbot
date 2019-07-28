@@ -17,6 +17,7 @@
             <a href="#events">Events</a>
             <a href="#logs">Logs</a>
             <a href="#messages">Messages</a>
+            <a href="#regulars">Regulars</a>
             <a href="#setup">Setup</a>
         </nav>
     </header>
@@ -54,6 +55,23 @@
             <div id="ClearMessages">CLEAR</div>
         </header>
         <section class="data"></section>
+    </article>
+    <article id="regulars">
+        <header>
+            <h1>Regulars</h1>
+        </header>
+        <section class="data">
+            <section id="RegularController">
+                <section id="RCTop">
+                    <input type="text" id="RegularInput">
+                </section>
+                <section id="RCBottom">
+                    <div id="AddRegular">Add</div>
+                    <div id="DeleteRegular">Delete</div>
+                </section>
+            </section>
+            <div id="RegularList"></div>
+        </section>
     </article>
     <article id="setup">
         <header>
@@ -101,6 +119,7 @@
         let events = {{ events|tojson }}
         let SetupValues = {{ SetupValues|tojson }}
         let ExtensionSettings = {{ ExtensionSettings|tojson }}
+        let regulars = {{ regulars|tojson }}
     </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js"></script>
     <script src="{{ url_for('static',filename='scripts/index.js') }}"></script>

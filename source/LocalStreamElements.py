@@ -10,11 +10,13 @@ class ExtensionCrossover:
         self.__StreamElementsAPI = []
         self.__ScriptTalk = []
         self.__CrossTalk = []
+        self.__DeleteRegulars = []
+        self.__AddRegulars = []
     
     def SendMessage(self, data=None):
         '''
         Send a twitch message.
-        input: dict with the keys "bot" and "message"
+        argument: dict with the keys "bot" and "message"
         bot = "local"/"StreamElements" (depends on your bot target, local is recommended)
         message = Your message that you wish to send in twitch chat (str)
 
@@ -40,7 +42,7 @@ class ExtensionCrossover:
     def StreamElementsAPI(self, data=None):
         '''
         Send an API request to StreamElements servers.
-        input: dict with the keys "endpoint" (str) and "options" (dict)
+        argument: dict with the keys "endpoint" (str) and "options" (dict)
 
         returns a dict with the key "type", value = "error"/"success"
         returns a dict with the key "message" on error, value = error message
@@ -62,7 +64,7 @@ class ExtensionCrossover:
     def ScriptTalk(self, data=None):
         '''
         Send data between python scripts.
-        input: dict with the keys "module" (str) and "data" (any)
+        argument: dict with the keys "module" (str) and "data" (any)
         module = Your target, example: "example.test_LSE"
         data = Your data to forward over
 
@@ -82,7 +84,7 @@ class ExtensionCrossover:
     def CrossTalk(self, data=None):
         '''
         Send data to HTML/JavaScript.
-        input: dict with the keys "event" (str) and "data" (any)
+        argument: dict with the keys "event" (str) and "data" (any)
         event = Your target, have to start with "p-", example: "p-MyTestEvent"
         data = Your data to forward over
 
@@ -102,6 +104,36 @@ class ExtensionCrossover:
             return {'type':'error', 'message':'The value for the key "event" has to start with "p-", for example: p-example'}
         self.__CrossTalk.append(data)
         return {'type':'success', 'message':'The event has been sent over socket!'}
+
+    def DeleteRegular(self, data=None):
+        '''
+        Delete a regular.
+        argument: username (string)
+
+        returns a dict with the key "type", value = "error"/"success"
+        returns a dict with the key "message" on error, value = error message
+        '''
+        if type(data) != str:
+            return {'type':'error', 'message':'The input have to be a string'}
+        
+        self.__DeleteRegulars.append(data.lower())
+        return {'type':'success', 'message':data.lower() + ' removed!'}
+    
+    def AddRegular(self, data=None):
+        '''
+        Add a regular.
+        argument: username (string)
+
+        returns a dict with the key "type", value = "error"/"success"
+        returns a dict with the key "message" on error, value = error message
+        '''
+        if type(data) != str:
+            return {'type':'error', 'message':'The input have to be a string'}
+        
+        self.__AddRegulars.append(data.lower())
+        return {'type':'success', 'message':data.lower() + ' added!'}
+        
+
     
     def GetValue(self, ValueType: str='all'):
         '''
@@ -119,6 +151,10 @@ class ExtensionCrossover:
             self.__CrossTalk = []
         if type(self.__ScriptTalk) != list:
             self.__ScriptTalk = []
+        if type(self.__AddRegulars) != list:
+            self.__AddRegulars = []
+        if type(self.__DeleteRegulars) != list:
+            self.__DeleteRegulars = []
 
         if threading.current_thread().getName() != 'DataIn':
             return {'type':'error', 'message':'You are not allowed to execute this function'}
@@ -147,6 +183,16 @@ class ExtensionCrossover:
             ReturnValue = self.__ScriptTalk[0].copy()
             self.__ScriptTalk.pop(0)
             return {'type':'success', 'data':ReturnValue, 'event':'ScriptTalk'}
+
+        if len(self.__AddRegulars) > 0 and (LowerValueType == 'all' or LowerValueType == 'addregulars'):
+            ReturnValue = self.__AddRegulars[0]
+            self.__AddRegulars.pop(0)
+            return {'type':'success', 'data':ReturnValue, 'event':'AddRegulars'}
+
+        if len(self.__DeleteRegulars) > 0 and (LowerValueType == 'all' or LowerValueType == 'deleteregulars'):
+            ReturnValue = self.__DeleteRegulars[0]
+            self.__DeleteRegulars.pop(0)
+            return {'type':'success', 'data':ReturnValue, 'event':'DeleteRegulars'}
         
         return {'type':'success', 'data':None, 'event':None}
 
@@ -348,7 +394,13 @@ def processMessage(message):
     else:
         res['turbo'] = False
     
+    
     res['name'] = re.search(r';display-name=([^;]*)', message).group(1)
+
+    if res['name'].lower() in regulars:
+        res['regular'] = True
+    else:
+        res['regular'] = False
 
     res['room'] = re.search(r';room-id=([^;]*)', message).group(1)
 
@@ -452,6 +504,12 @@ def ExtensionDataThread():
         temp = ExCrossover.GetValue('ScriptTalk')
         if temp['type'] != 'error' and temp['data'] != None:
             ScriptTalk(temp['data'])
+        temp = ExCrossover.GetValue('AddRegular')
+        if temp['type'] != 'error' and temp['data'] != None:
+            AddRegular(temp)
+        temp = ExCrossover.GetValue('DeleteRegular')
+        if temp['type'] != 'error' and temp['data'] != None:
+            DeleteRegular(temp)
         time.sleep(2/(settings['executions_per_second']))
 
 def StreamElementsAPI(message):
@@ -495,6 +553,21 @@ def ScriptTalk(message):
         return json.dumps({'type':'error', 'message':'No data found, please include the key data'})
     CrossScriptTalkHandles.append(message)
     return json.dumps({'type':'success'})
+
+def AddRegular(user):
+    if user in regulars:
+        return
+    
+    regulars.append(user)
+    with open('dependencies\\data\\regulars.json', 'w') as f:
+        json.dump(regulars, f)
+def DeleteRegular(user):
+    if not user in regulars:
+        return
+    
+    regulars.remove(user)
+    with open('dependencies\\data\\regulars.json', 'w') as f:
+        json.dump(regulars, f)
 
 def CrossTalk(message):
     if type(message) != dict:
@@ -567,7 +640,7 @@ def startFlask():
 
     @app.route('/')
     def web_index():
-        return render_template('index.html', data=processExtensions(), ExtensionLogs=logs, events=events, SetupValues=settings, ExtensionSettings=ExtensionSettings)
+        return render_template('index.html', data=processExtensions(), ExtensionLogs=logs, events=events, SetupValues=settings, ExtensionSettings=ExtensionSettings, regulars=regulars)
     
     @app.route('/<path:path>')
     def web_CustomPath(path):
@@ -630,6 +703,38 @@ def startFlask():
             return json.dumps({'type':'error', 'message':'The value for the key "event" has to start with "p-", for example: p-example'})
         socketio.emit(message['event'], message['data'])
         return json.dumps({'type':'success', 'message':'The event was sent over socket!'})
+
+    @app.route('/DeleteRegular', methods=['post'])
+    def web_DeleteRegular():
+        try:
+            message = json.loads(request.data.decode('UTF-8'))
+        except Exception:
+            return json.dumps({'type':'error', 'message':'Please forward json... requests.post(url, json={"user":"username_to_add"})'})
+        if not 'user' in message.keys():
+            return json.dumps({'type':'error', 'message':'Please forward json... requests.post(url, json={"user":"username_to_add"})'})
+        if not message['user'].lower() in regulars:
+            return json.dumps({'type':'error', 'message':'User not a regular'})
+        regulars.remove(message['user'].lower())
+        with open('dependencies\\data\\regulars.json') as f:
+            json.dump(regulars, f)
+        return json.dumps({'type':'success', 'message':'User has been deleted as a regular'})
+    @app.route('/AddRegular', methods=['post'])
+    def web_AddRegular():
+        try:
+            message = json.loads(request.data.decode('UTF-8'))
+        except Exception:
+            return json.dumps({'type':'error', 'message':'Please forward json... requests.post(url, json={"user":"username_to_add"})'})
+        if not 'user' in message.keys():
+            return json.dumps({'type':'error', 'message':'Please forward json... requests.post(url, json={"user":"username_to_add"})'})
+        if type(message['user']) != str:
+            message['user'] = str(message['user'])
+        if message['user'].lower() in regulars:
+            return json.dumps({'type':'error', 'message':'User already a regular'})
+        regulars.append(message['user'].lower())
+        with open('dependencies\\data\\regulars.json') as f:
+            json.dump(regulars, f)
+        return json.dumps({'type':'success', 'message':'User has been added as a regular'})
+
 
     if settings['use_node'] == True:
         print('[StreamElements Socket] Loading node solution')
@@ -734,6 +839,37 @@ def startFlask():
     @socketio.on('message')
     def websocket_message(message=''):
         print(message)
+
+    @socketio.on('AddRegular')
+    def websocket_message(message=''):
+        if type(message) != str:
+            user = str(message).lower()
+        else:
+            user = message.lower()
+        if user in regulars:
+            socketio.emit('AddRegular', {'type':'error', 'message':'User already a regular'}, room=request.sid)
+            return
+        regulars.append(user)
+        with open('dependencies\\data\\regulars.json', 'w') as f:
+            json.dump(regulars, f)
+        socketio.emit('AddRegular', {'type':'success', 'message':'User has been added as a regular'}, room=request.sid)
+        return
+        
+
+    @socketio.on('DeleteRegular')
+    def websocket_message(message=''):
+        if type(message) != str:
+            user = str(message).lower()
+        else:
+            user = message.lower()
+        if not user in regulars:
+            socketio.emit('AddRegular', {'type':'error', 'message':'User not a regular'}, room=request.sid)
+            return
+        regulars.remove(user)
+        with open('dependencies\\data\\regulars.json', 'w') as f:
+            json.dump(regulars, f)
+        socketio.emit('AddRegular', {'type':'success', 'message':'User has been deleted as a regular'}, room=request.sid)
+        return
 
     @socketio.on('StreamElementsAPI')
     def websocket_StreamElementsAPI(message=''):
@@ -847,11 +983,11 @@ def startFlask():
     socketio.run(app, port=settings['server_port'], host='0.0.0.0')
 
 def main():
-    global logs, events, enabled, extensions, ExtensionSettings, ExtensionHandles, EventHandles, TestEventHandles, ToggleHandles, CrossScriptTalkHandles, InitializeHandles, UpdatedScriptsHandles, MessagesToSend, settings, ChatThreadRuns, SettingsKeys, ExCrossover
+    global logs, events, enabled, extensions, ExtensionSettings, ExtensionHandles, EventHandles, TestEventHandles, ToggleHandles, CrossScriptTalkHandles, InitializeHandles, UpdatedScriptsHandles, MessagesToSend, settings, ChatThreadRuns, SettingsKeys, ExCrossover, regulars
     if not os.getcwd() in sys.path:
         sys.path.append(os.getcwd())
 
-    SoftwareVersion = 10
+    SoftwareVersion = 11
 
     NewestVersion = json.loads(requests.get('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json').text)
 
@@ -879,6 +1015,9 @@ def main():
             subprocess.Popen('SoftwareUpdater.exe ' + NewestVersion['download'], creationflags=0x00000008, shell=True)
             raise SystemExit
 
+    if not os.path.isdir('dependencies\\data'):
+        os.makedirs('dependencies\\data')
+    
     #load settings.json
     if os.path.isfile('dependencies\\data\\settings.json'):
         with open('dependencies\\data\\settings.json', 'r') as f:
@@ -899,6 +1038,29 @@ def main():
                     with open('dependencies\\data\\settings.json', 'w') as g:
                         g.write('{\n    "server_port":80,\n    "executions_per_second":60,\n    "jwt_token":"",\n    "user_id":"",\n    "tmi":"",\n    "twitch_channel":"",\n    "tmi_twitch_username":"",\n    "use_node":false\n}')
                 raise SystemExit
+    
+    #load regulars.json
+    if not os.path.isfile('dependencies\\data\\regulars.json'):
+        with open('dependencies\\data\\regulars.json', 'w') as f:
+            f.write('[]')
+        regulars = []
+    else:
+        with open('dependencies\\data\\regulars.json', 'r') as f:
+            try:
+                regulars = json.load(f)
+            except Exception:
+                f.close()
+                temp = 0
+                while os.path.isfile('dependencies\\data\\regulars' + str(temp) + '.json'):
+                    temp += 1
+                os.rename('dependencies\\data\\regulars.json', 'dependencies\\data\\regulars' + str(temp) + '.json')
+                print('Whoops, dependencies\\data\\regulars.json seems to be invalid. Generating new file (old file has been renamed to ' + 'regulars' + str(temp) + '.json' + ')')
+                temp = 0
+                time.sleep(5)
+                with open('dependencies\\data\\regulars.json', 'w') as f:
+                    f.write('[]')
+                regulars = []
+
 
     if type(settings['server_port']) != int:
         print('\n\n\n\n\nserver_port have to be an int (ex: 123)\nHave to reset the port to proceed. Go? (y/n)')

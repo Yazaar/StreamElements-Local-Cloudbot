@@ -185,6 +185,49 @@ article#logs section div h2, article#logs section div p {
     margin-left: .5rem;
 }
 
+article#regulars section.data section#RegularController{
+    display: flex;
+    flex-direction: column;
+}
+
+article#regulars section.data section#RegularController section#RCTop input#RegularInput {
+    color: #000000;
+}
+
+article#regulars section.data section#RegularController section#RCBottom{
+    display: inline-flex;
+    width: 10rem;
+}
+
+article#regulars section.data section#RegularController section div{
+    cursor: pointer;
+    border: .1rem solid #000000;
+    flex: 1;
+    text-align: center;
+}
+
+article#regulars section.data section#RegularController section div:hover{
+    background: rgba(0, 0, 0, .25);
+}
+
+article#regulars section.data section#RegularController section div:first-of-type{
+    border-right: .05rem solid #000000;
+    border-bottom-left-radius: .5rem;
+}
+
+article#regulars section.data section#RegularController section div:last-of-type{
+    border-left: .05rem solid #000000;
+    border-bottom-right-radius: .5rem;
+}
+
+article#regulars section.data div#RegularList{
+    margin-top: 1rem;
+}
+
+article#regulars section.data div#RegularList p{
+    margin: 0;
+}
+
 article#setup section.data section input{
     color: #000000;
 }
@@ -306,7 +349,7 @@ article#setup section.data section:last-of-type {
 
 @media screen and (max-width:37rem){
     article {
-        width: 100vw;
+        width: 100%;
     }
     header#MainHeader{
         flex-direction: column;

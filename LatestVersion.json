@@ -1,5 +1,5 @@
 {
-  "version":10,
+  "version":11,
   "download":"https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/update.zip",
-  "log":"- Solved a bug where the software would crash if an extension included a syntax error in root"
+  "log":"- Implemented regulars (sent inside of the Execute function)"
 }
