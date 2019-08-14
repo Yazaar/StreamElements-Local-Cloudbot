@@ -737,24 +737,27 @@ def startFlask():
 
 
     if settings['use_node'] == True:
-        print('[StreamElements Socket] Loading node solution')
-        c = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '1', '2', '3', '4', '5', '6', '7', '8', '9']
-        secret = ''.join(random.choices(c, k=25))
-        @socketio.on(secret+'-onEvent')
-        def StreamElementsNode_onEvent(data):
-            EventHandles.append(data)
-            if len(events) > 99:
-                events.pop(0)
-            events.append(data)
-        
-        @socketio.on(secret+'-onTestEvent')
-        def StreamElementsNode_onTestEvent(data):
-            if len(events) > 99:
-                events.pop(0)
-            if 'latest' in data['listener']:
+        if settings['jwt_token'] != '*' and settings['user_id'] != '*':
+            print('[StreamElements Socket] Loading node solution')
+            c = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+            secret = ''.join(random.choices(c, k=25))
+            @socketio.on(secret+'-onEvent')
+            def StreamElementsNode_onEvent(data):
+                EventHandles.append(data)
+                if len(events) > 99:
+                    events.pop(0)
                 events.append(data)
-            TestEventHandles.append(data)
-        subprocess.Popen('dependencies\\node\\StreamElementsListener.exe ' + str(settings['server_port']) + ' ' + settings['jwt_token'] + ' ' + secret)
+            
+            @socketio.on(secret+'-onTestEvent')
+            def StreamElementsNode_onTestEvent(data):
+                if len(events) > 99:
+                    events.pop(0)
+                if 'latest' in data['listener']:
+                    events.append(data)
+                TestEventHandles.append(data)
+            subprocess.Popen('dependencies\\node\\StreamElementsListener.exe ' + str(settings['server_port']) + ' ' + settings['jwt_token'] + ' ' + secret)
+        else:
+            print('StreamElements: Disabled')
 
     @socketio.on('ClearLogs')
     def websocket_ClearLogs():
@@ -987,7 +990,7 @@ def main():
     if not os.getcwd() in sys.path:
         sys.path.append(os.getcwd())
 
-    SoftwareVersion = 11
+    SoftwareVersion = 12
 
     NewestVersion = json.loads(requests.get('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json').text)
 
@@ -1167,19 +1170,27 @@ def main():
     ExtensionVariable = threading.Thread(target=extensionThread, daemon=True, name='ExtensionThread')
     ExtensionVariable.start()
 
-    sendMessageThread = threading.Thread(target=sendMessagesHandler, daemon=True, name='ChatOut')
-    sendMessageThread.start()
+        
+    if settings['tmi'] != '*' and settings['tmi_twitch_username'] != '*':
+        sendMessageThread = threading.Thread(target=sendMessagesHandler, daemon=True, name='ChatOut')
+        sendMessageThread.start()
 
-    ChatVariable = threading.Thread(target=chatThread, daemon=True, name='ChatIn')
-    ChatVariable.start()
+        ChatVariable = threading.Thread(target=chatThread, daemon=True, name='ChatIn')
+        ChatVariable.start()
+    else:
+        print('Twitch chat: Disabled')
+        ChatThreadRuns = True
 
     ExtensionDataVariable = threading.Thread(target=ExtensionDataThread, daemon=True, name='DataIn')
     ExtensionDataVariable.start()
 
 
     if settings['use_node'] == False:
-        StreamElementsActivity = threading.Thread(target=StreamElementsThread, daemon=True)
-        StreamElementsActivity.start()
+        if settings['tmi_twitch_username'] != '*' and settings['jwt_token'] != '*':    
+            StreamElementsActivity = threading.Thread(target=StreamElementsThread, daemon=True)
+            StreamElementsActivity.start()
+        else:
+            print('StreamElements: Disabled')
 
     startFlask()
 

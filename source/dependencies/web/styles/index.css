@@ -228,6 +228,11 @@ article#regulars section.data div#RegularList p{
     margin: 0;
 }
 
+article#setup p#StarToDisable {
+    margin: 0;
+    text-decoration: underline;
+}
+
 article#setup section.data section input{
     color: #000000;
 }

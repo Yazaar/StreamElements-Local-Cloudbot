@@ -1,5 +1,5 @@
 {
-  "version":11,
+  "version":12,
   "download":"https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/update.zip",
-  "log":"- Implemented regulars (sent inside of the Execute function)"
+  "log":"- You are now able to disable StreamElements events and twitch chat (separately)"
 }
