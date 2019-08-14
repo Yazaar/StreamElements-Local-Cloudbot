@@ -1,7 +1,7 @@
 import requests, json, socket, re, os, importlib, threading, time, ctypes, sys, webbrowser, random, subprocess
 import socketio as socket_io
 from datetime import datetime
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, send_file
 from flask_socketio import SocketIO
 
 class ExtensionCrossover:
@@ -646,9 +646,12 @@ def startFlask():
     def web_CustomPath(path):
         if not os.path.isfile(path):
             return 'invalid path, have to target a file...'
-        with open(path) as f:
-            fileData = f.read()
-        return fileData
+        try:
+            with open(path) as f:
+                fileData = f.read()
+            return fileData
+        except Exception:
+            return send_file(path, mimetype='image/gif')
 
     @app.route('/StreamElementsAPI', methods=['post'])
     def web_StreamElementsAPI():
@@ -990,7 +993,7 @@ def main():
     if not os.getcwd() in sys.path:
         sys.path.append(os.getcwd())
 
-    SoftwareVersion = 12
+    SoftwareVersion = 13
 
     NewestVersion = json.loads(requests.get('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json').text)
 

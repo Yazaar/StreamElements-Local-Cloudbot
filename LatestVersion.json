@@ -1,5 +1,5 @@
 {
-  "version":12,
+  "version":13,
   "download":"https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/update.zip",
-  "log":"- You are now able to disable StreamElements events and twitch chat (separately)"
+  "log":"- You are now able to disable StreamElements events and twitch chat (separately)\n- Images are now supported thru HTTP access (cross computer)\nhttp://<IP>:<PORT>/extensions/mydir/myimg.png"
 }
