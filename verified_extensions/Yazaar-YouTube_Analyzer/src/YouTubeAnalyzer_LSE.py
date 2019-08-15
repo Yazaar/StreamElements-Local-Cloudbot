@@ -5,7 +5,7 @@ version = '0.0.1'
 
 def downloadUpdate():
     eventHandler.SendMessage({'bot':'local', 'message':'Updating YouTube Analyzer... ...'})
-    data = requests.get('https://github.com/Yazaar/StreamElements-Local-Cloudbot/blob/master/verified_extensions/Yazaar-YouTubeAnalyzer/update.zip?raw=true')
+    data = requests.get('https://github.com/Yazaar/StreamElements-Local-Cloudbot/blob/master/verified_extensions/Yazaar-YouTube_Analyzer/update.zip?raw=true')
 
     rootDir = __file__.rsplit('\\', 1)[0]
     
