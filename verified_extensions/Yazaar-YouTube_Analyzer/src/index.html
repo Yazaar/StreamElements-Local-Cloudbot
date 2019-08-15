@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Yazaar YT Analyzer</title>
+    <link href="https://fonts.googleapis.com/css?family=Montserrat" rel="stylesheet">
+
+    <style>
+        * {
+            font-family: 'Montserrat', sans-serif;
+        }
+
+        body {
+            margin: 0;
+        }
+
+        #wrapper {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: #000000b7;
+            display: inline-flex;
+            flex-direction: row;
+        }
+
+        #right {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
+            margin: 0 10px;
+            overflow: hidden;
+        }
+
+        #left {
+            display: flex;
+            align-items: center;
+        }
+
+        #left img {
+            margin-left: .25rem;
+            height: 85vh;
+            width: 85vh;
+        }
+
+        #title,
+        #channel {
+            display: inline-block;
+            margin: 1px 0;
+            white-space: nowrap;
+        }
+
+        #title {
+            font-size: 35vh;
+            color: #eeeeee;
+        }
+
+        #channel {
+            font-size: 25vh;
+            color: #eeeeee;
+        }
+
+        #time {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 4px;
+            width: 0;
+            background: red;
+        }
+    </style>
+</head>
+
+<body>
+    <section id="wrapper">
+        <section id="left">
+            <img src="requirements/youtube.png" alt="image of music cover" id="thumbnail">
+        </section>
+
+        <section id="right">
+            <p id="title">Loading...</p>
+            <p id="channel">Welcome to Yazaar YouTube Overlay!</p>
+        </section>
+        <div id="time"></div>
+    </section>
+
+    <script src="../../dependencies/data/url.js"></script>
+    <script src="./requirements/socketio.js"></script>
+
+    <script>
+        function getThumbnail(id) {
+            return 'https://img.youtube.com/vi/' + id + '/default.jpg'
+        }
+
+        function ticker(node, object) {
+            let rightWidth = document.getElementById('right').offsetWidth
+            let nodeWidth = node.offsetWidth
+            if (nodeWidth <= rightWidth) {
+                if(object.state !== 0){
+                    object.state = 0
+                }
+                return
+            }
+            if (object.state === 0){
+                object.state = 1
+            }
+            if (object.state === 1 && object.completedAt - new Date() < 0){
+                object.state = 2
+                let duration = (nodeWidth - rightWidth) / velocities.forward
+                node.style.transition = 'margin-left ' + duration + 's' + ' linear'
+                node.style.marginLeft = (-1 * (nodeWidth - rightWidth)) + 'px'
+                object.completedAt = new Date()
+                object.completedAt.setSeconds(object.completedAt.getSeconds() + Math.ceil(duration+2))
+            }
+            if (object.state === 2 && object.completedAt - new Date() < 0){
+                object.state = 1
+                let duration = (nodeWidth - rightWidth) / velocities.back
+                if(duration > 30){
+                    duration = 30
+                } else if(duration < 1){
+                    duration = 1
+                }
+                node.style.transition = 'margin-left ' + duration + 's' + ' linear'
+                node.style.marginLeft = '0'
+                object.completedAt = new Date()
+                object.completedAt.setSeconds(object.completedAt.getSeconds() + Math.ceil(duration+5))    
+            }
+        }
+
+        let overlayData = {
+            channel: '',
+            title: '',
+            videoId: ''
+        }
+
+        let title_ticker = {
+            state: 0,
+            completedAt: new Date()
+        }
+        let channel_ticker = {
+            state: 0,
+            completedAt: new Date()
+        }
+
+        let velocities = {
+            forward: 25,
+            back: 100
+        }
+
+        setInterval(function(){
+            ticker(document.getElementById('title'), title_ticker)
+        }, 500)
+        setInterval(function(){
+            ticker(document.getElementById('channel'), channel_ticker)
+        }, 500)
+
+        let s = io(server_url)
+
+        s.on('connect', () => {
+            console.log('connected!')
+        })
+
+        // triggerd on error
+        s.on('error', (e) => {
+            console.log('RIP')
+        })
+
+        s.on('p-Yazaar_YouTube_Analyzer:Changes', (data) => {
+            //console.log(data)
+            if (data.videoId !== overlayData.videoId) {
+                overlayData.videoId = data.videoId
+                document.getElementById('thumbnail').src = getThumbnail(data.videoId)
+                document.getElementById('time').style.background = generateRGB()
+            }
+            if (data.title !== overlayData.title) {
+                overlayData.title = data.title
+                let node = document.getElementById('title')
+                node.innerText = data.title
+
+                title_ticker.state = 0
+                node.style.transition = ''
+                node.style.marginLeft = '0'
+                title_ticker.completedAt = new Date()
+            }
+            if (data.channel !== overlayData.channel) {
+                overlayData.channel = data.channel
+                let node = document.getElementById('channel')
+                node.innerText = data.channel
+
+                channel_ticker.state = 0
+                node.style.transition = ''
+                node.style.marginLeft = '0'
+                channel_ticker.completedAt = new Date()
+            }
+            document.getElementById('time').style.width = (data.currentTime / data.totalTime * 100) + '%'
+        })
+
+        window.addEventListener('resize', ()=>{
+            let title = document.getElementById('title')
+            let channel = document.getElementById('channel')
+            
+            title.style.transition = ''
+            title.style.marginLeft = '0'
+            title_ticker.state = 0
+            
+            channel.style.transition = ''
+            channel.style.marginLeft = '0'
+            channel_ticker.state = 0
+            
+            channel_ticker.completedAt = new Date()
+            title_ticker.completedAt = new Date()
+        })
+
+        function generateRGB() {
+            // generate a RGB color with specific ruleset.
+            let MyColor = [0, 0, 0]
+            MyColor[Math.floor(Math.random() * 3)] = 255
+
+            let SecondIndex = Math.floor(Math.random() * 4)
+
+            if (MyColor[SecondIndex] == 0) {
+                MyColor[SecondIndex] = Math.floor(Math.random() * 256)
+            } else {
+                MyColor[(SecondIndex + 1) % 2] = Math.floor(Math.random() * 256)
+            }
+            return 'rgb(' + MyColor[0] + ',' + MyColor[1] + ',' + MyColor[2] + ')'
+        }
+    </script>
+</body>
+
+</html>

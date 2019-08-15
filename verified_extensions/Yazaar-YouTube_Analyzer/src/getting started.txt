@@ -1,0 +1,18 @@
+1. Install the chrome extension (follow the video guide found in the same directory if you wish)
+2. Run "LocalStreamElements.exe" or "LocalStreamElements.py"
+3. Find the line "starting website: http://localhost:PORT" on your console/cmd
+4. Start chrome (they are giving you a popup each time that you launch chrome because of my "untrusted" extension)
+5. Find the "LSE YouTub-Analyzer" icon top right (should be a rocket)
+6. Insert "localhost" inside of the "HOST" field (or your IPv4 in case of another machine)
+7. Insert your PORT inside of the "PORT" field
+8. Hit "CONNECT"
+"Connected" should be displayed shortly
+
+"Host unreachable"? Check if the host and port is correct:
+"http://localhost:80"
+host: localhost
+port: 80
+
+Open "index.html" inside of your OBS-client (or similar)
+If the software is running on a secondary machine use this URL:
+http://localhost/extensions/Yazaar-YouTube_Analyzer/index.html
