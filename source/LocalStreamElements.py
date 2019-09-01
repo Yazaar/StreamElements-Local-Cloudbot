@@ -847,7 +847,7 @@ def startFlask():
         print(message)
 
     @socketio.on('AddRegular')
-    def websocket_message(message=''):
+    def websocket_AddRegular(message=''):
         if type(message) != str:
             user = str(message).lower()
         else:
@@ -863,7 +863,7 @@ def startFlask():
         
 
     @socketio.on('DeleteRegular')
-    def websocket_message(message=''):
+    def websocket_DeleteRegular(message=''):
         if type(message) != str:
             user = str(message).lower()
         else:
@@ -993,7 +993,7 @@ def main():
     if not os.getcwd() in sys.path:
         sys.path.append(os.getcwd())
 
-    SoftwareVersion = 13
+    SoftwareVersion = 14
 
     NewestVersion = json.loads(requests.get('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json').text)
 
