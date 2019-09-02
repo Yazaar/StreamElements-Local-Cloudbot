@@ -1,7 +1,8 @@
 # Executed on load (even if disabled)
 # Data structure >> https://github.com/Yazaar/StreamElements-Local-Cloudbot/wiki/Script-structure-(Python)#initialize
-def Initialize(data):
-    global port
+def Initialize(data, EventHandler):
+    global port, EHandler
+    EHandler = EventHandler
     port = data['port']
     print(data)
 
