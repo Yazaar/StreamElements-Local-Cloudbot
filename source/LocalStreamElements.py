@@ -204,6 +204,46 @@ def WaitForYN():
         elif temp == 'n':
             return False
 
+def downloadExeLauncher():
+    try:
+        content = requests.get('https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/source/SoftwareUpdater.exe')
+    except Exception:
+        print('Unable to download SoftwareUpdater.exe (Check again later or download manually from my github)\nhttps://github.com/Yazaar/StreamElements-Local-Cloudbot/blob/master/source/SoftwareUpdater.exe')
+        input()
+        raise SystemExit
+    with open('SoftwareUpdater.exe', 'wb') as f:
+        f.write(content.content)
+
+def fetchUrl(url):
+    try:
+        response = requests.get(url)
+    except Exception:
+        return False
+    
+    if response.status_code != 200:
+        return False
+
+    return response.text
+
+def validateIP(environ):
+    try:
+        if environ['HTTP_X_FORWARDED_FOR'] == currentIP:
+            return False
+    except Exception:
+        if environ['HTTP_HOST'] == '127.0.0.1':
+            return False
+        elif environ['HTTP_HOST'] == 'localhost':
+            return False
+        elif re.search(r'^192\.168\.\d{1,3}\.\d{1,3}$', environ['HTTP_HOST']) != None:
+            return False
+        elif re.search(r'^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$', environ['HTTP_HOST']) != None:
+            return False
+        elif re.search(r'^172\.\d{1,2}\.\d{1,3}\.\d{1,3}$', environ['HTTP_HOST']) != None:
+            temp = int(re.search(r'^172\.(\d{1,2})\.\d{1,3}\.\d{1,3}$', environ['HTTP_HOST']).group(1))
+            if temp > 15 and temp < 32:
+                return False
+    return True
+
 def LoadExtensions():
     global extensions, ExtensionSettings
     extensions = []
@@ -640,10 +680,15 @@ def startFlask():
 
     @app.route('/')
     def web_index():
+        if validateIP(request.environ) == True:
+            return '<h1>Access denied</h1><p>You are not allowed to enter this area</p>'
         return render_template('index.html', data=processExtensions(), ExtensionLogs=logs, events=events, SetupValues=settings, ExtensionSettings=ExtensionSettings, regulars=regulars)
     
     @app.route('/<path:path>')
     def web_CustomPath(path):
+        if validateIP(request.environ) == True:
+            return '<h1>Access denied</h1><p>You are not allowed to enter this area</p>'
+
         if not os.path.isfile(path):
             return 'invalid path, have to target a file...'
         try:
@@ -655,6 +700,9 @@ def startFlask():
 
     @app.route('/StreamElementsAPI', methods=['post'])
     def web_StreamElementsAPI():
+        if validateIP(request.environ) == True:
+            return '<h1>Access denied</h1><p>You are not allowed to enter this area</p>'
+
         try:
             message = json.loads(request.data.decode('UTF-8'))
         except Exception:
@@ -663,6 +711,8 @@ def startFlask():
     
     @app.route('/SendMessage', methods=['post'])
     def web_SendMessage():
+        if validateIP(request.environ) == True:
+            return '<h1>Access denied</h1><p>You are not allowed to enter this area</p>'
         try:
             message = json.loads(request.data.decode('UTF-8'))
         except Exception:
@@ -671,6 +721,8 @@ def startFlask():
 
     @app.route('/ScriptTalk', methods=['post'])
     def web_ScriptTalk():
+        if validateIP(request.environ) == True:
+            return '<h1>Access denied</h1><p>You are not allowed to enter this area</p>'
         try:
             message = json.loads(request.data.decode('UTF-8'))
         except Exception:
@@ -688,6 +740,9 @@ def startFlask():
 
     @app.route('/CrossTalk', methods=['post'])
     def web_CrossTalk():
+        if validateIP(request.environ) == True:
+            return '<h1>Access denied</h1><p>You are not allowed to enter this area</p>'
+
         try:
             message = json.loads(request.data.decode('UTF-8'))
         except Exception:
@@ -709,6 +764,9 @@ def startFlask():
 
     @app.route('/DeleteRegular', methods=['post'])
     def web_DeleteRegular():
+        if validateIP(request.environ) == True:
+            return '<h1>Access denied</h1><p>You are not allowed to enter this area</p>'
+
         try:
             message = json.loads(request.data.decode('UTF-8'))
         except Exception:
@@ -723,6 +781,9 @@ def startFlask():
         return json.dumps({'type':'success', 'message':'User has been deleted as a regular'})
     @app.route('/AddRegular', methods=['post'])
     def web_AddRegular():
+        if validateIP(request.environ) == True:
+            return '<h1>Access denied</h1><p>You are not allowed to enter this area</p>'
+
         try:
             message = json.loads(request.data.decode('UTF-8'))
         except Exception:
@@ -763,15 +824,26 @@ def startFlask():
             print('StreamElements: Disabled')
 
     @socketio.on('ClearLogs')
-    def websocket_ClearLogs():
+    def websocket_ClearLogs(data=''):
+        if validateIP(request.environ) == True:
+            socketio.emit('ScriptSettings', {'type':'error', 'message':'Access denied!'}, room=request.sid)
+            return
+
         logs.clear()
 
     @socketio.on('ClearEvents')
-    def websocket_ClearEvents():
+    def websocket_ClearEvents(data=''):
+        if validateIP(request.environ) == True:
+            socketio.emit('ScriptSettings', {'type':'error', 'message':'Access denied!'}, room=request.sid)
+            return
         events.clear()
     
     @socketio.on('UpdateSettings')
     def websocket_UpdateSettings(data=''):
+        if validateIP(request.environ) == True:
+            socketio.emit('ScriptSettings', {'type':'error', 'message':'Access denied!'}, room=request.sid)
+            return
+
         for i in data.keys():
             if i in SettingsKeys:
                 settings[i] = data[i]
@@ -781,6 +853,10 @@ def startFlask():
     
     @socketio.on('ScriptSettings')
     def websocket_ScriptSettings(data=''):
+        if validateIP(request.environ) == True:
+            socketio.emit('ScriptSettings', {'type':'error', 'message':'Access denied!'}, room=request.sid)
+            return
+
         if type(data) != dict:
             socketio.emit('ScriptSettings', {'type':'error', 'message':'You have to forward data in form of a dict'}, room=request.sid)
             return
@@ -844,10 +920,18 @@ def startFlask():
 
     @socketio.on('message')
     def websocket_message(message=''):
+        if validateIP(request.environ) == True:
+            socketio.emit('ScriptSettings', {'type':'error', 'message':'Access denied!'}, room=request.sid)
+            return
+
         print(message)
 
     @socketio.on('AddRegular')
     def websocket_AddRegular(message=''):
+        if validateIP(request.environ) == True:
+            socketio.emit('ScriptSettings', {'type':'error', 'message':'Access denied!'}, room=request.sid)
+            return
+
         if type(message) != str:
             user = str(message).lower()
         else:
@@ -864,6 +948,10 @@ def startFlask():
 
     @socketio.on('DeleteRegular')
     def websocket_DeleteRegular(message=''):
+        if validateIP(request.environ) == True:
+            socketio.emit('ScriptSettings', {'type':'error', 'message':'Access denied!'}, room=request.sid)
+            return
+
         if type(message) != str:
             user = str(message).lower()
         else:
@@ -879,6 +967,10 @@ def startFlask():
 
     @socketio.on('StreamElementsAPI')
     def websocket_StreamElementsAPI(message=''):
+        if validateIP(request.environ) == True:
+            socketio.emit('ScriptSettings', {'type':'error', 'message':'Access denied!'}, room=request.sid)
+            return
+
         if type(message) != dict:
             socketio.emit('StreamElementsAPI', {'type':'error', 'message':'The StreamElementsAPI socket endpoint requires a dict as input'}, room=request.sid)
             return
@@ -899,12 +991,20 @@ def startFlask():
         return
 
     @socketio.on('ReloadExtensions')
-    def websocket_RebootExtensions():
+    def websocket_RebootExtensions(data=''):
+        if validateIP(request.environ) == True:
+            socketio.emit('ScriptSettings', {'type':'error', 'message':'Access denied!'}, room=request.sid)
+            return
+
         rebootExtensionsThread()
         socketio.emit('ReloadChange', {'type':'success', 'data':processExtensions()}, room=request.sid)
 
     @socketio.on('ScriptTalk')
     def websocket_ScriptTalk(message=''):
+        if validateIP(request.environ) == True:
+            socketio.emit('ScriptSettings', {'type':'error', 'message':'Access denied!'}, room=request.sid)
+            return
+
         if type(message) != dict:
             socketio.emit('ScriptTalk', {'type':'error', 'message':'The data argument have to be a dict'}, room=request.sid)
             return
@@ -922,6 +1022,10 @@ def startFlask():
 
     @socketio.on('CrossTalk')
     def websocket_CrossTalk(message=''):
+        if validateIP(request.environ) == True:
+            socketio.emit('ScriptSettings', {'type':'error', 'message':'Access denied!'}, room=request.sid)
+            return
+
         if type(message) != dict:
             socketio.emit('CrossTalk', {'type':'error', 'message':'The data argument have to be a dict'}, room=request.sid)
             return
@@ -937,6 +1041,10 @@ def startFlask():
     
     @socketio.on('SendMessage')
     def websocket_SendMessage(message=''):
+        if validateIP(request.environ) == True:
+            socketio.emit('ScriptSettings', {'type':'error', 'message':'Access denied!'}, room=request.sid)
+            return
+
         if type(message) != dict:
             socketio.emit('SendMessage', {'type':'error', 'message':'The data that you send have to be in form of a dict.'}, room=request.sid)
             return
@@ -958,6 +1066,10 @@ def startFlask():
 
     @socketio.on('toggle')
     def websocket_toggle(message=''):
+        if validateIP(request.environ) == True:
+            socketio.emit('ScriptSettings', {'type':'error', 'message':'Access denied!'}, room=request.sid)
+            return
+
         for i in extensions:
             if i['module'].__name__.replace('extensions.', '') == message['item']:
                 if message['to'] == True:
@@ -988,14 +1100,26 @@ def startFlask():
 
     socketio.run(app, port=settings['server_port'], host='0.0.0.0')
 
-def main():
-    global logs, events, enabled, extensions, ExtensionSettings, ExtensionHandles, EventHandles, TestEventHandles, ToggleHandles, CrossScriptTalkHandles, InitializeHandles, UpdatedScriptsHandles, MessagesToSend, settings, ChatThreadRuns, SettingsKeys, ExCrossover, regulars
+def main(launcher = 'py'):
+    global logs, events, enabled, extensions, ExtensionSettings, ExtensionHandles, EventHandles, TestEventHandles, ToggleHandles, CrossScriptTalkHandles, InitializeHandles, UpdatedScriptsHandles, MessagesToSend, settings, ChatThreadRuns, SettingsKeys, ExCrossover, regulars, currentIP
     if not os.getcwd() in sys.path:
         sys.path.append(os.getcwd())
 
-    SoftwareVersion = 14
+    SoftwareVersion = 15
 
-    NewestVersion = json.loads(requests.get('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json').text)
+    NewestVersion = fetchUrl('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json')
+
+    if NewestVersion == False:
+        print('[ERROR]: Unable to check for updates, no network connection?')
+        NewestVersion = {'version': SoftwareVersion, 'download': '', 'logs': ''}
+    else:
+        NewestVersion = json.loads(NewestVersion)
+    
+    currentIP = fetchUrl('https://ident.me')
+    if currentIP == False:
+        currentIP = fetchUrl('https://api.ipify.org')
+        if currentIP == False:
+            print('[ERROR]: Unable to check for your IP public, no network connection?')
 
     logs = []
     events = []
@@ -1018,7 +1142,12 @@ def main():
         print(NewestVersion['log'])
         print('\n\nWould you like to update? (y/n)')
         if WaitForYN():
-            subprocess.Popen('SoftwareUpdater.exe ' + NewestVersion['download'], creationflags=0x00000008, shell=True)
+            if launcher == 'py':
+                subprocess.Popen(sys.executable + ' SoftwareUpdater.py ' + NewestVersion['download'], creationflags=0x00000008, shell=True)
+            elif launcher == 'exe':
+                if not os.path.isfile('SoftwareUpdater.exe'):
+                    downloadExeLauncher()
+                subprocess.Popen('SoftwareUpdater.exe ' + NewestVersion['download'], creationflags=0x00000008, shell=True)
             raise SystemExit
 
     if not os.path.isdir('dependencies\\data'):
