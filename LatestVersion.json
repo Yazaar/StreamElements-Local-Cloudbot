@@ -1,5 +1,5 @@
 {
-  "version":14,
+  "version":15,
   "download":"https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/update.zip",
-  "log":"- Minor bugfix"
+  "log":"- Security update to support ngrok (public websites)"
 }
