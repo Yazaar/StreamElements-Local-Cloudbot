@@ -1111,7 +1111,7 @@ def main(launcher = 'py'):
 
     if NewestVersion == False:
         print('[ERROR]: Unable to check for updates, no network connection?')
-        NewestVersion = {'version': SoftwareVersion, 'download': '', 'logs': ''}
+        NewestVersion = {'version': SoftwareVersion, 'download': '', 'log': ''}
     else:
         NewestVersion = json.loads(NewestVersion)
     
