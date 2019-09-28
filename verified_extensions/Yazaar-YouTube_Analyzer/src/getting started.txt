@@ -1,5 +1,5 @@
 1. Install the chrome extension (follow the video guide found in the same directory if you wish)
-2. Run "LocalStreamElements.exe" or "LocalStreamElements.py"
+2. Run "windows.exe" or "LocalStreamElements.py"
 3. Find the line "starting website: http://localhost:PORT" on your console/cmd
 4. Start chrome (they are giving you a popup each time that you launch chrome because of my "untrusted" extension)
 5. Find the "LSE YouTub-Analyzer" icon top right (should be a rocket)
