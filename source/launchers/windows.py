@@ -40,6 +40,6 @@ from flask_socketio import SocketIO
 from LocalStreamElements import main
 
 try:
-    main()
+    main(launcher='exe')
 except KeyboardInterrupt:
     pass
