@@ -1146,7 +1146,7 @@ def main(launcher = 'py'):
         print('\n\nWould you like to update? (y/n)')
         if WaitForYN():
             if launcher == 'py':
-                subprocess.Popen(sys.executable + ' SoftwareUpdater.py ' + NewestVersion['download'], creationflags=0x00000008, shell=True)
+                subprocess.Popen('"' + sys.executable + '" SoftwareUpdater.py ' + NewestVersion['download'], creationflags=0x00000008, shell=True)
             elif launcher == 'exe':
                 if not os.path.isfile('SoftwareUpdater.exe'):
                     downloadExeLauncher()
