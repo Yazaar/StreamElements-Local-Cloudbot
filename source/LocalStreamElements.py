@@ -230,9 +230,9 @@ def validateIP(environ):
         if environ['HTTP_X_FORWARDED_FOR'] == currentIP:
             return False
     except Exception:
-        if environ['HTTP_HOST'] == '127.0.0.1':
+        if environ['HTTP_HOST'] == '127.0.0.1' or environ['HTTP_HOST'] == '127.0.0.1:' + str(settings['server_port']):
             return False
-        elif environ['HTTP_HOST'] == 'localhost':
+        elif environ['HTTP_HOST'] == 'localhost' or environ['HTTP_HOST'] == 'localhost:' + str(settings['server_port']):
             return False
         elif re.search(r'^192\.168\.\d{1,3}\.\d{1,3}$', environ['HTTP_HOST']) != None:
             return False
@@ -1102,10 +1102,13 @@ def startFlask():
 
 def main(launcher = 'py'):
     global logs, events, enabled, extensions, ExtensionSettings, ExtensionHandles, EventHandles, TestEventHandles, ToggleHandles, CrossScriptTalkHandles, InitializeHandles, UpdatedScriptsHandles, MessagesToSend, settings, ChatThreadRuns, SettingsKeys, ExCrossover, regulars, currentIP
+    
+    print('Loading...')
+    
     if not os.getcwd() in sys.path:
         sys.path.append(os.getcwd())
 
-    SoftwareVersion = 15
+    SoftwareVersion = 16
 
     NewestVersion = fetchUrl('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json')
 
@@ -1301,7 +1304,6 @@ def main(launcher = 'py'):
     ChatThreadRuns = False
     ExtensionVariable = threading.Thread(target=extensionThread, daemon=True, name='ExtensionThread')
     ExtensionVariable.start()
-
         
     if settings['tmi'] != '*' and settings['tmi_twitch_username'] != '*':
         sendMessageThread = threading.Thread(target=sendMessagesHandler, daemon=True, name='ChatOut')
