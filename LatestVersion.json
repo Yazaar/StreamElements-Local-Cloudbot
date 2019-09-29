@@ -1,5 +1,5 @@
 {
-  "version":16,
+  "version":17,
   "download":"https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/update.zip",
-  "log":"- Bugfix for other ports than 80"
+  "log":"- Important logic update for IP-validation"
 }

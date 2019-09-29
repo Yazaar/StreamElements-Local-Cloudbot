@@ -230,9 +230,11 @@ def validateIP(environ):
         if environ['HTTP_X_FORWARDED_FOR'] == currentIP:
             return False
     except Exception:
-        if environ['HTTP_HOST'] == '127.0.0.1' or environ['HTTP_HOST'] == '127.0.0.1:' + str(settings['server_port']):
+        if ':' in environ['HTTP_HOST']:
+            environ['HTTP_HOST'] = environ['HTTP_HOST'].rsplit(':', 1)[0]
+        if environ['HTTP_HOST'] == '127.0.0.1':
             return False
-        elif environ['HTTP_HOST'] == 'localhost' or environ['HTTP_HOST'] == 'localhost:' + str(settings['server_port']):
+        elif environ['HTTP_HOST'] == 'localhost':
             return False
         elif re.search(r'^192\.168\.\d{1,3}\.\d{1,3}$', environ['HTTP_HOST']) != None:
             return False
@@ -1108,7 +1110,7 @@ def main(launcher = 'py'):
     if not os.getcwd() in sys.path:
         sys.path.append(os.getcwd())
 
-    SoftwareVersion = 16
+    SoftwareVersion = 17
 
     NewestVersion = fetchUrl('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json')
 
