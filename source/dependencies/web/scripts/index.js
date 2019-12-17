@@ -249,7 +249,7 @@ for (let i of document.querySelectorAll('article#setup section.data section div'
                 }
                 Waiting4Save = true
                 s.emit('UpdateSettings', {
-                    'twitch_channel': node.value
+                    'tmi_twitch_username': node.value
                 })
             }
         } else if (node.id == 'twitch_channel-input') {
@@ -259,7 +259,7 @@ for (let i of document.querySelectorAll('article#setup section.data section div'
                 }
                 Waiting4Save = true
                 s.emit('UpdateSettings', {
-                    'tmi_twitch_username': node.value
+                    'twitch_channel': node.value
                 })
             }
         }
