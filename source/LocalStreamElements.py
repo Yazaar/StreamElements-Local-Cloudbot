@@ -1,4 +1,4 @@
-import requests, json, socket, re, os, importlib, threading, time, ctypes, sys, webbrowser, random, subprocess
+import requests, json, socket, re, os, importlib, threading, time, ctypes, sys, webbrowser, random, subprocess, pathlib
 import socketio as socket_io
 from datetime import datetime
 from flask import Flask, render_template, request, send_file
@@ -251,7 +251,7 @@ def LoadExtensions():
     extensions = []
     ExtensionSettings = {}
     for i in os.listdir('extensions'):
-        temp = 'extensions\\' + i
+        temp = pathlib.Path() / 'extensions' / i
         if os.path.isdir(temp):
             for j in os.listdir(temp):
                 if j[-7:] == '_LSE.py':
@@ -274,11 +274,11 @@ def LoadExtensions():
                             except Exception as e:
                                 pass
                 if j == 'SettingsUI.json':
-                    with open(temp + '\\SettingsUI.json', 'r') as f:
+                    with open(temp / 'SettingsUI.json', 'r') as f:
                         ui = json.load(f)
                         ExtensionSettings[ui['name']] = ui
                     if 'settings.json' in os.listdir(temp):
-                        with open(temp + '\\settings.json', 'r') as f:
+                        with open(temp / 'settings.json', 'r') as f:
                             ExtensionSettings[ui['name']]['current'] = json.load(f)
     InitializeHandles.append({'port':settings['server_port'], 'twitch_channel':settings['twitch_channel']})
 
@@ -601,14 +601,14 @@ def AddRegular(user):
         return
     
     regulars.append(user)
-    with open('dependencies\\data\\regulars.json', 'w') as f:
+    with open(pathlib.Path('dependencies/data/regulars.json'), 'w') as f:
         json.dump(regulars, f)
 def DeleteRegular(user):
     if not user in regulars:
         return
     
     regulars.remove(user)
-    with open('dependencies\\data\\regulars.json', 'w') as f:
+    with open(pathlib.Path('dependencies/data/regulars.json'), 'w') as f:
         json.dump(regulars, f)
 
 def CrossTalk(message):
@@ -673,11 +673,11 @@ def processExtensions():
 
 def startFlask():
     IP = socket.gethostbyname(socket.gethostname())
-    f = open('dependencies\\data\\url.js', 'w')
+    f = open(pathlib.Path('dependencies/data/url.js'), 'w')
     f.write('let server_url = "http://' + IP + ':' + str(settings['server_port']) + '"')
     f.close()
     global socketio
-    app = Flask(__name__, template_folder='dependencies\\web\\HTML', static_folder='dependencies\\web')
+    app = Flask(__name__, template_folder=pathlib.Path('dependencies/web/HTML'), static_folder=pathlib.Path('dependencies/web'))
     socketio = SocketIO(app, async_mode='gevent')
 
     @app.route('/')
@@ -778,7 +778,7 @@ def startFlask():
         if not message['user'].lower() in regulars:
             return json.dumps({'type':'error', 'message':'User not a regular'})
         regulars.remove(message['user'].lower())
-        with open('dependencies\\data\\regulars.json') as f:
+        with open(pathlib.Path('dependencies/data/regulars.json')) as f:
             json.dump(regulars, f)
         return json.dumps({'type':'success', 'message':'User has been deleted as a regular'})
     @app.route('/AddRegular', methods=['post'])
@@ -797,7 +797,7 @@ def startFlask():
         if message['user'].lower() in regulars:
             return json.dumps({'type':'error', 'message':'User already a regular'})
         regulars.append(message['user'].lower())
-        with open('dependencies\\data\\regulars.json') as f:
+        with open(pathlib.Path('dependencies/data/regulars.json')) as f:
             json.dump(regulars, f)
         return json.dumps({'type':'success', 'message':'User has been added as a regular'})
 
@@ -849,7 +849,7 @@ def startFlask():
         for i in data.keys():
             if i in SettingsKeys:
                 settings[i] = data[i]
-        with open('dependencies\\data\\settings.json', 'w') as f:
+        with open(pathlib.Path('dependencies/data/settings.json'), 'w') as f:
             json.dump(settings, f)
         socketio.emit('UpdatedSettings', room=request.sid)
     
@@ -879,30 +879,31 @@ def startFlask():
             socketio.emit('ScriptSettings', {'type':'error', 'message':'The key path does not point on a valid directory'}, room=request.sid)
             return
         keys = data['settings'].keys()
-
-        if os.path.isfile(data['path'] + '\\settings.js'):
-            with open(data['path'] + '\\settings.js', 'r') as f:
+        jsfile = pathlib.Path(data['path']) / 'settings.js'
+        if os.path.isfile(jsfile):
+            with open(jsfile, 'r') as f:
                 JSScriptData = f.read()
             JSScriptData = json.loads('{' + JSScriptData.split('{',1)[1])
             for i in keys:
                 JSScriptData[i] = data['settings'][i]
-            with open(data['path'] + '\\settings.js', 'w') as f:
-                f.write('let settings = ' + json.dumps(JSScriptData))
+            with open(jsfile, 'w') as f:
+                f.write('var settings = ' + json.dumps(JSScriptData) + ';')
         else:
             JSScriptData = data['settings']
-            with open(data['path'] + '\\settings.js', 'w') as f:
-                f.write('let settings = ' + json.dumps(data['settings']))
+            with open(jsfile, 'w') as f:
+                f.write('var settings = ' + json.dumps(data['settings']) + ';')
 
-        if os.path.isfile(data['path'] + '\\settings.json'):
-            with open(data['path'] + '\\settings.json', 'r') as f:
+        jsonfile = pathlib.Path(data['path']) / 'settings.json'
+        if os.path.isfile(jsonfile):
+            with open(jsonfile, 'r') as f:
                 PyScriptData = json.load(f)
             for i in keys:
                 PyScriptData[i] = data['settings'][i]
-            with open(data['path'] + '\\settings.json', 'w') as f:
+            with open(jsonfile, 'w') as f:
                 json.dump(PyScriptData, f)
         else:
             PyScriptData = data['settings']
-            with open(data['path'] + '\\settings.json', 'w') as f:
+            with open(jsonfile, 'w') as f:
                 json.dump(data['settings'], f)
         
         ExtensionSettings[data['name']]['current'] = json.loads(json.dumps(PyScriptData))
@@ -942,7 +943,7 @@ def startFlask():
             socketio.emit('AddRegular', {'type':'error', 'message':'User already a regular'}, room=request.sid)
             return
         regulars.append(user)
-        with open('dependencies\\data\\regulars.json', 'w') as f:
+        with open(pathlib.Path('dependencies/data/regulars.json'), 'w') as f:
             json.dump(regulars, f)
         socketio.emit('AddRegular', {'type':'success', 'message':'User has been added as a regular'}, room=request.sid)
         return
@@ -962,7 +963,7 @@ def startFlask():
             socketio.emit('AddRegular', {'type':'error', 'message':'User not a regular'}, room=request.sid)
             return
         regulars.remove(user)
-        with open('dependencies\\data\\regulars.json', 'w') as f:
+        with open(pathlib.Path('dependencies/data/regulars.json'), 'w') as f:
             json.dump(regulars, f)
         socketio.emit('AddRegular', {'type':'success', 'message':'User has been deleted as a regular'}, room=request.sid)
         return
@@ -1080,7 +1081,7 @@ def startFlask():
                         ToggleHandles.append({'module':i['module'], 'state':True})
                     if not message['item'] in enabled:
                         enabled.append(message['item'])
-                        with open('dependencies\\data\\enabled.json', 'w') as f:
+                        with open(pathlib.Path('dependencies/data/enabled.json'), 'w') as f:
                             json.dump(enabled, f)
                     socketio.emit('toggle', {'type':'success'}, room=request.sid)
                     return
@@ -1090,7 +1091,7 @@ def startFlask():
                         ToggleHandles.append({'module':i['module'], 'state':False})
                     if message['item'] in enabled:
                         enabled.remove(message['item'])
-                        with open('dependencies\\data\\enabled.json', 'w') as f:
+                        with open(pathlib.Path('dependencies/data/enabled.json'), 'w') as f:
                             json.dump(enabled, f)
                     socketio.emit('toggle', {'type':'success'}, room=request.sid)
                     return
@@ -1110,7 +1111,7 @@ def main(launcher = 'py'):
     if not os.getcwd() in sys.path:
         sys.path.append(os.getcwd())
 
-    SoftwareVersion = 17
+    SoftwareVersion = 18
 
     NewestVersion = fetchUrl('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json')
 
@@ -1155,12 +1156,12 @@ def main(launcher = 'py'):
                 subprocess.Popen('SoftwareUpdater.exe ' + NewestVersion['download'], creationflags=0x00000008, shell=True)
             raise SystemExit
 
-    if not os.path.isdir('dependencies\\data'):
-        os.makedirs('dependencies\\data')
+    if not os.path.isdir(pathlib.Path('dependencies/data')):
+        os.makedirs(pathlib.Path('dependencies/data'))
     
     #load settings.json
-    if os.path.isfile('dependencies\\data\\settings.json'):
-        with open('dependencies\\data\\settings.json', 'r') as f:
+    if os.path.isfile(pathlib.Path('dependencies/data/settings.json')):
+        with open(pathlib.Path('dependencies/data/settings.json'), 'r') as f:
             try:
                 settings = json.load(f)
                 SettingsKeys = settings.keys()
@@ -1169,35 +1170,35 @@ def main(launcher = 'py'):
                 else:
                     print('\n\n\n\n\nYour settings are invalid. Would you like to reset? (y/n)')
                     if WaitForYN():
-                        with open('dependencies\\data\\settings.json', 'w') as g:
+                        with open(pathlib.Path('dependencies/data/settings.json'), 'w') as g:
                             g.write('{\n    "server_port":80,\n    "executions_per_second":60,\n    "jwt_token":"",\n    "user_id":"",\n    "tmi":"",\n    "twitch_channel":"",\n    "tmi_twitch_username":"",\n    "use_node":false\n}')
                     raise SystemExit
             except Exception:
                 print('\n\n\n\n\nYour settings are invalid. Would you like to reset? (y/n)')
                 if WaitForYN():
-                    with open('dependencies\\data\\settings.json', 'w') as g:
+                    with open(pathlib.Path('dependencies/data/settings.json'), 'w') as g:
                         g.write('{\n    "server_port":80,\n    "executions_per_second":60,\n    "jwt_token":"",\n    "user_id":"",\n    "tmi":"",\n    "twitch_channel":"",\n    "tmi_twitch_username":"",\n    "use_node":false\n}')
                 raise SystemExit
     
     #load regulars.json
-    if not os.path.isfile('dependencies\\data\\regulars.json'):
-        with open('dependencies\\data\\regulars.json', 'w') as f:
+    if not os.path.isfile(pathlib.Path('dependencies/data/regulars.json')):
+        with open(pathlib.Path('dependencies/data/regulars.json'), 'w') as f:
             f.write('[]')
         regulars = []
     else:
-        with open('dependencies\\data\\regulars.json', 'r') as f:
+        with open(pathlib.Path('dependencies/data/regulars.json'), 'r') as f:
             try:
                 regulars = json.load(f)
             except Exception:
                 f.close()
                 temp = 0
-                while os.path.isfile('dependencies\\data\\regulars' + str(temp) + '.json'):
+                while os.path.isfile(pathlib.Path('dependencies/data') / ('regulars' + str(temp) + '.json')):
                     temp += 1
-                os.rename('dependencies\\data\\regulars.json', 'dependencies\\data\\regulars' + str(temp) + '.json')
-                print('Whoops, dependencies\\data\\regulars.json seems to be invalid. Generating new file (old file has been renamed to ' + 'regulars' + str(temp) + '.json' + ')')
+                os.rename(pathlib.Path('dependencies/data/regulars.json'), pathlib.Path('dependencies/data') / ('regulars' + str(temp) + '.json'))
+                print('Whoops, dependencies/data/regulars.json seems to be invalid. Generating new file (old file has been renamed to ' + 'regulars' + str(temp) + '.json' + ')')
                 temp = 0
                 time.sleep(5)
-                with open('dependencies\\data\\regulars.json', 'w') as f:
+                with open(pathlib.Path('dependencies/data/regulars.json'), 'w') as f:
                     f.write('[]')
                 regulars = []
 
@@ -1206,7 +1207,7 @@ def main(launcher = 'py'):
         print('\n\n\n\n\nserver_port have to be an int (ex: 123)\nHave to reset the port to proceed. Go? (y/n)')
         if WaitForYN():
             settings['server_port'] = 80
-            with open('dependencies\\data\\settings.json', 'w') as f:
+            with open(pathlib.Path('dependencies/data/settings.json'), 'w') as f:
                 json.dump(settings, f)
         else:
             raise SystemExit
@@ -1269,7 +1270,7 @@ def main(launcher = 'py'):
     
     if type(settings['use_node']) != bool:
         settings['use_node'] = False
-        with open('dependencies\\data\\settings.json', 'w') as f:
+        with open(pathlib.Path('dependencies/data/settings.json'), 'w') as f:
             json.dump(settings, f)
 
     if settings['jwt_token'] == '' or settings['user_id'] == '' or settings['tmi'] == '' or settings['twitch_channel'] == '' or settings['tmi_twitch_username'] == '':
@@ -1282,20 +1283,21 @@ def main(launcher = 'py'):
             raise SystemExit
 
     # load enabled files
-    if os.path.isfile('dependencies\\data\\enabled.json'):
-        with open('dependencies\\data\\enabled.json', 'r') as f:
+    jsonfile = pathlib.Path('dependencies/data/enabled.json')
+    if os.path.isfile(jsonfile):
+        with open(jsonfile, 'r') as f:
             try:
                 enabled = json.load(f)
                 if type(enabled) != list:
-                    with open('dependencies\\data\\enabled.json', 'w') as g:
+                    with open(jsonfile, 'w') as g:
                         g.write(str([]))
                         g.close()
             except Exception:
-                with open('dependencies\\data\\enabled.json', 'w') as g:
+                with open(jsonfile, 'w') as g:
                     g.write(str([]))
                     g.close()
     else:
-        temp = open('dependencies\\data\\enabled.json', 'w')
+        temp = open(jsonfile, 'w')
         temp.write(str([]))
         temp.close()
 
