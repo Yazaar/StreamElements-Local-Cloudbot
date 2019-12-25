@@ -1,4 +1,4 @@
-import requests, zipfile, io, sys, time, os, shutil
+import requests, zipfile, io, sys, time, os, shutil, pathlib
 
 def DownloadSave(url, current):
     data = requests.get(url)
@@ -15,10 +15,11 @@ def DownloadSave(url, current):
 def TransferFiles(directory):
     for root, dirs, files in os.walk(directory):
         for i in files:
-            d = (root + '\\').split('\\',1)[1]
-            if not os.path.isdir('\\' + d):
+            d = pathlib.Path(root).relative_to(directory)
+            if not os.path.isdir(d):
                 os.makedirs(d)
-            shutil.move(root + '\\' + i, d+i)
+            shutil.move(os.path.join(root, i), d / i)
+
 def main():
     current = os.listdir()
     url = sys.argv[-1]
