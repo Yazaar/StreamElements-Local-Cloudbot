@@ -1,0 +1,1 @@
+let settings = {"Autorun": false, "Region": "eu"}

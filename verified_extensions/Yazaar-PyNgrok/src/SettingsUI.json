@@ -1,0 +1,18 @@
+{
+    "name":"Yazaar-PyNgrok",
+    "path":"extensions\\Yazaar-PyNgrok",
+    "scripts":["Yazaar-PyNgrok.Yazaar-PyNgrok_LSE"],
+    "settings":{
+        "Region":{
+            "type":"dropdown",
+            "tip":"Pick the region closest to you",
+            "choices":["us", "eu", "ap", "au", "sa", "jp", "in"],
+            "value":"eu"
+        },
+        "Autorun":{
+            "type":"checkbox",
+            "tip":"Autorun Ngrok on launch?",
+            "value":false
+        }
+    }
+}

@@ -298,6 +298,8 @@ def extensionThread():
             ExecType = 'newsettings'
         elif len(CrossScriptTalkHandles) > 0:
             ExecType = 'talk'
+        elif len(WebhookHandles) > 0:
+            ExecType = 'webhook'
         elif len(ToggleHandles) > 0:
             ExecType = 'toggle'
         elif len(EventHandles) > 0:
@@ -341,6 +343,12 @@ def extensionThread():
                         i['module'].CrossTalk(CrossScriptTalkHandles[0]['data'])
                     except Exception as e:
                         HandleExtensionError(i, e, ExecType)
+            elif ExecType == 'webhook':
+                if i['module'].__name__[11:] == WebhookHandles[0]['module'] and i['state'] and 'webhook' in dir(i['module']):
+                    try:
+                        i['module'].webhook(WebhookHandles[0])
+                    except Exception as e:
+                        HandleExtensionError(i, e, ExecType)
             elif ExecType == 'toggle':
                 if i['module'].__name__ == ToggleHandles[0]['module'].__name__:
                     try:
@@ -374,6 +382,8 @@ def extensionThread():
             InitializeHandles.pop(0)
         elif ExecType == 'newsettings':
             UpdatedScriptsHandles.pop(0)
+        elif ExecType == 'webhook':
+            WebhookHandles.pop(0)
         time.sleep(1/settings['executions_per_second'])
 
 def handleAPIRequest(endpoint, options):
@@ -672,11 +682,11 @@ def processExtensions():
     return temp
 
 def startFlask():
+    global socketio
     IP = socket.gethostbyname(socket.gethostname())
     f = open(pathlib.Path('dependencies/data/url.js'), 'w')
     f.write('let server_url = "http://' + IP + ':' + str(settings['server_port']) + '"')
     f.close()
-    global socketio
     app = Flask(__name__, template_folder=pathlib.Path('dependencies/web/HTML'), static_folder=pathlib.Path('dependencies/web'))
     socketio = SocketIO(app, async_mode='gevent')
 
@@ -781,6 +791,7 @@ def startFlask():
         with open(pathlib.Path('dependencies/data/regulars.json')) as f:
             json.dump(regulars, f)
         return json.dumps({'type':'success', 'message':'User has been deleted as a regular'})
+
     @app.route('/AddRegular', methods=['post'])
     def web_AddRegular():
         if validateIP(request.environ) == True:
@@ -800,7 +811,19 @@ def startFlask():
         with open(pathlib.Path('dependencies/data/regulars.json')) as f:
             json.dump(regulars, f)
         return json.dumps({'type':'success', 'message':'User has been added as a regular'})
-
+    
+    @app.route('/webhook/<destination>/<secret>', methods=['get', 'post'])
+    def web_webhook(destination, secret):
+        requestData = {'module': destination, 'secret': secret, 'request': {}}
+        try:
+            requestData['request']['postData'] = request.data.decode('UTF-8')
+        except Exception:
+            requestData['request']['postData'] = ''
+        
+        requestData['request']['args'] = dict(request.args)
+        requestData['request']['headers'] = dict(request.headers)
+        WebhookHandles.append(requestData)
+        return ''
 
     if settings['use_node'] == True:
         if settings['jwt_token'] != '*' and settings['user_id'] != '*':
@@ -1104,14 +1127,14 @@ def startFlask():
     socketio.run(app, port=settings['server_port'], host='0.0.0.0')
 
 def main(launcher = 'py'):
-    global logs, events, enabled, extensions, ExtensionSettings, ExtensionHandles, EventHandles, TestEventHandles, ToggleHandles, CrossScriptTalkHandles, InitializeHandles, UpdatedScriptsHandles, MessagesToSend, settings, ChatThreadRuns, SettingsKeys, ExCrossover, regulars, currentIP
+    global logs, events, enabled, extensions, ExtensionSettings, ExtensionHandles, EventHandles, TestEventHandles, ToggleHandles, CrossScriptTalkHandles, InitializeHandles, UpdatedScriptsHandles, MessagesToSend, settings, ChatThreadRuns, SettingsKeys, ExCrossover, regulars, currentIP, WebhookHandles
     
     print('Loading...')
     
     if not os.getcwd() in sys.path:
         sys.path.append(os.getcwd())
 
-    SoftwareVersion = 18
+    SoftwareVersion = 19
 
     NewestVersion = fetchUrl('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json')
 
@@ -1138,6 +1161,7 @@ def main(launcher = 'py'):
     TestEventHandles = []
     ToggleHandles = []
     CrossScriptTalkHandles = []
+    WebhookHandles = []
     InitializeHandles = []
     UpdatedScriptsHandles = []
     MessagesToSend = []
@@ -1321,7 +1345,6 @@ def main(launcher = 'py'):
 
     ExtensionDataVariable = threading.Thread(target=ExtensionDataThread, daemon=True, name='DataIn')
     ExtensionDataVariable.start()
-
 
     if settings['use_node'] == False:
         if settings['tmi_twitch_username'] != '*' and settings['jwt_token'] != '*':    
