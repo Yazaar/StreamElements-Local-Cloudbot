@@ -10,4 +10,3 @@
 <h1>Future plans:</h1>
 <p>- Webhooks, this is already in the works. A patch to support ngrok (publically available url) was released 2019-09-16.<br>
 Hopefully fully supported soon</p>
-<p>- Websites that are publically available for your viewers, this is already in the works. A patch to support ngrok (publically available url) was released 2019-09-16. (No plans when)</p>
