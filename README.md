@@ -8,5 +8,4 @@
 <a href="https://github.com/Yazaar/StreamElements-Local-Cloudbot/wiki">A guide can be found here!</a>
 
 <h1>Future plans:</h1>
-<p>- Webhooks, this is already in the works. A patch to support ngrok (publically available url) was released 2019-09-16.<br>
-Hopefully fully supported soon</p>
+<p>- uhhh, no idea... <a href="https://docs.google.com/forms/d/e/1FAIpQLSel31nfkr8DGn4FCKxDJq4LMhD8kdtH9XyxsB4rz5YfzU91fQ/viewform?usp=sf_link">Help me and submit ideas</a></p>
