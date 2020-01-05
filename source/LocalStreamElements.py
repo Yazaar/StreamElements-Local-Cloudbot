@@ -1,4 +1,4 @@
-import requests, json, socket, re, os, importlib, threading, time, ctypes, sys, webbrowser, random, subprocess, pathlib
+import requests, json, socket, re, os, importlib, threading, time, ctypes, sys, webbrowser, random, subprocess, pathlib, zipfile, shutil, io
 import socketio as socket_io
 from datetime import datetime
 from flask import Flask, render_template, request, send_file
@@ -681,6 +681,12 @@ def processExtensions():
         i += 1
     return temp
 
+def updateLSE(url):
+    data = requests.get(url)
+
+    with zipfile.ZipFile(io.BytesIO(data.content)) as f:
+        f.extractall()
+
 def startFlask():
     global socketio
     IP = socket.gethostbyname(socket.gethostname())
@@ -1134,7 +1140,7 @@ def main(launcher = 'py'):
     if not os.getcwd() in sys.path:
         sys.path.append(os.getcwd())
 
-    SoftwareVersion = 19
+    SoftwareVersion = 20
 
     NewestVersion = fetchUrl('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json')
 
@@ -1172,12 +1178,7 @@ def main(launcher = 'py'):
         print(NewestVersion['log'])
         print('\n\nWould you like to update? (y/n)')
         if WaitForYN():
-            if launcher == 'py':
-                subprocess.Popen('"' + sys.executable + '" SoftwareUpdater.py ' + NewestVersion['download'], creationflags=0x00000008, shell=True)
-            elif launcher == 'exe':
-                if not os.path.isfile('SoftwareUpdater.exe'):
-                    downloadExeLauncher()
-                subprocess.Popen('SoftwareUpdater.exe ' + NewestVersion['download'], creationflags=0x00000008, shell=True)
+            updateLSE(NewestVersion['download'])
             raise SystemExit
 
     if not os.path.isdir(pathlib.Path('dependencies/data')):
