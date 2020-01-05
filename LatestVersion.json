@@ -1,5 +1,5 @@
 {
-  "version":19,
+  "version":20,
   "download":"https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/update.zip",
-  "log":"Merry Christmas and Happy New Year!\n\n- webhook support (use with ngrok which is published as a verified extension over at the github page)"
+  "log":"- Linux (and Mac?) support, you are now able to update the program automatically"
 }
