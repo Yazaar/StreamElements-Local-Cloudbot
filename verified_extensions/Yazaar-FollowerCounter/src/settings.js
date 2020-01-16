@@ -1,0 +1,1 @@
+var settings = {"Channel cooldown duration": 20, "Command": "!followercounter", "Permission 1": "everyone", "Permission 2": "moderator", "Personal cooldown duration": 60, "Follower goal": 5};

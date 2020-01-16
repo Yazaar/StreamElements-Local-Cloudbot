@@ -1,6 +1,6 @@
 {
     "name":"Yazaar-PyNgrok",
-    "path":"extensions\\Yazaar-PyNgrok",
+    "path":"extensions/Yazaar-PyNgrok",
     "scripts":["Yazaar-PyNgrok.Yazaar-PyNgrok_LSE"],
     "settings":{
         "Region":{

@@ -1,0 +1,42 @@
+{
+    "name":"Follower Counter",
+    "path":"extensions/Yazaar-FollowerCounter",
+    "scripts":["Yazaar-FollowerCounter.FollowerCounter_LSE"],
+    "event":"p-FollowerCounter:NewSettings",
+    "settings":{
+        "Command":{
+            "type":"text",
+            "value":"!followercounter"
+        },
+        "Permission 1":{
+            "type":"dropdown",
+            "tip":"Permission for viwing follower counts (!cmd realcount, !cmd count)",
+            "choices":["everyone", "subscriber", "vip", "moderator", "caster"],
+            "value":"everyone"
+        },
+        "Permission 2":{
+            "type":"dropdown",
+            "tip":"Permission for editing follower counts (!cmd set, !cmd add, !cmd remove)",
+            "choices":["everyone", "subscriber", "vip", "moderator", "caster"],
+            "value":"moderator"
+        },
+        "Personal cooldown duration":{
+            "type":"number",
+            "min":0,
+            "value":60,
+            "tip":"Personal cooldown duration in seconds"
+        },
+        "Channel cooldown duration":{
+            "type":"number",
+            "min":0,
+            "value":5,
+            "tip":"Channel cooldown duration in seconds"
+        },
+        "Follower goal":{
+            "type":"number",
+            "min":0,
+            "value":5,
+            "tip":"5 leads to 5, 10, 15, 20 and so on automatically"
+        }
+    }
+}

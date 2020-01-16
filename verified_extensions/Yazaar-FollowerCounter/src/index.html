@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Yazaar | Follower Counter</title>
+    <link href="https://fonts.googleapis.com/css?family=DM+Serif+Display&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'DM Serif Display', serif;
+        }
+
+        div#widget {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            background: rgba(100, 100, 100, .9);
+            height: 100vh;
+            width: 100vw;
+            border-radius: 1rem;
+            overflow: hidden;
+        }
+
+        div#top {
+            font-size: 40px;
+        }
+
+        div#bottom {
+            font-size: 65px;
+            overflow: hidden;
+        }
+
+        span#current{
+            margin: 0 .5rem 0 0;
+            display: inline-block;
+        }
+        span#goal{
+            margin: 0 0 0 .5rem;
+            display: inline-block;
+        }
+
+        @keyframes backgroundMagic {
+            0%{
+                background: linear-gradient(45deg, rgba(100, 100, 100, .9), rgba(100, 100, 100, .9), rgba(100, 100, 100, .9), rgba(50, 50, 50, 1), rgba(100, 100, 100, .9), rgba(100, 100, 100, .9), rgba(100, 100, 100, .9), rgba(50, 50, 50, 1), rgba(100, 100, 100, .9), rgba(100, 100, 100, .9), rgba(100, 100, 100, .9), rgba(50, 50, 50, 1), rgba(100, 100, 100, .9), rgba(100, 100, 100, .9), rgba(100, 100, 100, .9));
+                background-size: 1000%;
+                background-position-x: 0%;
+                background-position-y: 0%;
+            }
+            100%{
+                background: linear-gradient(45deg, rgba(100, 100, 100, .9), rgba(100, 100, 100, .9), rgba(100, 100, 100, .9), rgba(50, 50, 50, 1), rgba(100, 100, 100, .9), rgba(100, 100, 100, .9), rgba(100, 100, 100, .9), rgba(50, 50, 50, 1), rgba(100, 100, 100, .9), rgba(100, 100, 100, .9), rgba(100, 100, 100, .9), rgba(50, 50, 50, 1), rgba(100, 100, 100, .9), rgba(100, 100, 100, .9), rgba(100, 100, 100, .9));
+                background-size: 1000%;
+                background-position-x: 100%;
+                background-position-y: 100%;
+            }
+        }
+
+    </style>
+</head>
+<body>
+    <div id="widget">
+        <div id="top">Follower goal:</div>
+        <div id="bottom">
+            <span id="current">0</span>/<span id="goal">-</span>
+        </div>
+    </div>
+
+    <script src="../../dependencies/data/url.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js"></script>
+
+    <script>
+        function handleNewFollow(){
+            currentFollows++
+            let changedGoal = false
+            if(currentFollows >= currentGoal){
+                currentGoal += baseFollowerGoal
+                changedGoal = true
+            }
+            let element = document.getElementById('current')
+            element.style.transition = '1s transform linear'
+            element.style.transform = 'translateY(110%)'
+            setTimeout(function(){
+                element.style.transition = ''
+                element.style.transform = 'translateY(-110%)'
+                element.innerText = currentFollows
+
+                if (changedGoal === true){
+                    document.getElementById('widget').style.animation = 'backgroundMagic 2s linear'
+                    setTimeout(function(){
+                    document.getElementById('widget').style.animation = ''
+                    }, 2100)
+                    let element = document.getElementById('goal')
+                    element.style.transition = '1s transform linear'
+                    element.style.transform = 'translateY(110%)'
+                    setTimeout(function(){
+                        element.style.transition = ''
+                        element.style.transform = 'translateY(-110%)'
+                        element.innerText = currentGoal
+                        setTimeout(function(){
+                            element.style.transition = '1s transform linear'
+                            element.style.transform = 'translateY(0)'
+                        }, 100)
+                    }, 1100)
+                }
+
+                setTimeout(function(){
+                    element.style.transition = '1s transform linear'
+                    element.style.transform = 'translateY(0)'
+                }, 100)
+            }, 1100)
+        }
+
+        let s
+        if (window.location.protocol === 'https:' || window.location.protocol === 'http:') {
+            s = io(window.location.origin)    
+        } else {
+            s = io(server_url)
+        }
+        let currentFollows = 0
+        let currentGoal = 2
+        let baseFollowerGoal = currentGoal
+        document.querySelector('#goal').innerText = currentGoal
+
+        s.on('connect', () => {
+            console.log('connected!')
+            s.emit('CrossTalk', {'module':'Yazaar-FollowerCounter.FollowerCounter_LSE', 'data':'Request Current Count'})
+        })
+
+        s.on('p-FollowerCounter:NewFollow', (data) => {
+            handleNewFollow()
+        })
+
+        s.on('p-FollowerCounter:CurrentCount', (data) => {
+            if(parseInt(data) !== data){
+                return
+            }
+            if (currentFollows === data){
+                return
+            }
+
+            currentFollows = data-1
+
+            if (currentGoal !== data-data%baseFollowerGoal+baseFollowerGoal){
+            currentGoal = data-data%baseFollowerGoal
+            }
+            handleNewFollow()
+        })
+
+    </script>
+</body>
+</html>
