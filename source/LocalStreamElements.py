@@ -356,7 +356,7 @@ def extensionThread():
                     except Exception as e:
                         HandleExtensionError(i, e, ExecType)
             elif ExecType == 'newsettings':
-                if i['state'] and i['module'].__name__ == UpdatedScriptsHandles[0]['module'] and 'NewSettings' in dir(i['module']):
+                if i['module'].__name__ == UpdatedScriptsHandles[0]['module'] and 'NewSettings' in dir(i['module']):
                     try:
                         i['module'].NewSettings(UpdatedScriptsHandles[0]['settings'])
                     except Exception as e:
@@ -691,7 +691,7 @@ def startFlask():
     global socketio
     IP = socket.gethostbyname(socket.gethostname())
     f = open(pathlib.Path('dependencies/data/url.js'), 'w')
-    f.write('let server_url = "http://' + IP + ':' + str(settings['server_port']) + '"')
+    f.write('var server_url = "http://' + IP + ':' + str(settings['server_port']) + '";')
     f.close()
     app = Flask(__name__, template_folder=pathlib.Path('dependencies/web/HTML'), static_folder=pathlib.Path('dependencies/web'))
     socketio = SocketIO(app, async_mode='gevent')
@@ -912,7 +912,7 @@ def startFlask():
         if os.path.isfile(jsfile):
             with open(jsfile, 'r') as f:
                 JSScriptData = f.read()
-            JSScriptData = json.loads('{' + JSScriptData.split('{',1)[1])
+            JSScriptData = json.loads(JSScriptData[15:][:-1])
             for i in keys:
                 JSScriptData[i] = data['settings'][i]
             with open(jsfile, 'w') as f:
@@ -1140,7 +1140,7 @@ def main(launcher = 'py'):
     if not os.getcwd() in sys.path:
         sys.path.append(os.getcwd())
 
-    SoftwareVersion = 20
+    SoftwareVersion = 21
 
     NewestVersion = fetchUrl('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json')
 

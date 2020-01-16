@@ -1,5 +1,5 @@
 {
-  "version":20,
+  "version":21,
   "download":"https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/update.zip",
-  "log":"- Linux (and Mac?) support, you are now able to update the program automatically"
+  "log":"- Bugfix for Settings UI found on the configuration website"
 }
