@@ -1,5 +1,5 @@
 {
-  "version":21,
+  "version":22,
   "download":"https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/update.zip",
-  "log":"- Bugfix for Settings UI found on the configuration website"
+  "log":"- Bugfix for twitch chat (disconnected after running for a long time)"
 }

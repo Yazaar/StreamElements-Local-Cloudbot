@@ -1,4 +1,5 @@
-1. Install the chrome extension (follow the video guide found in the same directory if you wish)
+1. Install my very own chrome extension (found on chrome extension store!)
+URL: https://chrome.google.com/webstore/detail/html-agent/lbcelgpefmbllnhhlbgpkompbhmfblpi
 2. Run "windows.exe" or "LocalStreamElements.py"
 3. Find the line "starting website: http://localhost:PORT" on your console/cmd
 4. Start chrome (they are giving you a popup each time that you launch chrome because of my "untrusted" extension)
@@ -9,9 +10,8 @@
 "Connected" should be displayed shortly
 
 "Host unreachable"? Check if the host and port is correct:
-"http://localhost:80"
-host: localhost
-port: 80
+Find the console window for Local StreamElements and check what it says, should be
+something like; "starting website: http://localhost:80" (insert http://localhost:80)
 
 Open "index.html" inside of your OBS-client (or similar)
 If the software is running on a secondary machine use this URL:

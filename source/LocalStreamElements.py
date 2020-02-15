@@ -1,4 +1,4 @@
-import requests, json, socket, re, os, importlib, threading, time, ctypes, sys, webbrowser, random, subprocess, pathlib, zipfile, shutil, io
+import requests, json, socket, select, re, os, importlib, threading, time, ctypes, sys, webbrowser, random, subprocess, pathlib, zipfile, shutil, io
 import socketio as socket_io
 from datetime import datetime
 from flask import Flask, render_template, request, send_file
@@ -487,6 +487,7 @@ def chatThread():
     s.send(b'CAP REQ :twitch.tv/tags\r\n')
 
     Loading = True
+    sentPing = False
 
     while Loading:
         ReadBuffer += s.recv(1024).decode('utf-8')
@@ -500,18 +501,44 @@ def chatThread():
     global ChatThreadRuns
     ChatThreadRuns = True
     ReadBuffer = ''
+    lastResponse = time.time()
+    
     while True:
-        ReadBuffer += s.recv(1024).decode('utf-8')
-        temp = ReadBuffer.split('\n')
-        ReadBuffer = temp.pop()
-
-        for line in temp:
-            if line == 'PING :tmi.twitch.tv\r':
-                s.send(b'PONG :tmi.twitch.tv\r\n')
-            elif 'PRIVMSG #' in line:
-                GeneratedMessage = processMessage(line[:-1])
-                socketio.emit('TwitchMessage', GeneratedMessage)
-                ExtensionHandles.append(GeneratedMessage)
+        if select.select([s], [], [], 5)[0]:
+            lastResponse = time.time()
+            sentPing = False
+            ReadBuffer += s.recv(1024).decode('utf-8')
+            temp = ReadBuffer.split('\n')
+            ReadBuffer = temp.pop()
+            for line in temp:
+                if line == 'PING :tmi.twitch.tv\r':
+                    s.send(b'PONG :tmi.twitch.tv\r\n')
+                elif 'PRIVMSG #' in line:
+                    GeneratedMessage = processMessage(line[:-1])
+                    socketio.emit('TwitchMessage', GeneratedMessage)
+                    ExtensionHandles.append(GeneratedMessage)
+        elif sentPing == False and time.time() - lastResponse > 360:
+            sentPing = True
+        elif sentPing == True and time.time() - lastResponse > 390:
+            s.close()
+            sentPing = False
+            s = socket.socket()
+            s.connect((HOST, PORT))
+            s.send(b'PASS ' + settings['tmi'].lower().encode('utf-8') + b'\r\n')
+            s.send(b'NICK ' + settings['tmi_twitch_username'].lower().encode('utf-8') + b'\r\n')
+            s.send(b'JOIN #' + settings['twitch_channel'].lower().encode('utf-8') + b'\r\n')
+            s.send(b'CAP REQ :twitch.tv/tags\r\n')
+            reconnecting = True
+            ReadBuffer = ''
+            while reconnecting:
+                ReadBuffer += s.recv(1024).decode('utf-8')
+                temp = ReadBuffer.split('\n')
+                ReadBuffer = temp.pop()
+                for line in temp:
+                    if 'End of /NAMES list' in line:
+                        reconnecting = False
+                        break
+            lastResponse = time.time()
 
 def rebootExtensionsThread():
     global ExtensionVariable
@@ -1140,7 +1167,7 @@ def main(launcher = 'py'):
     if not os.getcwd() in sys.path:
         sys.path.append(os.getcwd())
 
-    SoftwareVersion = 21
+    SoftwareVersion = 22
 
     NewestVersion = fetchUrl('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json')
 
