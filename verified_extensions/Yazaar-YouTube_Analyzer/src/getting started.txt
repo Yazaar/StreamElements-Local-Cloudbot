@@ -3,10 +3,12 @@ URL: https://chrome.google.com/webstore/detail/html-agent/lbcelgpefmbllnhhlbgpko
 2. Run "windows.exe" or "LocalStreamElements.py"
 3. Find the line "starting website: http://localhost:PORT" on your console/cmd
 4. Start chrome (they are giving you a popup each time that you launch chrome because of my "untrusted" extension)
-5. Find the "LSE YouTub-Analyzer" icon top right (should be a rocket)
-6. Insert "localhost" inside of the "HOST" field (or your IPv4 in case of another machine)
-7. Insert your PORT inside of the "PORT" field
-8. Hit "CONNECT"
+5. Find the "HTML Agent" chrome extension icon top right in your browser (installed from step 1)
+6. Find the text input "Import preset:" and paste the following (do not miss anything):
+(comming soon... sorry...)
+7. Remember to hit save on top after the import.
+8: Insert "http://localhost:APP_PORT" but replace APP_PORT with the port of your LSE app
+9. Hit "CONNECT"
 "Connected" should be displayed shortly
 
 "Host unreachable"? Check if the host and port is correct:
