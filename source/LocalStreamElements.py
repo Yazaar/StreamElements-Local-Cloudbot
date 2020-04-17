@@ -1167,7 +1167,7 @@ def main(launcher = 'py'):
     if not os.getcwd() in sys.path:
         sys.path.append(os.getcwd())
 
-    SoftwareVersion = 22
+    SoftwareVersion = 23
 
     NewestVersion = fetchUrl('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json')
 
@@ -1361,7 +1361,7 @@ def main(launcher = 'py'):
     ExtensionVariable = threading.Thread(target=extensionThread, daemon=True, name='ExtensionThread')
     ExtensionVariable.start()
         
-    if settings['tmi'] != '*' and settings['tmi_twitch_username'] != '*':
+    if settings['tmi'] != '*' and settings['tmi_twitch_username'] != '*' and settings['twitch_channel'] != '*':
         sendMessageThread = threading.Thread(target=sendMessagesHandler, daemon=True, name='ChatOut')
         sendMessageThread.start()
 
@@ -1375,7 +1375,7 @@ def main(launcher = 'py'):
     ExtensionDataVariable.start()
 
     if settings['use_node'] == False:
-        if settings['tmi_twitch_username'] != '*' and settings['jwt_token'] != '*':    
+        if settings['user_id'] != '*' and settings['jwt_token'] != '*':    
             StreamElementsActivity = threading.Thread(target=StreamElementsThread, daemon=True)
             StreamElementsActivity.start()
         else:
