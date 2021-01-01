@@ -720,7 +720,7 @@ def startFlask():
     f = open(pathlib.Path('dependencies/data/url.js'), 'w')
     f.write('var server_url = "http://' + IP + ':' + str(settings['server_port']) + '";')
     f.close()
-    app = Flask(__name__, template_folder=pathlib.Path('dependencies/web/HTML'), static_folder=pathlib.Path('dependencies/web'))
+    app = Flask(__name__, template_folder='dependencies/web/HTML', static_folder='dependencies/web/static')
     socketio = SocketIO(app, async_mode='gevent')
 
     @app.route('/')
@@ -1159,15 +1159,29 @@ def startFlask():
 
     socketio.run(app, port=settings['server_port'], host='0.0.0.0')
 
+def deleteOldFiles():
+    deleted = False
+    deletedDirs = [pathlib.Path('dependencies/web/styles'), pathlib.Path('dependencies/web/scripts')]
+    for deletedDir in deletedDirs:
+        if deletedDir.is_dir():
+            if deleted == False:
+                print('Deleting old depencency directories...')
+            deleted = True
+            shutil.rmtree(deletedDir)
+
 def main(launcher = 'py'):
     global logs, events, enabled, extensions, ExtensionSettings, ExtensionHandles, EventHandles, TestEventHandles, ToggleHandles, CrossScriptTalkHandles, InitializeHandles, UpdatedScriptsHandles, MessagesToSend, settings, ChatThreadRuns, SettingsKeys, ExCrossover, regulars, currentIP, WebhookHandles
     
     print('Loading...')
     
-    if not os.getcwd() in sys.path:
-        sys.path.append(os.getcwd())
+    os.chdir(pathlib.Path(__file__).parent)
 
-    SoftwareVersion = 23
+    if not os.getcwd() in sys.path:
+        sys.path.append(pathlib.Path(__file__).parent)
+    
+    deleteOldFiles()
+
+    SoftwareVersion = 24
 
     NewestVersion = fetchUrl('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json')
 
@@ -1181,7 +1195,7 @@ def main(launcher = 'py'):
     if currentIP == False:
         currentIP = fetchUrl('https://api.ipify.org')
         if currentIP == False:
-            print('[ERROR]: Unable to check for your IP public, no network connection?')
+            print('[ERROR]: Unable to check for your public IP, no network connection?')
 
     logs = []
     events = []

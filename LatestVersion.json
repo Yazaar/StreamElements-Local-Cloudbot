@@ -1,5 +1,5 @@
 {
-  "version":23,
+  "version":24,
   "download":"https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/update.zip",
-  "log":"- Twitch chat and StreamElements bugfix"
+  "log":"- Patch for Flask error message (winpath has no rstrip method or whatever)"
 }
