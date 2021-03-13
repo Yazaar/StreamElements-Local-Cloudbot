@@ -1,4 +1,5 @@
 <h1>StreamElements<br>Local Cloudbot</h1>
+<h2>Rewrite of backend in progress</h2>
 <p>Use the best twitch chatbot, StreamElements</p>
 <p>Use a modern version of Python (v3.7) and create custom chatbot commands with advanced functionality!</p>
 <p>I strongly believe that this is the key to grow on a large platform such as twitch.</p>
