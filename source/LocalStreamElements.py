@@ -62,7 +62,7 @@ def update():
                 input()
                 raise SystemExit
     
-    try: newestVersion = json.loads(newestVersion)
+    try: newestVersion = json.loads(newestVersion.text)
     except Exception: newestVersion = {}
     
     if not 'files' in newestVersion or not isinstance(newestVersion['files'], dict):
