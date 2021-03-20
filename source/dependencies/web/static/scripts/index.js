@@ -1,43 +1,3 @@
-document.querySelector('script').innerHTML = ''
-
-document.getElementById('server_port-input').value = SetupValues.server_port
-document.getElementById('exec_per_second-input').value = SetupValues.executions_per_second
-document.getElementById('jwt-input').value = SetupValues.jwt_token
-document.getElementById('user_id-input').value = SetupValues.user_id
-document.getElementById('tmi-input').value = SetupValues.tmi
-document.getElementById('tmi_username-input').value = SetupValues.tmi_twitch_username
-document.getElementById('twitch_channel-input').value = SetupValues.twitch_channel
-document.getElementById('use_node-input').checked = SetupValues.use_node
-
-function createExtentions(data) {
-    let temp = ''
-    for (let i of data) {
-        if (i.state === true) {
-            temp += '<section class="ExtensionItem"><input type="checkbox" checked><p>' + i.module + '</p></section>'
-        } else {
-            temp += '<section class="ExtensionItem"><input type="checkbox"><p>' + i.module + '</p></section>'
-        }
-    }
-    document.querySelector('article#extensions section.data').innerHTML = temp
-
-    for (let i of document.querySelectorAll('section.ExtensionItem input[type="checkbox"]')) {
-        i.addEventListener("change", (e) => {
-            if (Waiting4Response === true) {
-                ToggleQueue.push({
-                    "item": e.target.parentNode.querySelector("p").innerHTML,
-                    "to": e.target.checked
-                })
-            } else {
-                Waiting4Response = true
-                s.emit("toggle", {
-                    "item": e.target.parentNode.querySelector("p").innerHTML,
-                    "to": e.target.checked
-                })
-            }
-        })
-    }
-}
-
 function createLog(title, message) {
     let new_element = document.createElement('div')
     let new_h2 = document.createElement('h2')
@@ -49,292 +9,356 @@ function createLog(title, message) {
     return new_element
 }
 
-function createSettings(json_object) {
-    let items
+function parseJSON(data) {
     try {
-        items = Object.keys(json_object.settings)
-    } catch (error) {
-        return
+        parsed = JSON.parse(data)
+    } catch(e) {
+        parsed = null
     }
-    let new_element = document.createElement('div')
-    let new_button = document.createElement('div')
-    new_button.innerText = json_object.name
-    new_button.classList.add('OpenCloseButton')
-    new_button.addEventListener('click', (e) => {
-        if (e.target.parentNode.querySelector('section').style.display === 'block') {
-            e.target.parentNode.querySelector('section').style.display = 'none'
-        } else {
-            e.target.parentNode.querySelector('section').style.display = 'block'
-        }
-    })
-    new_element.appendChild(new_button)
-    let new_settings = document.createElement('section')
-    new_settings.style.display = 'none'
-    new_settings.setAttribute('data-path', json_object.path)
-    new_settings.setAttribute('data-name', json_object.name)
-    for (let i of items) {
-        let setting = document.createElement('section')
-        let title = document.createElement('h3')
-        title.innerText = i
-        setting.appendChild(title)
-        let input
-        if (json_object.settings[i].type.toLowerCase() === 'dropdown'){
-            input = document.createElement('select')
-            let choices = json_object.settings[i].choices
-            if (choices === undefined){
-                continue
-            }
-            for (let choice of choices){
-                let ChoiceNode = document.createElement('option')
-                ChoiceNode.value = choice
-                ChoiceNode.innerText = choice
-                input.appendChild(ChoiceNode)
-            }
-        } else {
-            input = document.createElement('input')
-        }
-        let sub_settings
-        input.name = i
-        try {
-            sub_settings = Object.keys(json_object.settings[i])
-        } catch (error) {
-            sub_settings = []
-        }
-        for (let j of sub_settings) {
-            if (j.toLowerCase() === 'choices'){
-                continue
-            }
-            if (j.toLowerCase() === 'tip') {
-                let input_tip = document.createElement('p')
-                input_tip.innerText = json_object.settings[i][j]
-                setting.appendChild(input_tip)
-            } else {
-                input[j] = json_object.settings[i][j]
-                if (j.toLowerCase() === 'type' && json_object.settings[i][j].toLowerCase() === 'range') {
-                    let current_value = document.createElement('p')
-                    current_value.classList.add('current_value')
-                    setting.appendChild(current_value)
-                    input.addEventListener('input', (e) => {
-                        e.target.parentNode.querySelector('p.current_value').innerText = '(' + e.target.value + ')'
-                    })
-                    input.addEventListener('change', (e) => {
-                        e.target.parentNode.querySelector('p.current_value').innerText = '(' + e.target.value + ')'
-                    })
-                } else if (j.toLowerCase() === 'type' && json_object.settings[i][j].toLowerCase() === 'number'){
-                    input.addEventListener('input', (e)=>{
-                        if(e.target.max !== '' && parseFloat(e.target.value) > parseFloat(e.target.max)){
-                            e.target.value = e.target.max
-                        }
-                        if(e.target.min !== '' && parseFloat(e.target.value) < parseFloat(e.target.min)){
-                            e.target.value = e.target.min
-                        }
-                    })
-                }
-            }
-        }
-        if (json_object.current !== undefined && json_object.current[i] !== undefined) {
-            input.value = json_object.current[i]
-        }
-        setting.appendChild(input)
-        if(input.type.toLowerCase() === 'range'){
-            setting.querySelector('p.current_value').innerText = '(' + setting.querySelector('input').value + ')'
-        }
-        new_settings.appendChild(setting)
-    }
-    let new_save = document.createElement('div')
-    new_save.innerText = 'Save settings'
-    new_save.classList.add('save_settings')
-    new_save.addEventListener('click', (e)=>{
-        let current_settings = {'path':e.target.parentNode.getAttribute('data-path'), 'name':e.target.parentNode.getAttribute('data-name'), 'settings':{}}
-        let settings_nodes = e.target.parentNode.querySelectorAll('input, select')
-        for (let i of settings_nodes){
-            if (i.type.toLowerCase() === 'number' || i.type.toLowerCase() === 'range'){
-                current_settings.settings[i.name] = parseInt(i.value)
-            } else if (i.type.toLowerCase() === 'checkbox') {
-                current_settings.settings[i.name] = i.checked
-            } else {
-                current_settings.settings[i.name] = i.value
-            }
-        }
-        if(ExtensionSettings[current_settings.name].scripts !== undefined){
-            current_settings.scripts = ExtensionSettings[current_settings.name].scripts
-        }
-        if(ExtensionSettings[current_settings.name].event !== undefined){
-            current_settings.event = ExtensionSettings[current_settings.name].event
-        }
-        s.emit('ScriptSettings', current_settings)
-    })
-    new_settings.appendChild(new_save)
-    new_element.appendChild(new_settings)
-    document.querySelector('#settings section.data').appendChild(new_element)
+    return parsed
 }
 
 let s = io.connect(window.location.origin)
 let Waiting4Response = false
 let ToggleQueue = []
-let ReloadStatus = false
 let Waiting4Save = false
 
-let ExtensionSettings_keys = Object.keys(ExtensionSettings)
+let ResetExtensionBtnActive = false
 
-for (let extension of ExtensionSettings_keys) {
-    createSettings(ExtensionSettings[extension])
-}
+let ResetExtensionBtn = document.querySelector('#ResetExtensions')
+setTimeout(function() {
+    ResetExtensionBtnActive = true
+    ResetExtensionBtn.style.display = ''
+}, 1000)
 
 document.getElementById('ResetExtensions').addEventListener('click', () => {
-    if (ReloadStatus === false) {
-        ReloadStatus = true
-        s.emit('ReloadExtensions')
+    if (ResetExtensionBtnActive) {
+        ResetExtensionBtn.style.display = 'none'
+        ResetExtensionBtnActive = false
+        s.emit('ResetExtensions')
     }
 })
 
-for (let i of document.querySelectorAll('article#setup section.data section div')) {
-    i.addEventListener('click', () => {
-        let node = i.parentNode.querySelector('input')
+for (let i of document.querySelectorAll('article#setup .saveSetupButton')) {
+    i.addEventListener('click', function() {
+        if (Waiting4Save) {
+            return
+        }
 
-        if (node.id == 'server_port-input') {
-            if (Waiting4Save === false) {
-                for (let j of document.querySelectorAll('article#setup section.data section div')) {
-                    j.style.background = '#ff0000'
-                }
-                Waiting4Save = true
-                s.emit('UpdateSettings', {
-                    'server_port': parseInt(node.value)
-                })
+        let e = document.querySelector('article#setup')
+        if (e != null) {
+            e.classList.add('WaitingForSave')
+        }
+
+        let obj = {}
+        
+        let node = this.parentNode.querySelector('input')
+
+        switch (node.id) {
+            case 'server_port-input':
+                obj.server_port = parseInt(node.value)
+                break
+            case 'exec_per_second-input':
+                obj.executions_per_second = parseFloat(node.value)
+                break
+            case 'jwt-input':
+                obj.jwt_token =  node.value
+                break
+            case 'user_id-input':
+                obj.user_id =  node.value
+                break
+            case 'tmi-input':
+                obj.tmi =  node.value
+                break
+            case 'tmi_username-input':
+                obj.tmi_twitch_username =  node.value
+                break
+            case 'twitch_channel-input':
+                obj.twitch_channel =  node.value
+                break
+            default:
+                return
+        }
+
+        s.emit('UpdateSettings', obj)
+    })
+}
+
+let lastSEListenerMethod = document.querySelector('#SEListenerMethod').value
+document.querySelector('#SEListenerMethod').addEventListener('input', function() {
+    if (Waiting4Save) {
+        this.value = lastSEListenerMethod
+    }
+    
+    let val = parseInt(this.value)
+    if (isNaN(val))
+    {
+        this.value = lastSEListenerMethod
+        return
+    }
+    
+    lastSEListenerMethod = this.value
+    
+    let e = document.querySelector('article#setup')
+    if (e != null) {
+        e.classList.add('WaitingForSave')
+    }
+
+    Waiting4Save = true
+
+    s.emit('UpdateSettings', {
+        SEListener: val
+    })
+})
+
+for (let i of document.querySelectorAll('.OpenCloseButton')) {
+    i.addEventListener('click', function() {
+        document.querySelector(this.getAttribute('data-target')).classList.toggle('ClosedSetting')
+    })
+}
+
+for (let i of document.querySelectorAll('.save_settings')) {
+    i.addEventListener('click', function() {
+        let name = this.getAttribute('data-name')
+        let index = parseInt(this.getAttribute('data-index'))
+        let settings = {}
+        for (let j of this.parentElement.querySelectorAll('section input, section select')) {
+            let value
+            if (j.type.toLowerCase() === 'checkbox') {
+                value = j.checked
+            } else {
+                value = j.value
             }
-        } else if (node.id == 'exec_per_second-input') {
-            if (Waiting4Save === false) {
-                for (let j of document.querySelectorAll('article#setup section.data section div')) {
-                    j.style.background = '#ff0000'
-                }
-                Waiting4Save = true
-                s.emit('UpdateSettings', {
-                    'executions_per_second': parseFloat(node.value)
-                })
+            if (/^\d+$/.test(value)) {
+                value = parseInt(value)
+            } else if (/^\d+\.\d+$/.test(value)) {
+                value = parseFloat(value)
             }
-        } else if (node.id == 'jwt-input') {
-            if (Waiting4Save === false) {
-                for (let j of document.querySelectorAll('article#setup section.data section div')) {
-                    j.style.background = '#ff0000'
-                }
-                Waiting4Save = true
-                s.emit('UpdateSettings', {
-                    'jwt_token': node.value
-                })
-            }
-        } else if (node.id == 'user_id-input') {
-            if (Waiting4Save === false) {
-                for (let j of document.querySelectorAll('article#setup section.data section div')) {
-                    j.style.background = '#ff0000'
-                }
-                Waiting4Save = true
-                s.emit('UpdateSettings', {
-                    'user_id': node.value
-                })
-            }
-        } else if (node.id == 'tmi-input') {
-            if (Waiting4Save === false) {
-                for (let j of document.querySelectorAll('article#setup section.data section div')) {
-                    j.style.background = '#ff0000'
-                }
-                Waiting4Save = true
-                s.emit('UpdateSettings', {
-                    'tmi': node.value
-                })
-            }
-        } else if (node.id == 'tmi_username-input') {
-            if (Waiting4Save === false) {
-                for (let j of document.querySelectorAll('article#setup section.data section div')) {
-                    j.style.background = '#ff0000'
-                }
-                Waiting4Save = true
-                s.emit('UpdateSettings', {
-                    'tmi_twitch_username': node.value
-                })
-            }
-        } else if (node.id == 'twitch_channel-input') {
-            if (Waiting4Save === false) {
-                for (let j of document.querySelectorAll('article#setup section.data section div')) {
-                    j.style.background = '#ff0000'
-                }
-                Waiting4Save = true
-                s.emit('UpdateSettings', {
-                    'twitch_channel': node.value
-                })
-            }
+            settings[j.getAttribute('data-settingname')] = value
+        }
+        s.emit('SaveSettings', {name: name, index: index, settings: settings})
+    })
+}
+
+for (let i of document.querySelectorAll('.SetDefaultSetting')) {
+    i.addEventListener('click', function() {
+        let value = i.getAttribute('data-default')
+        let input = i.parentElement.querySelector('input, select')
+        
+        if (input === null) {
+            return
+        }
+        
+        if (input.type.toLowerCase() === 'checkbox') {
+            input.checked = value
+        } else {
+            input.value = value
         }
     })
 }
 
-document.getElementById('AddRegular').addEventListener('click', (e) => {
-    let user = document.getElementById('RegularInput').value.toLowerCase()
-    if(!regulars.includes(user)){
-        s.emit('AddRegular', user)
-        document.getElementById('RegularInput').value = ''
-        regulars.push(user)
-        document.querySelector('article#regulars section.data div#RegularList').innerHTML = ''
-        for (let i of regulars) {
-            let newChild = document.createElement('p')
-            newChild.innerText = i
-            document.querySelector('article#regulars section.data div#RegularList').appendChild(newChild)
-        }
-    }
-})
-document.getElementById('DeleteRegular').addEventListener('click', (e) => {
-    let user = document.getElementById('RegularInput').value.toLowerCase()
-    if(regulars.includes(user)){
-        s.emit('DeleteRegular', user)
-        document.getElementById('RegularInput').value = ''
-        regulars.splice(regulars.indexOf(user),1)
-        document.querySelector('article#regulars section.data div#RegularList').innerHTML = ''
-        for (let i of regulars) {
-            let newChild = document.createElement('p')
-            newChild.innerText = i
-            document.querySelector('article#regulars section.data div#RegularList').appendChild(newChild)
-        }
-    }
-})
-
-document.getElementById('use_node-input').addEventListener('change', () => {
-    if (Waiting4Save === true) {
-        if (document.getElementById('use_node-input').checked === true) {
-            document.getElementById('use_node-input').checked == false
-        } else {
-            document.getElementById('use_node-input').checked == true
-        }
-        return
-    }
-    Waiting4Save = true
-    for (let j of document.querySelectorAll('article#setup section.data section div')) {
-        j.style.background = '#ff0000'
-    }
-    s.emit('UpdateSettings', {
-        'use_node': document.getElementById('use_node-input').checked
+for (let i of document.querySelectorAll('.ToggleExtension')) {
+    i.addEventListener('click', function() {
+        s.emit('ToggleExtension', {
+            module: this.getAttribute('data-module'),
+            active: this.checked
+        })
     })
-})
+}
+
+{
+    let AddDeleteRegular = document.querySelector('#AddDeleteRegular')
+    let RegularOperation = 0
+    let RegularUser = ''
+    document.getElementById('RegularInput').addEventListener('input', function() {
+        RegularUser = this.value.toLowerCase()
+        if (RegularUser === '') {
+            AddDeleteRegular.innerText = 'Specify user'
+            RegularOperation = 0
+        } else if (this.parentElement.querySelector('option.RegularUser' + RegularUser) !== null) {
+            AddDeleteRegular.innerText = 'Delete'
+            RegularOperation = 1
+        } else {
+            AddDeleteRegular.innerText = 'Add'
+            RegularOperation = 2
+        }
+    })
+
+    document.getElementById('AddDeleteRegular').addEventListener('click', function() {
+        switch (RegularOperation) {
+            case 0:
+                return
+            case 1:
+                s.emit('DeleteRegular', RegularUser)
+                break
+                case 2:
+                s.emit('AddRegular', RegularUser)
+                break
+        }
+
+        document.getElementById('RegularInput').value = ''
+        RegularUser = ''
+        RegularOperation = 0
+        AddDeleteRegular.innerText = '-'
+    })
+}
 
 document.getElementById('ClearEvents').addEventListener('click', () => {
     document.querySelector('article#events section.data').innerHTML = ''
+    s.emit('ClearEvents')
 })
+
 document.getElementById('ClearLogs').addEventListener('click', () => {
     document.querySelector('article#logs section.data').innerHTML = ''
     s.emit('ClearLogs')
 })
+
 document.getElementById('ClearMessages').addEventListener('click', () => {
     document.querySelector('article#messages section.data').innerHTML = ''
+    s.emit('ClearMessages')
 })
 
-
-s.on('UpdatedSettings', () => {
-    for (let j of document.querySelectorAll('article#setup section.data section div')) {
-        j.style.background = ''
+let cooldownUntilTW = new Date()
+let timeoutTW = false
+let disableUpdateTwitchBtn = false
+document.querySelector('#RestartTwitch').addEventListener('click', function() {
+    if (disableUpdateTwitchBtn === true) {
+        return
     }
+
+    let currentTime = new Date()
+
+    if (cooldownUntilTW > currentTime) {
+        let duration = cooldownUntilTW - currentTime
+        this.innerText = 'Restart: ' + parseInt((duration) / 1000) + 's cooldown'
+        
+        let e = this
+        
+        if (timeoutTW === false) {
+            timeoutTW = setTimeout(function() {
+                e.innerText = 'Restart'
+                timeoutTW = false
+            }, duration)
+        }
+        
+        return
+    }
+    
+    s.emit('RestartTwitch')
+})
+
+let cooldownUntilSE = new Date()
+let timeoutSE = false
+let disableUpdateSEBtn = false
+document.querySelector('#RestartSE').addEventListener('click', function() {
+    if (disableUpdateSEBtn === true) {
+        return
+    }
+
+    let currentTime = new Date()
+
+    if (cooldownUntilSE > currentTime) {
+        let duration = cooldownUntilSE - currentTime
+        this.innerText = 'Restart: ' + parseInt((duration) / 1000) + 's cooldown'
+        
+        let e = this
+        
+        if (timeoutSE === false) {
+            timeoutSE = setTimeout(function() {
+                e.innerText = 'Restart'
+                timeoutSE = false
+            }, duration)
+        }
+        
+        return
+    }
+    
+    s.emit('RestartSE')
+})
+
+s.on('RestartTwitch', function(data) {
+    if (disableUpdateTwitchBtn) {
+        return
+    }
+    let e = document.querySelector('#RestartTwitch')
+    let duration
+    if (data.state === -1) {
+        cooldownUntil = new Date(data.cooldown * 1000)
+        duration = cooldownUntil - new Date()
+        e.innerText = 'Restart: ' + parseInt((duration) / 1000) + 's cooldown'
+    } else if (data.state === 0) {
+        duration = 1000
+        disableUpdateTwitchBtn = true
+        e.innerText = 'No new data'
+    } else {
+        duration = 1000
+        disableUpdateTwitchBtn = true
+        e.innerText = 'Restart complete'
+    }
+    if (timeoutTW === false) {
+        timeoutTW = setTimeout(function() {
+            e.innerText = 'Restart'
+            timeoutTW = false
+            disableUpdateTwitchBtn = false
+        }, duration)
+    }
+})
+
+s.on('RestartSE', function(data) {
+    if (disableUpdateSEBtn) {
+        return
+    }
+    let e = document.querySelector('#RestartSE')
+    let duration
+    if (data.state === -1) {
+        cooldownUntil = new Date(data.cooldown * 1000)
+        duration = cooldownUntil - new Date()
+        e.innerText = 'Restart: ' + parseInt((duration) / 1000) + 's cooldown'
+    } else if (data.state === 0) {
+        duration = 1000
+        disableUpdateSEBtn = true
+        e.innerText = 'No new data'
+    } else {
+        duration = 1000
+        disableUpdateSEBtn = true
+        e.innerText = 'Restart complete'
+    }
+    if (timeoutSE === false) {
+        timeoutSE = setTimeout(function() {
+            e.innerText = 'Restart'
+            timeoutSE = false
+            disableUpdateSEBtn = false
+        }, duration)
+    }
+})
+
+s.on('AddRegular', function(name) {
+    let e = document.createElement('option')
+    e.value = name
+    e.classList.add('RegularUser' + name)
+    document.querySelector('#RegularList').appendChild(e)
+})
+
+s.on('DeleteRegular', function(name) {
+    let e = document.querySelector('option.RegularUser' + name)
+    if (e === null) {
+        return
+    }
+
+    e.parentElement.removeChild(e)
+})
+
+s.on('UpdateSettings', () => {
+    let e = document.querySelector('article#setup')
+    if (e != null) {
+        e.classList.remove('WaitingForSave')
+    }
+    
     Waiting4Save = false
 })
 
-s.on('ReloadChange', (message) => {
-    createExtentions(message.data)
-    ReloadStatus = false
+s.on('ResetExtensions', (message) => {
+    window.location.reload()
 })
 
 s.on("message", (message) => {
@@ -345,40 +369,166 @@ s.on('log', (message) => {
     document.querySelector('article#logs section.data').appendChild(createLog(message.module, message.message))
     for (let i of document.querySelectorAll('section.ExtensionItem p')) {
         if (i.innerHTML === message.module) {
-            if (i.parentNode.querySelector('input').checked) {
-                i.parentNode.querySelector('input').click()
-            }
+            i.parentNode.querySelector('input').checked = false
         }
     }
 })
 
 s.on('StreamElementsEvent', (data) => {
     if (document.querySelector('article#events section.data').childElementCount > 99) {
-        document.querySelector('article#events section.data').removeChild(document.querySelector('article#events section.data').firstElementChild)
+        document.querySelector('article#events section.data').removeChild(document.querySelector('article#events section.data').lastChild)
     }
-    let new_element = document.createElement('p')
-    new_element.innerText = data.type + ' => ' + data.data.username
-    document.querySelector('article#events section.data').appendChild(new_element)
+    
+    let wrap = document.createElement('div')
+    let h2 = document.createElement('h2')
+    let p = document.createElement('p')
+
+    h2.innerText = data.type
+
+    switch (data.type) {
+        case 'tip':
+            p.innerText = data.data.amount + ' ' + data.data.currency + ' => ' + data.data.username
+            break
+        case 'cheer':
+            p.innerText = data.data.amount + ' bits => ' + data.data.username
+            break
+        case 'host':
+            p.innerText = data.data.amount + ' host => ' + data.data.username
+            break
+        case 'raid':
+            p.innerText = data.data.amount + ' raid => ' + data.data.username
+            break/*
+        case 'perk':
+            p.innerText = event.item + ' => ' + data.data.username
+            break
+        case 'merch':
+            p.innerText = 'test merchname => ' + data.data.username
+            break*/
+        case 'subscriber':
+            switch (data.data.tier) {
+                case 'prime':
+                    p.innerText = 'prime'
+                    break
+                case '2000':
+                    p.innerText = 'tier 2'
+                    break
+                case '3000':
+                    p.innerText = 'tier 3'
+                    break
+                default:
+                    p.innerText = 'tier 1'
+                    break
+            }
+            /*if (event.bulkGifted) {
+                p.innerText += ' community gift => ' + event.sender + ' x' + event.amount
+            } else */if (data.data.gifted) {
+                p.innerText += ' gift => ' + data.data.sender + ' to ' + data.data.username
+            } else {
+                p.innerText += ', ' + data.data.amount + ' months => ' + data.data.username
+            }
+            break
+        default:
+            p.innerText = data.data.username
+            break
+    }
+    
+
+    wrap.appendChild(h2)
+    wrap.appendChild(p)
+    
+    let e = document.querySelector('article#events section.data')
+    e.insertBefore(wrap, e.firstChild)
 })
 
 s.on('StreamElementsTestEvent', (data) => {
     if (!data.listener.includes('latest')) {
         return
     }
+
     if (document.querySelector('article#events section.data').childElementCount > 99) {
-        document.querySelector('article#events section.data').removeChild(document.querySelector('article#events section.data').firstElementChild)
+        document.querySelector('article#events section.data').removeChild(document.querySelector('article#events section.data').lastChild)
     }
-    let new_element = document.createElement('p')
-    new_element.innerText = data.event.type + ' => ' + data.event.name
-    document.querySelector('article#events section.data').appendChild(new_element)
+
+    let wrap = document.createElement('div')
+    let h2 = document.createElement('h2')
+    let p = document.createElement('p')
+
+    let event = data.event
+
+    if (event.type === 'perk') {
+        h2.innerText = 'item redemption'
+    } else {
+        h2.innerText = event.type
+    }
+
+    if (event.isTest) {
+        h2.innerText += ' (test)'
+    }
+
+    switch (event.type) {
+        case 'follower':
+            p.innerText = event.name
+            break
+        case 'tip':
+            p.innerText = event.amount + ' TC => ' + event.name
+            break
+        case 'cheer':
+            p.innerText = event.amount + ' bits => ' + event.name
+            break
+        case 'host':
+            p.innerText = event.amount + ' viwers => ' + event.name
+            break
+        case 'raid':
+            p.innerText = event.amount + ' viwers => ' + event.name
+            break
+        case 'perk':
+            p.innerText = event.item + ' => ' + event.name
+            break
+        case 'merch':
+            p.innerText = 'test merchname => ' + event.name
+            break
+        case 'subscriber':
+            switch (event.tier) {
+                case 'prime':
+                    p.innerText = 'prime'
+                    break
+                case '2000':
+                    p.innerText = 'tier 2'
+                    break
+                case '3000':
+                    p.innerText = 'tier 3'
+                    break
+                default:
+                    p.innerText = 'tier 1'
+                    break
+            }
+            if (event.bulkGifted) {
+                p.innerText += ' community gift => ' + event.sender + ' x' + event.amount
+            } else if (event.gifted) {
+                p.innerText += ' gift => ' + event.sender + ' to ' + event.name
+            } else {
+                p.innerText += ', ' + event.amount + ' months => ' + event.name
+            }
+            break
+    }
+
+    wrap.appendChild(h2)
+    wrap.appendChild(p)
+
+    let e = document.querySelector('article#events section.data')
+    e.insertBefore(wrap, e.firstChild)
 })
 
-s.on("toggle", (message) => {
-    if (ToggleQueue.length == 0) {
-        Waiting4Response = false
-    } else {
-        s.emit("toggle", ToggleQueue[0])
-        ToggleQueue.shift()
+s.on('ToggleExtension', (message) => {
+    data = parseJSON(message)
+
+    if (data === null) { return }
+    if (data.success === false) {
+        for (let i of document.querySelectorAll('.ToggleExtension')) {
+            if (i.getAttribute('data-module') === data.module) {
+                i.checked = message.active
+            }
+        }
     }
 })
 
@@ -388,17 +538,6 @@ s.on('TwitchMessage', (message) => {
     }
     let new_element = document.createElement('p')
     new_element.innerText = message.name + ': ' + message.message
+    new_element.classList.add('message')
     document.querySelector('article#messages section.data').appendChild(new_element)
 })
-
-createExtentions(data)
-
-for (let i of logs) {
-    document.querySelector('article#logs section.data').appendChild(createLog(i.module, i.message))
-}
-
-for (let i of regulars) {
-    let newChild = document.createElement('p')
-    newChild.innerText = i
-    document.querySelector('article#regulars section.data div#RegularList').appendChild(newChild)
-}

@@ -1,6 +1,8 @@
 * {
     color: #ffffff;
     font-family: 'Roboto', sans-serif;
+    margin: 0;
+    padding: 0;
 }
 
 html::-webkit-scrollbar {
@@ -26,12 +28,6 @@ html::-webkit-scrollbar-corner{
 
 body {
     background: #555555;
-    margin: 0;
-}
-
-h1 {
-    padding: 0;
-    margin: 0;
 }
 
 select {
@@ -113,6 +109,28 @@ article section.data::-webkit-scrollbar-corner{
     background: transparent;
 }
 
+.CustomScroll::-webkit-scrollbar {
+    width: .5rem;
+    height: .5rem;
+}
+
+.CustomScroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.CustomScroll::-webkit-scrollbar-thumb {
+    border-radius: 1rem;
+    background: rgba(0, 0, 0, .6);
+}
+
+.CustomScroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, .7);
+}
+
+.CustomScroll::-webkit-scrollbar-corner{
+    background: transparent;
+}
+
 article#settings section.data div input {
     color: #000000;
 }
@@ -134,17 +152,8 @@ article#settings .OpenCloseButton:hover {
     background: rgba(0, 0, 0, .25);
 }
 
-article#settings .save_settings {
-    border: #000000 .1rem solid;
-    border-radius: 1rem;
-    display: inline-block;
-    cursor: pointer;
-    margin: 0;
-    padding: .5rem 1rem;
-}
-
-article#settings .save_settings:hover {
-    background: rgba(0, 0, 0, .25);
+article#settings .OpenCloseButton:active {
+    background: rgba(0, 0, 0, .5);
 }
 
 article#settings section.data div section section p {
@@ -163,90 +172,61 @@ article#settings section.data div section {
     margin: 1rem 0;
 }
 
-article#logs div h2{
+.listFormat div h2{
     font-size: 1.3rem;
-    margin: 0;
+    margin: 0 0 0 .5rem;
+    
 }
 
-article#logs div p{
-    margin: 0;
+.listFormat div p{
+    margin: 0 0 0 .5rem;
     font-size: 1.1rem;
 }
 
-article#logs section div:first-of-type {
+.listFormat div:first-of-type {
     border-top: rgba(0, 0, 0, .25) solid .15rem;
 }
 
-article#logs section div {
+.listFormat div {
+    padding: .1rem 0;
     border-bottom: rgba(0, 0, 0, .25) solid .15rem;
 }
 
-article#logs section div h2, article#logs section div p {
-    margin-left: .5rem;
+article#regulars section.data {
+    overflow: hidden;
 }
 
-article#regulars section.data section#RegularController{
-    display: flex;
+#RegularWrapper {
+    display: inline-flex;
     flex-direction: column;
 }
 
-article#regulars section.data section#RegularController section#RCTop input#RegularInput {
+input#RegularInput {
     color: #000000;
 }
 
-article#regulars section.data section#RegularController section#RCBottom{
-    display: inline-flex;
-    width: 10rem;
-}
-
-article#regulars section.data section#RegularController section div{
-    cursor: pointer;
+#AddDeleteRegular {
     border: .1rem solid #000000;
-    flex: 1;
+    display: inline-block;
     text-align: center;
+    cursor: pointer;
 }
 
-article#regulars section.data section#RegularController section div:hover{
+#AddDeleteRegular:hover{
     background: rgba(0, 0, 0, .25);
 }
 
-article#regulars section.data section#RegularController section div:first-of-type{
-    border-right: .05rem solid #000000;
-    border-bottom-left-radius: .5rem;
+article#setup.WaitingForSave .saveSetupButton {
+    background: #FF0000;
 }
 
-article#regulars section.data section#RegularController section div:last-of-type{
-    border-left: .05rem solid #000000;
-    border-bottom-right-radius: .5rem;
-}
-
-article#regulars section.data div#RegularList{
+article#setup section.data section p {
     margin-top: 1rem;
+    margin-bottom: .2rem;
 }
 
-article#regulars section.data div#RegularList p{
-    margin: 0;
-}
-
-article#setup p#StarToDisable {
-    margin: 0;
-    text-decoration: underline;
-}
-
-article#setup section.data section input{
+article#setup section.data section input {
     color: #000000;
-}
-
-article#setup section.data section div{
-    display: inline-block;
-    border: #eeeeee .1rem solid;
-    padding: 0 .5rem;
-    margin-left: .5rem;
-    cursor: pointer;
-}
-
-article#setup section.data section div:hover{
-    background: rgba(0, 0, 0, .5);
 }
 
 article header {
@@ -262,7 +242,7 @@ article header h1{
     margin-bottom: 0;
 }
 
-article header div {
+article header .ResetClearBtn {
     font-size: 1.2rem;
     padding: .5rem 1rem;
     cursor: pointer;
@@ -270,22 +250,23 @@ article header div {
     font-weight: 700;
 }
 
-article header div:hover {
-    background: #ff0000;
+article header .ResetClearBtn:hover {
+    background: rgba(0, 0, 0, .25);
 }
 
 section.ExtensionItem{
     display: flex;
     align-items: center;
+    margin: .25rem 0;
 }
 
-section.ExtensionItem p{
+section.ExtensionItem p {
     display: inline-block;
     font-size: 1.3rem;
-    margin: 0;
+    margin-left: .5rem;
 }
 
-section.ExtensionItem input[type="checkbox"]{
+.CustomCheckbox {
     -webkit-appearance: none;
     width: 1.5rem;
     height: 1.5rem;
@@ -300,7 +281,7 @@ section.ExtensionItem input[type="checkbox"]{
     justify-content: center;
 }
 
-section.ExtensionItem input[type="checkbox"]::before{
+.CustomCheckbox::before {
     content: "";
     display: inline-block;
     background: transparent;
@@ -310,46 +291,51 @@ section.ExtensionItem input[type="checkbox"]::before{
     transition: width .2s ease-out, height .2s ease-out, background .2s ease-out;
 }
 
-section.ExtensionItem input[type="checkbox"]:checked::before{
+.CustomCheckbox:checked::before {
     background: #00FF00;
     width: 75%;
     height: 75%;
 }
 
-input[type="checkbox"]#use_node-input {
-    -webkit-appearance: none;
-    width: 1.5rem;
-    height: 1.5rem;
-    background: rgba(0, 0, 0, .25);
-    border-radius: 50%;
-    outline: none;
-    cursor: pointer;
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
+.ClosedSetting {
+    display: none;
 }
 
-input[type="checkbox"]#use_node-input::before {
-    content: '';
+.message {
+    margin: .25rem 0;
+    padding: 0;
+}
+
+.CompactButton {
+    border: #000000 .1rem solid;
     display: inline-block;
-    background: transparent;
-    width: 0;
-    height: 0;
-    border-radius: 50%;
-    transition: width .2s ease-out, height .2s ease-out, background .2s ease-out;
+    cursor: pointer;
+    margin: 0;
+    padding: .2rem .4rem;
 }
 
-input[type="checkbox"]#use_node-input:checked::before {
-    background: #00FF00;
-    width: 75%;
-    height: 75%;
+.CompactButton:hover {
+    background: rgba(0, 0, 0, .25);
 }
 
-article#setup section.data section:last-of-type {
-    display: flex;
-    flex-direction: row-reverse;
-    justify-content: flex-end;
-    align-items: center;
+.CompactButton:active {
+    background: rgba(0, 0, 0, .5) !important;
+}
+
+footer {
+    background: #346383;
+    padding: .5rem 0;
+}
+
+footer h2 {
+    text-align: center;
+    font-size: 2rem;
+}
+
+footer h3 {
+    text-align: center;
+    font-size: 1.5rem;
+    margin-top: .5rem;
 }
 
 @media screen and (max-width:37rem){

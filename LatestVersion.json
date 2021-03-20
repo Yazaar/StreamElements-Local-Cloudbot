@@ -1,5 +1,18 @@
 {
-  "version":24,
-  "download":"https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/update.zip",
-  "log":"- Patch for Flask error message (winpath has no rstrip method or whatever)"
+  "version": 24,
+  "download": "https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/update.zip",
+  "log": "- Large rewrite of files",
+  "files": {
+    "dependencies/web/HTML/index.html": {"version": 1, "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/web/HTML/index.html"},
+    "dependencies/web/static/scripts/index.js": {"version": 1, "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/web/static/scripts/index.js"},
+    "dependencies/web/static/styles/index.css": {"version": 1, "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/web/static/styles/index.css"},
+    "dependencies/modules/Chat.py": {"version": 1, "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/Chat.py"},
+    "dependencies/modules/ExtensionCrossover.py": {"version": 1, "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/ExtensionCrossover.py"},
+    "dependencies/modules/Extensions.py": {"version": 1, "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/Extensions.py"},
+    "dependencies/modules/Misc.py": {"version": 1, "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/Misc.py"},
+    "dependencies/modules/StreamElements.py": {"version": 1, "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/StreamElements.py"},
+    "LocalStreamElements.py": {"version": 1, "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/LocalStreamElements.py"},
+    "requirements.txt": {"version": 1, "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/requirements.txt"}
+  },
+  "delete": []
 }

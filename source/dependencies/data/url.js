@@ -1,1 +1,0 @@
-let server_url = "localhost:80"

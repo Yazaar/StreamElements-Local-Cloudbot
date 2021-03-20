@@ -1,5 +1,6 @@
 {
-  "version":1,
-  "download":"https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/windowsLauncher.zip",
-  "log":"First Launcher Update"
+  "version": 2,
+  "download": "https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/windowsLauncher.zip",
+  "url": "https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/bin/Windows.exe",
+  "log": "First Launcher Update"
 }

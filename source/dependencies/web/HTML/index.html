@@ -25,52 +25,142 @@
     <article id="extensions">
         <header>
             <h1>Extensions</h1>
-            <div id="ResetExtensions">RESET</div>
+            <div id="ResetExtensions" class="ResetClearBtn" style="display: none;">RESET</div>
         </header>
-        <section class="data"></section>
+        <section class="data">
+            {% for extension in extensions %}
+            <section class="ExtensionItem">
+                {% if extension['active'] %}
+                <input class="CustomCheckbox ToggleExtension" type="checkbox" checked data-module="{{extension['module']}}"/>
+                {% else %}
+                <input class="CustomCheckbox ToggleExtension" type="checkbox" data-module="{{extension['module']}}"/>
+                {% endif %}
+                <p>{{extension['module']}}</p>
+            </section>
+            {% endfor %}
+        </section>
     </article>
     <article id="settings">
         <header>
             <h1>Settings</h1>
         </header>
-        <section class="data"></section>
+        <section class="data">
+            {% for setting in ExtensionsSettings %}
+            <div>
+                <div class="OpenCloseButton" data-target="#setting{{loop.index-1}}">{{setting['name']}}</div>
+                <section class="ClosedSetting" id="setting{{loop.index-1}}" data-index="{{loop.index-1}}" data-name="{{setting['name']}}" data-path="{{setting['path']}}">
+                    {% for subsetting in setting['settings'] %}
+                    <section>
+                        <h3>{{subsetting}}</h3>
+                        <div class="CompactButton SetDefaultSetting" data-default="{{setting['settings'][subsetting]['value']}}">Set Default</div>
+                        <p>{{setting['tip']}}</p>
+                        {% if setting['settings'][subsetting]['type']|lower == 'dropdown' %}
+                        <select name="{{subsetting}}" data-settingname="{{subsetting}}">
+                            {% for choice in setting['settings'][subsetting]['choices'] %}
+                            {% if setting['settings'][subsetting]['current_value'] == choice %}
+                            <option value="{{choice}}" selected>{{choice}} yes</option>
+                            {% else %}
+                            <option value="{{choice}}">{{choice}}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                        {% elif setting['settings'][subsetting]['type']|lower == 'checkbox' %}
+                        {% if setting['settings'][subsetting]['current_value'] == True %}
+                        <input class="CustomCheckbox" type="checkbox" checked data-settingname="{{subsetting}}" />
+                        {% else %}
+                        <input class="CustomCheckbox" type="checkbox" data-settingname="{{subsetting}}" />
+                        {% endif %}
+                        {% else %}
+                        <input type="{{setting['settings'][subsetting]['type']}}" value="{{setting['settings'][subsetting]['current_value']}}" data-settingname="{{subsetting}}" />
+                        {% endif %}
+                    </section>
+                    {% endfor %}
+                    <div class="save_settings CompactButton" data-index="{{loop.index-1}}" data-name="{{setting['name']}}">Save Settings</div>
+                </section>
+            </div>
+            {% endfor %}
+        </section>
     </article>
     <article id="events">
         <header>
             <h1>Events</h1>
-            <div id="ClearEvents">CLEAR</div>
+            <div id="ClearEvents" class="ResetClearBtn">CLEAR</div>
         </header>
-        <section class="data"></section>
-    </article>
-    <article id="logs">
-        <header>
-            <h1>Logs</h1>
-            <div id="ClearLogs">CLEAR</div>
-        </header>
-        <section class="data"></section>
+        <section class="data listFormat">
+            {% for event in events %}
+            <div>
+                <h2>{{event['type']}}</h2>
+                {% if event['type']  == 'tip' %}
+                <p>{{event['data']['amount']}} {{event['data']['currency']}} => {{event['data']['username']}}</p>
+                {% elif event['type']  == 'cheer' %}
+                <p>{{event['data']['amount']}} bits => {{event['data']['username']}}</p>
+                {% elif event['type']  == 'host' %}
+                <p>{{event['data']['amount']}} host => {{event['data']['username']}}</p>
+                {% elif event['type']  == 'raid' %}
+                <p>{{event['data']['amount']}} raid => {{event['data']['username']}}</p>
+                {% elif event['type']  == 'subscriber' %}
+                <p>
+                    {% if event['data']['tier'] == 'prime' %}
+                    prime
+                    {% elif event['data']['tier'] == '2000' %}
+                    tier 2
+                    {% elif event['data']['tier'] == '3000' %}
+                    tier 3
+                    {% else %}
+                    tier 1
+                    {% endif %}
+                    {% if event['data']['gifted'] == True %}
+                    gift => {{event['data']['sender']}} to {{event['data']['username']}}
+                    {% else %}
+                    , {{event['data']['amount']}} months => {{event['data']['username']}}
+                    {% endif %}
+                </p>
+                {% else %}
+                <p>{{event['data']['username']}}</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </section>
     </article>
     <article id="messages">
         <header>
             <h1>Messages</h1>
-            <div id="ClearMessages">CLEAR</div>
+            <div id="ClearMessages" class="ResetClearBtn">CLEAR</div>
         </header>
-        <section class="data"></section>
+        <section class="data">
+            {% for message in messages %}
+            <p class="message">{{message}}</p>
+            {% endfor %}
+        </section>
+    </article>
+    <article id="logs">
+        <header>
+            <h1>Logs</h1>
+            <div id="ClearLogs" class="ResetClearBtn">CLEAR</div>
+        </header>
+        <section class="data listFormat">
+            {% for log in ExtensionLogs %}
+            <div>
+                <h2>{{log.module}}</h2>
+                <p>{{log.message}}</p>
+            </div>
+            {% endfor %}
+        </section>
     </article>
     <article id="regulars">
         <header>
             <h1>Regulars</h1>
         </header>
         <section class="data">
-            <section id="RegularController">
-                <section id="RCTop">
-                    <input type="text" id="RegularInput">
-                </section>
-                <section id="RCBottom">
-                    <div id="AddRegular">Add</div>
-                    <div id="DeleteRegular">Delete</div>
-                </section>
-            </section>
-            <div id="RegularList"></div>
+            <div id="RegularWrapper">
+                <div id="AddDeleteRegular">Specify user</div>
+                <input type="text" id="RegularInput" list="RegularList">
+                <datalist id="RegularList">
+                    {% for regular in regulars %}
+                    <option class="RegularUser{{regular|lower}}" value="{{regular|lower}}"></option>
+                    {% endfor %}
+                </datalist>
+            </div>
         </section>
     </article>
     <article id="setup">
@@ -78,51 +168,57 @@
             <h1>Setup</h1>
         </header>
         <section class="data">
-            <p id="StarToDisable">Insert * (1 star) to disable</p>
             <section>
                 <p>Server port</p>
-                <input type="number" id="server_port-input"><div>SAVE</div>
+                <input type="number" id="server_port-input" value="{{settings['server_port']}}" /><div class="CompactButton saveSetupButton">SAVE</div>
             </section>
             <section>
                 <p>Script executions per second</p>
-                <input type="number" id="exec_per_second-input"><div>SAVE</div>
-            </section>
-            <section>
-                <p>JWT token (found on StreamElements profile)</p>
-                <input type="password" id="jwt-input"><div>SAVE</div>
-            </section>
-            <section>
-                <p>User ID (found on StreamElements profile, "Account ID")</p>
-                <input type="text" id="user_id-input"><div>SAVE</div>
+                <input type="number" id="exec_per_second-input" value="{{settings['executions_per_second']}}" /><div class="CompactButton saveSetupButton">SAVE</div>
             </section>
             <section>
                 <p>TMI (generate <a target="_blank" rel="noopener noreferrer" href="https://twitchapps.com/tmi/">HERE</a>)</p>
-                <input type="password" id="tmi-input"><div>SAVE</div>
+                <input type="password" id="tmi-input" value="{{settings['tmi']}}" /><div class="CompactButton saveSetupButton">SAVE</div>
             </section>
             <section>
                 <p>The username which connected to TMI</p>
-                <input type="text" id="tmi_username-input"><div>SAVE</div>
+                <input type="text" id="tmi_username-input" value="{{settings['tmi_twitch_username']}}" /><div class="CompactButton saveSetupButton">SAVE</div>
             </section>
             <section>
                 <p>The twitch channel to listen on</p>
-                <input type="text" id="twitch_channel-input"><div>SAVE</div>
+                <input type="text" id="twitch_channel-input" value="{{settings['twitch_channel']}}" /><div class="CompactButton saveSetupButton">SAVE</div>
             </section>
             <section>
-                <p>Use node for the StreamElements socket (use if errors only!)</p>
-                <input type="checkbox" id="use_node-input">
+                <p>Restart Twitch chat (if changed settings)</p>
+                <div class="CompactButton" id="RestartTwitch">Restart</div>
+            </section>
+            <section>
+                <p>JWT Token (found on the StreamElements profile)</p>
+                <input type="password" id="jwt-input" value="{{settings['jwt_token']}}" /><div class="CompactButton saveSetupButton">SAVE</div>
+            </section>
+            <section>
+                <p>StreamElements might disconnect using the Socket IO<br>Would recommend using Websocket.<br>(compatibility issues with newer versions)</p>
+                <select id="SEListenerMethod">
+                    {% if settings['SEListener'] == 1 %}
+                    <option value="1" selected>Socket IO</option>
+                    <option value="2">Websocket</option>
+                    {% else %}
+                    <option value="1">Socket IO</option>
+                    <option value="2" selected>Websocket</option>
+                    {% endif %}
+                </select>
+            </section>
+            <section>
+                <p>Restart StreamElements (if changed settings)</p>
+                <div class="CompactButton" id="RestartSE">Restart</div>
             </section>
         </section>
     </article>
-
-    <script>
-        let data = {{ data|tojson }}
-        let logs = {{ ExtensionLogs|tojson }}
-        let events = {{ events|tojson }}
-        let SetupValues = {{ SetupValues|tojson }}
-        let ExtensionSettings = {{ ExtensionSettings|tojson }}
-        let regulars = {{ regulars|tojson }}
-    </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js"></script>
-    <script src="{{ url_for('static',filename='scripts/index.js') }}"></script>
+    <footer>
+        <h2><a target="_blank" rel="noopener noreferrer" href="https://streamelements.com/yazaar/tip" >Support me (donate)</a></h2>
+        <h3>Unofficial creation by Yazaar</h3>
+    </footer>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.1.3/socket.io.min.js"></script>
+    <script src="{{ url_for('static',filename='scripts/index.js') }}?v=1"></script>
 </body>
 </html>
