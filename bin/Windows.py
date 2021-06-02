@@ -1,4 +1,4 @@
-import requests, os, sys, json
+import requests, os, sys, json, importlib
 from pathlib import Path
 
 # LSE requirements
@@ -51,15 +51,20 @@ def WaitForYN():
         elif temp == 'n':
             return False
 
-def main():
-    os.chdir(Path(__file__).parent)
+def setup():
+    if getattr(sys, 'frozen', False): filepath = Path(sys.executable).absolute()
+    else: filepath = Path(__file__).absolute()
 
-    version = 2
+    cwd = filepath.parent
 
-    cwd = os.getcwd()
+    os.chdir(cwd)
 
-    if not cwd in sys.path:
-        sys.path.append(cwd)
+    version = 3
+
+    cwd_str = str(cwd)
+
+    if not cwd_str in sys.path:
+        sys.path.append(cwd_str)
     
     downloadData = checkForUpdates()
 
@@ -82,12 +87,18 @@ def main():
         print('Invalid download URL?\n Running existing build')
         return
     
-    with open(Path(__file__), 'wb') as f:
+    with open(filepath, 'wb') as f:
         f.write(response.content)
 
-main()
+setup()
 
-from LocalStreamElements import boot
+try: LocalStreamElements = importlib.import_module('LocalStreamElements')
+except ModuleNotFoundError:
+    input('Unable to find LocalStreamElements.py in the current folder.\nPlease download it to continue.\nHit enter to exit\n')
+    raise SystemExit
 
-try: boot()
+try: LocalStreamElements.boot()
+except AttributeError:
+    input('boot does not exist in the LocalStreamElements.py\nPlease download LocalStreamElements.py to continue.\nHit enter to exit\n')
+    raise SystemExit
 except KeyboardInterrupt: pass

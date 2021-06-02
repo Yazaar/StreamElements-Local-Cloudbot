@@ -1,6 +1,5 @@
 {
-  "version": 2,
-  "download": "https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/windowsLauncher.zip",
+  "version": 3,
   "url": "https://github.com/Yazaar/StreamElements-Local-Cloudbot/raw/master/bin/Windows.exe",
-  "log": "First Launcher Update"
+  "log": "- Refrozen with locally compiled PyInstaller, hopefully less false positives during runtime"
 }
