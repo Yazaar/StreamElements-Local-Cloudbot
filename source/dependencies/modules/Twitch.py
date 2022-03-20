@@ -1,8 +1,15 @@
-import asyncio, time, datetime
+import asyncio, time, datetime, typing
+
+if typing.TYPE_CHECKING:
+    from dependencies.modules.Extensions import Extensions
 
 class Twitch:
-    def __init__(self, extensions, tmi : str, botname : str, channels : list):
-        self.extensions = extensions
+    def __init__(self, alias : str, extensions : 'Extensions', tmi : str, botname : str, channels : list):
+        self.id = id(self)
+        self.alias = alias
+        
+        self.__running = True
+        self.__extensions = extensions
 
         self.reader = None
         self.writer = None
@@ -11,14 +18,12 @@ class Twitch:
         self.botname = botname
         self.channels = channels
 
-        self.regulars = {'global': [], 'channel': {}}
-
         self.getContext = self.__getContext()
         self.context = self.getContext()
 
-        loop = asyncio.get_event_loop()
+        self.__runTask : asyncio.Task = None
 
-        loop.create_task(self.listen())
+        self.start()
     
     def __getContext(self):
         parent = self
@@ -36,7 +41,7 @@ class Twitch:
         return None
     
     def onrawMsg(self, rawMsg : str):
-        self.extensions.twitchMessage(TwitchMessage(self, rawMsg))
+        self.__extensions.twitchMessage(TwitchMessage(self, rawMsg))
     
     def isRegular(self, channel : str, username : str):
         un, c = username.lower(), channel.lower()
@@ -44,7 +49,18 @@ class Twitch:
         channelList = self.regulars['channel'].get(c, [])
         return un in globalList or un in channelList
 
-    def close(self):
+    def start(self):
+        self.__running = True
+
+        if self.__runTask == None or self.__runTask.done():
+            loop = asyncio.get_event_loop()
+            self.__runTask = loop.create_task(self.listen())
+
+    def stop(self):
+        self.__running = False
+        self.__close()
+    
+    def __close(self):
         if self.writer == None:
             self.reader = None
             return
@@ -62,7 +78,7 @@ class Twitch:
         return data.decode('utf-8').rstrip()
     
     async def listen(self):
-        while True:
+        while self.__running:
             self.reader, self.writer = await asyncio.open_connection('irc.twitch.tv', 6667)
 
             self.writer.write(b'PASS ' + self.tmi.lower().encode('utf-8') + b'\r\n')
@@ -73,27 +89,27 @@ class Twitch:
                 self.writer.write(b'JOIN #' + channel.lower().encode('utf-8') + b'\r\n')
             self.writer.write(b'CAP REQ :twitch.tv/tags\r\n')
 
-            while True:
+            while self.__running:
                 data = await self.read()
                 
                 if data == None:
-                    self.close()
+                    self.__close()
                     print('[Twitch Chat] Connection to Twitch failed, retrying in 3 seconds...')
                     await asyncio.sleep(3)
                     break
                 if data == ':tmi.twitch.tv NOTICE * :Login authentication failed' or data == ':tmi.twitch.tv NOTICE * :Improperly formatted auth':
                     print('[Twitch Chat] Invalid TMI')
-                    self.close()
+                    self.__close()
                     return
                 elif 'End of /NAMES list' in data:
                     print('[Twitch Chat] Connected to: ' + ', '.join(self.channels).lower())
                     break
             
-            if self.writer == None: continue
+            if self.__running and self.writer == None: continue
             
             lastResponse = time.time()
             sentPing = False
-            while True:
+            while self.__running:
                 try: data = await asyncio.wait_for(self.read(), 5)
                 except asyncio.TimeoutError: data = None
 
@@ -102,7 +118,7 @@ class Twitch:
                         self.writer.write(b'PING :tmi.twitch.tv\r\n')
                         sentPing = True
                     if sentPing == True and time.time() - lastResponse > 40:
-                        self.close()
+                        self.__close()
                         print('[Twitch Chat] Lost connection, retrying in 5 seconds')
                         await asyncio.sleep(5)
                         break

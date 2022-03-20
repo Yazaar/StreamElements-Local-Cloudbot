@@ -1,59 +1,87 @@
-import json
+import json, typing
 from pathlib import Path
 
 class Settings():
     def __init__(self):
-        self.settingsStructure = {
-                'server_port': (int, 80),
-                'executions_per_second': ((int, float), 60),
-                'jwt_token': (str, ''),
-                'tmi': (str, ''),
-                'twitch_channel': (str, ''),
-                'tmi_twitch_username': (str, ''),
-                'SEListener': (int, 2)
-        }
+        settingsFolder = Path('dependencies/data/settings')
+        
+        self.__generalSettingsFile = settingsFolder / 'general.json'
+        self.__twitchSettingsFile = settingsFolder / 'twitch.json'
+        self.__discordSettingsFile = settingsFolder / 'discord.json'
+        self.__streamelementsSettingsFile = settingsFolder / 'streamelements.json'
 
-        self.settings = self.loadSettings()
+        self.__defaultPort = 80
+        self.port = None
 
-    def loadSettings(self):
-        filePath = Path('dependencies/data/settings.json')
+        self.__twitchStructure = {'tmi': str, 'botname': str, 'channels': list, 'alias': str}
+        self.twitch = []
 
-        if not filePath.is_file():
-            settings = {}
+        self.__streamelementsStructure = {'twt': str, 'alias': str}
+        self.streamelements = []
+        
+        self.__discordStructure = {'token': str, 'alias': str}
+        self.discord = []
+
+        self.__loadSettings()
+
+    def __loadSettings(self):
+        generalSettings = self.__readFile(self.__generalSettingsFile)
+        if not isinstance(generalSettings, dict) or (port := generalSettings.get('port', None)) == None or not isinstance(port, int):
+            self.port = self.__defaultPort
+            self.__saveSettings({'port': self.port}, self.__generalSettingsFile)
         else:
-            with open(filePath, 'r') as f:
-                try: settings = json.load(f)
-                except Exception: settings = {}
+            self.port = port
         
-        if self.validateSettings(settings): self.saveSettings(settings)
-
-        return settings
-    
-    def saveSettings(self):
-        self.validateSettings(self.settings)
-
-        filePath = Path('dependencies/data/settings.json')
-        filePath.parent.mkdir(parents=True, exist_ok=True)
-        with open(filePath, 'w') as f:
-            json.dump(self.settings, f)
-    
-    def validateSetting(self, key, value):      
-        if not key in self.settingsStructure: return False, None
+        twitchChanges, self.twitch = self.__validateSettings(self.__readFile(self.__twitchSettingsFile), self.__twitchStructure, self.__enhancedTwitchVerification)
+        if twitchChanges:
+            self.__saveSettings(self.twitch, self.__twitchSettingsFile)
         
-        if not isinstance(value, self.settingsStructure[key][0]): return False, self.settingsStructure[key][1]
+        discordChanges, self.discord = self.__validateSettings(self.__readFile(self.__discordSettingsFile), self.__discordStructure)
+        if discordChanges:
+            self.__saveSettings(self.discord, self.__discordSettingsFile)
         
-        return True, None
+        streamelementsChanges, self.streamelements = self.__validateSettings(self.__readFile(self.__streamelementsSettingsFile), self.__streamelementsStructure)
+        if streamelementsChanges:
+            self.__saveSettings(self.streamelements, self.__streamelementsSettingsFile)
 
-    def validateSettings(self, settings):
-        changedKeys = False
+    def __readFile(self, filepath : Path):
+        if not filepath.is_file(): return None
+        with open(filepath, 'r') as f:
+            try: return json.load(f)
+            except Exception: return None
 
-        for key in self.settingsStructure:
-            valid, default = self.validateSetting(key, settings.get(key))
-            if not valid:
-                changedKeys = True
-                if default == None:
-                    del settings[key]
-                else:
-                    settings[key] = default
-        
-        return changedKeys
+    def __saveSettings(self, obj, filepath : Path):
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+        with open(filepath, 'w') as f: json.dump(obj, f)
+
+    def __validateSettings(self, obj : list, structure : dict, enhancedItemValidatorCallable = None):
+        if not isinstance(obj, list): return True, []
+        changes = False
+        for index, item in enumerate(reversed(obj)):
+            if not isinstance(item, dict):
+                obj.pop(index)
+                changes = True
+                continue
+
+            for key in structure:
+                if not key in item or not isinstance(item[key], structure[key]):
+                    obj.pop(index)
+                    changes = True
+                    continue
+            
+            for key in item:
+                if not key in structure:
+                    del item[key]
+                    changes = True
+            
+            if enhancedItemValidatorCallable != None and enhancedItemValidatorCallable(item):
+                changes = True
+        return changes, obj
+
+    def __enhancedTwitchVerification(self, obj):
+        changes = False
+        for index, channel in enumerate(reversed(obj['channels'])):
+            if not isinstance(channel, str):
+                obj['channels'].pop(index)
+                changes = True
+        return changes

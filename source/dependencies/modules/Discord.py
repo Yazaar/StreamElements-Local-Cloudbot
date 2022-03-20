@@ -1,9 +1,15 @@
 import asyncio, typing, discord
 
+if typing.TYPE_CHECKING:
+    from dependencies.modules.Extensions import Extensions
+
 class Discord(discord.Client):
-    def __init__(self, extensions, key : str):
+    def __init__(self, alias : str, extensions : 'Extensions', token : str):
+        self.id = id(self)
+        self.alias = alias
+        
         self.__extensions = extensions
-        self.__key = key
+        self.__token = token
 
         intents = discord.Intents.default()
         intents.members = True
@@ -13,10 +19,13 @@ class Discord(discord.Client):
         self.clientContext = DiscordClientContext(self)
 
         self.loop = asyncio.get_event_loop()
-        self.loop.create_task(self.start(self.__key))
+        self.loop.create_task(self.start(self.__token))
+
+    def stop(self):
+        self.loop.run_until_complete(self.close())
 
     async def on_ready(self):
-        print('Booted as: ' + self.user.name)
+        print('[Discord] Started bot: ' + self.user.name)
     
     async def on_message(self, message : discord.Message):
         self.__extensions.discordMessage(DiscordMessage(self.clientContext, message))

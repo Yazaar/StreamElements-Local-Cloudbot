@@ -1,5 +1,5 @@
-from . import Discord, Twitch, StreamElements
-import importlib, inspect, types, asyncio, threading, typing, os
+from . import Discord, Twitch, StreamElements, Settings, Regulars
+import importlib, inspect, types, asyncio, threading, typing, socketio
 from pathlib import Path
 
 class Extension():
@@ -58,7 +58,6 @@ class Extension():
         if isAsync == None: return None, None
 
         return callback, isAsync
-    
 
 class ExtensionMethod():
     ENDPOINTS = {
@@ -190,7 +189,11 @@ class ExtensionMethod():
         return inspect.iscoroutinefunction(func)
 
 class Extensions():
-    def __init__(self):
+    def __init__(self, websio : socketio.AsyncServer, settings : Settings.Settings):
+        self.__websio = websio
+        self.__settings = settings
+        self.__regulars = Regulars.Regulars()
+
         self.__twitchInstances : typing.List[Twitch.Twitch] = []
         self.__discordInstances : typing.List[Discord.Discord] = []
         self.__streamElementsInstances : typing.List[StreamElements.StreamElements] = []
@@ -204,46 +207,59 @@ class Extensions():
         self.__callbacks : typing.Dict[str, typing.List[ExtensionMethod]] = {}
         self.__legacyCallbacks : typing.Dict[str, typing.List[ExtensionMethod]] = {}
 
-
         self.__legacyThreads : typing.List[threading.Thread] = []
 
-        self.reloadExtensions()
-
         self.__loop = asyncio.get_event_loop()
+
         self.__loop.create_task(self.__ticker())
     
     def load(self):
         self.__twitchInstances = self.__loadTwitchInstances()
         self.__discordInstances = self.__loadDiscordInstances()
         self.__streamElementsInstances = self.__loadStreamElementsInstances()
-    
+
     def reloadExtensions(self):
         self.__unloadExtensions()
         self.__loadExtensions()
-    
-    def addTwitchInstance(self):
-        pass
-    
-    def removeTwitchInstance(self):
-        pass
-    
-    def addDiscordInstance(self):
-        pass
-    
-    def removeDiscordInstance(self):
-        pass
 
-    def addStreamElementsInstance(self):
-        pass
+    def addTwitchInstance(self, alias : str, tmi : str, botname : str, channels : typing.List[str]):
+        twitchInstance = Twitch.Twitch(alias, self, tmi, botname, channels)
+        self.__twitchInstances.append(twitchInstance)
+        return twitchInstance
 
-    def removeStreamElementsInstance(self):
-        pass
+    def removeTwitchInstance(self, twitchId : int):
+        removeThis : Twitch.Twitch = self.__find(self.__twitchInstances, twitchId)
+        if removeThis != None:
+            self.__twitchInstances.remove(removeThis)
+            removeThis.stop()
+
+    def addDiscordInstance(self, alias : str, key : str):
+        discordInstance = Discord.Discord(alias, self, key)
+        self.__discordInstances.append(discordInstance)
+        return discordInstance
+
+    def removeDiscordInstance(self, discordId : int):
+        removeThis : Discord.Discord = self.__find(self.__discordInstances, discordId)
+        if removeThis != None:
+            self.__discordInstances.remove(removeThis)
+            removeThis.stop()
+
+    def addStreamElementsInstance(self, alias : str, jwt : str, useSocketio : bool):
+        streamElementsInstance = StreamElements.StreamElements(alias, self, jwt, useSocketio)
+        self.__streamElementsInstances.append(streamElementsInstance)
+        return streamElementsInstance
+
+    def removeStreamElementsInstance(self, streamElementsId : int):
+        removeThis : StreamElements.StreamElements = self.__find(self.__streamElementsInstances, streamElementsId)
+        if removeThis != None:
+            self.__streamElementsInstances.remove(removeThis)
+            removeThis.stop()
 
     def addExtension(self, extension : Extension):
         for i in self.__extensions:
             if i.moduleName == extension.moduleName: return
         self.__extensions.append(extension)
-        
+
         for method in extension.methods:
             if extension.methods[method].asyncMethod:
                 callbackList = self.__callbacks.get(method, None)
@@ -252,7 +268,7 @@ class Extensions():
                 callbackList = self.__legacyCallbacks.get(method, None)
                 if callbackList == None: callbackList = self.__legacyCallbacks[method] = []
             callbackList.append(extension.methods[method])
-    
+
     def removeExtension(self, extension : Extension):
         for methodName in extension.methods:
             if extension.methods[methodName].asyncMethod:
@@ -263,7 +279,7 @@ class Extensions():
                 if callback.extension.moduleName == extension.moduleName:
                     callbacks.pop(index)
                     break
-        
+
         for index, ext in enumerate(self.__extensions):
             if ext.moduleName == extension.moduleName:
                 self.__extensions.pop(index)
@@ -378,7 +394,13 @@ class Extensions():
         print('[CORE] Discord voice state changed')
         for extMethod in self.__callbacks.get('discordVoiceStateUpdate', []):
             self.__loop.create_task(self.__addTask(extMethod, (data,)))
-    
+
+    def __find(objects : list, objectId : int):
+        for obj in objects:
+            if obj.id == objectId:
+                return obj
+        return None
+
     def __unloadExtensions(self):
         self.__extensions.clear()
     
@@ -392,21 +414,21 @@ class Extensions():
                 if newExt.error:
                     self.__handleExtensionError(newExt.moduleName, newExt.errorData, 'import')
                 self.addExtension(newExt)
-    
+
     def __loadTwitchInstances(self):
         instances = []
-        instances.append(Twitch.Twitch(self, os.environ.get('TwitchTMIToken'), os.environ.get('TwitchTMIUsername'), [os.environ.get('TwitchTMIChannel')]))
+        for twitch in self.__settings.twitch:
+            instances.append(Twitch.Twitch(self, twitch['alias'], twitch['tmi'], twitch['botname'], twitch['channels'].copy()))
         return instances
 
     def __loadDiscordInstances(self):
         instances = []
-        # Debug Bot
-        instances.append(Discord.Discord(self, os.environ.get('DiscordBotToken')))
+        for discord in self.__settings.discord:
+            instances.append(Discord.Discord(self, discord['token']))
         return instances
 
     def __loadStreamElementsInstances(self):
         instances = []
-        instances.append(StreamElements.StreamElements(self, os.environ.get('SE_JWT'), False))
         return instances
 
     def __handleExtensionError(self, rawModuleName : str, exception : Exception, executionType : str):
@@ -424,12 +446,13 @@ class Extensions():
         except Exception as e: self.__handleExtensionError(extMethod.extension.moduleName, e, extMethod.name)
 
     def __addLegacy(self, extMethods : typing.List[ExtensionMethod], args : tuple):
-        if len(extMethods) == 0: return
         callbacks : typing.List[ExtensionMethod] = []
         for extMethod in extMethods:
             if extMethod.asyncMethod == False:
                 callbacks.append(extMethod)
-        
+
+        if len(callbacks) == 0: return
+
         t = threading.Thread(target=self.__legacyExecuter, args=(callbacks,args), daemon=True, name='LE_Thread')
         self.__legacyThreads.append(t)
         t.start()
@@ -440,12 +463,12 @@ class Extensions():
             try: extMethod.callback(*args)
             except Exception as e: self.__handleExtensionError(extMethod.extension.moduleName, e, 'legacy execute')
         self.__legacyThreads.remove(t)
-    
+
     async def __ticker(self):
         while True:
             await asyncio.sleep(1)
 
             self.__addLegacy(self.__legacyCallbacks.get('tick', []), tuple())
-
+            
             for i in self.__callbacks.get('tick', []):
                 await i.callback()

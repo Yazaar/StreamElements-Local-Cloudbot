@@ -1,9 +1,14 @@
-from pathlib import Path
-import socketio, asyncio, json, time, websockets
+import socketio, asyncio, json, time, websockets, typing, datetime
+
+if typing.TYPE_CHECKING:
+    from dependencies.modules.Extensions import Extensions
 
 class StreamElements:
-    def __init__(self, extensions, jwt : str, useSocketio : bool):
-        self.extensions = extensions
+    def __init__(self, alias : str, extensions : 'Extensions', jwt : str, useSocketio : bool):
+        self.id = id(self)
+        self.alias = alias
+        
+        self.__extensions = extensions
 
         self.__jwt = jwt
         self.userId : str = None
@@ -40,6 +45,9 @@ class StreamElements:
         if self.__useSocketio: return self.__sio.connected
         else: return self.__wsConn != None
     
+    def stop(self):
+        pass
+
     def setMethod(self, useSocketIO): self.__useSocketioMethod = useSocketIO == True
 
     async def __emit(self, event, data):
@@ -71,14 +79,14 @@ class StreamElements:
     async def __onEvent(self, data=''):
         if not isinstance(data, dict): return
         event = StreamElementsGenericEvent(self, data, False)
-        #self.parent.registerStreamElementsEvent.append(SEEvent)
-        #self.eventHistory.append(SEEvent)
-        #if len(self.eventHistory) > 100: self.eventHistory.pop(0)
+        self.__extensions.streamElementsEvent(event)
+        self.eventHistory.append(event)
+        if len(self.eventHistory) > 100: self.eventHistory.pop(0)
 
     async def __onTestEvent(self, data=''):
         if not isinstance(data, dict): return
         event = StreamElementsGenericEvent(self, data, True)
-        #self.parent.registerStreamElementsTestEvent(SEEvent)
+        self.__extensions.streamElementsTestEvent(event)
 
     async def __onDisconnect(self, data=''):
         print('[StreamElements] Disconnected')
@@ -175,6 +183,7 @@ class StreamElementsClientContext():
 
 class StreamElementsGenericEvent():
     def __init__(self, client : StreamElementsClientContext, data : dict, testEvent: bool):
+        self.UTCTimestamp = datetime.datetime.utcnow()
         self.client = client
         self.raw = data
         self.testEvent = testEvent

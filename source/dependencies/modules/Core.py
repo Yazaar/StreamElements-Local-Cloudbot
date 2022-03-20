@@ -1,18 +1,22 @@
-from dependencies.modules import Extensions
+from dependencies.modules import Extensions, Settings, Misc
 
 from aiohttp import web
 from pathlib import Path
-import socketio, jinja2, aiohttp_jinja2, asyncio
+import socketio, jinja2, aiohttp_jinja2, asyncio, os
 
 site = None
-STATIC_PATH = Path('/static')
-STATIC_FOLDER = Path('dependencies/web/static')
+STATIC_FOLDER = Path('dependencies/web/static').resolve()
 
-extensions = Extensions.Extensions()
+settings = Settings.Settings()
+currentIP = None
+
+PORT = Misc.portOverride(settings.port)[1]
 
 sio = socketio.AsyncServer(async_mode='aiohttp', async_handlers=True)
 app = web.Application()
 sio.attach(app)
+
+extensions = Extensions.Extensions(sio, settings)
 
 aiohttp_jinja2.setup(app, enable_async=True, loader=jinja2.FileSystemLoader(Path('dependencies/web/HTML')))
 
@@ -20,25 +24,36 @@ routes = web.RouteTableDef()
 
 @routes.get('/')
 async def web_index(request):
-    return web.Response(text='hi')
+    context = {
+        'extensions': [], 'ExtensionsSettings': [], 'events': [], 'messages': [], 'ExtensionLogs': [], 'regulars': [],
+        'settings': {
+            'tmi': '',
+            'tmi_twitch_username': '',
+            'twitch_channel': '',
+            'jwt_token': '',
+            'SEListener': 2
+        }
+    }
+    return await aiohttp_jinja2.render_template_async('index.html', request, context)
 
 @routes.get('/static/{path:.*}')
 async def web_static(request):
-    try: path = Path(request.path)
-    except TypeError: return web.Response(text='invalid file path') 
-
-    try: relative = path.relative_to(STATIC_PATH)
-    except ValueError: return web.Response(text='invalid file path')
-
-    file = STATIC_FOLDER / relative
-
-    if not file.is_file(): return web.Response(text='file does not exist')
-
-    return web.FileResponse(file)
+    try: target : Path = (STATIC_FOLDER / request.path[8:])
+    except TypeError: return web.Response(text='invalid file path')
+    
+    target = target.resolve()
+    
+    try: target.relative_to(STATIC_FOLDER) # throws exception if it is outside of the static folder
+    except ValueError: return web.Response(text='file path outside static folder')
+    
+    if not target.is_file(): return web.Response(text='file does not exist')
+    return web.FileResponse(target)
 
 @routes.get('/dependencies/data/url.js')
 async def web_urljs(request):
-    return web.Response(text='hi')
+    urljs = Path('dependencies/data/url.js')
+    if urljs.is_file(): return web.FileResponse(urljs)
+    else: return web.Response(text="console.error(\"ERROR: url.js not found\");var server_url=\"\"")
 
 @routes.get('/extensions/<path:raw_path>')
 async def web_extensions(request):
@@ -145,13 +160,29 @@ app.add_routes(routes=routes)
 runner = web.AppRunner(app)
 
 async def run():
-    global site
+    global site, currentIP
     if site != None: return
+
+    currentIP, errorCode = await Misc.fetchUrl('https://ident.me')
+    if errorCode < 0: currentIP, errorCode = await Misc.fetchUrl('https://api.ipify.org')
+    if errorCode < 0: print('[ERROR]: Unable to check for your public IP, no network connection? (trying to run anyway)')
 
     extensions.load()
 
+    if True:
+        extensions.addTwitchInstance('TwitchAlias', os.environ.get('TwitchTMIToken'), os.environ.get('TwitchTMIUsername'), [os.environ.get('TwitchTMIChannel')])
+        extensions.addDiscordInstance('DiscordAlias', os.environ.get('DiscordBotToken'))
+        extensions.addStreamElementsInstance('StreamElementsAlias', os.environ.get('SE_JWT'), False)
+
+    with open('website.html', 'w') as f: f.write('<script>window.location = "http://localhost:' + str(PORT) + '"</script>')
+    urlJsPath = Path('dependencies/data/url.js')
+    urlJsPath.parent.mkdir(parents=True, exist_ok=True)
+    with open(urlJsPath, 'w') as f: f.write('var server_url = \"http://' + Misc.getServerIP() + ':' + str(PORT) + '\";')
+
+    print('starting website: http://localhost:' + str(PORT) + ' (Saving website shortcut to website.html)')
+
     await runner.setup()
-    site = web.TCPSite(runner=runner, host='0.0.0.0', port=8080)
+    site = web.TCPSite(runner=runner, host='0.0.0.0', port=PORT)
     await site.start()
 
     while True:
