@@ -1,368 +1,451 @@
-import json, importlib, threading, time, ctypes, sys
+from . import Discord, Twitch, StreamElements
+import importlib, inspect, types, asyncio, threading, typing, os
 from pathlib import Path
-from .ExtensionCrossover import ExtensionCrossover
+
+class Extension():
+    def __init__(self, modulePath : Path):
+        self.methods : typing.Dict[str, ExtensionMethod] = {}
+        self.modulePath : str = modulePath
+        self.importName : str = self.modulePath.as_posix().replace('/', '.')[:-3]
+        self.moduleName : str = self.importName[11:]
+
+        self.module = None
+        self.error : bool = False
+        self.errorData : Exception = None
+
+        self.__loadModule()
+    
+    def __loadModule(self):
+        try:
+            self.module = importlib.import_module(self.importName)
+            self.error = False
+            self.errorData = None
+        except Exception as e:
+            self.errorData = e
+            self.module = None
+            self.error = True
+        
+        self.methods.clear()
+        
+        if (self.error): return
+
+        moduleItems = dir(self.module)
+        for moduleItem in moduleItems:
+            attr = getattr(self.module, moduleItem)
+            if ExtensionMethod.isFuncOrMethod(attr):
+                extMethod = ExtensionMethod(attr, self)
+                if extMethod.name != None:
+                    self.methods[extMethod.name] = extMethod
+
+    def getEndpoint(self, endpointStr : str):
+        endpoint = Extension.ENDPOINTS.get(endpointStr, None)
+        if endpoint == None: return None, None
+        legacySupport : str = endpoint['legacySupport']
+        callback = None
+        isAsync : bool = None
+        
+        moduleItems = dir(self.module)
+        for i in moduleItems:
+            if i in endpoint['alias']:
+                callback = self.module[i]
+                if legacySupport and self.isLegacy(callback):
+                    isAsync = False
+                    break
+                elif self.isAsync(callback):
+                    isAsync = True
+                    break
+        
+        if isAsync == None: return None, None
+
+        return callback, isAsync
+    
+
+class ExtensionMethod():
+    ENDPOINTS = {
+        'initialize': {
+            'alias': ['initialize', 'Initialize'],
+            'legacySupport': True
+        },
+        'tick': {
+            'alias': ['tick', 'Tick'],
+            'legacySupport': True
+        },
+        'twitchMessage': {
+            'alias': ['Execute'],
+            'legacySupport': True
+        },
+        'streamElementsEvent': {
+            'alias': ['StreamElementsEvent'],
+            'legacySupport': True
+        },
+        'streamElementsTestEvent': {
+            'alias': ['StreamElementsTestEvent'],
+            'legacySupport': True
+        },
+        'toggle': {
+            'alias': ['Toggle'],
+            'legacySupport': True
+        },
+        'crossTalk': {
+            'alias': ['CrossTalk'],
+            'legacySupport': True
+        },
+        'unload': {
+            'alias': ['Unload'],
+            'legacySupport': True
+        },
+        'newSettings': {
+            'alias': ['NewSettings'],
+            'legacySupport': True
+        },
+        'discordMessage': {
+            'alias': [],
+            'legacySupport': False
+        },
+        'discordMessageDeleted': {
+            'alias': [],
+            'legacySupport': False
+        },
+        'discordMessageEdited': {
+            'alias': [],
+            'legacySupport': False
+        },
+        'discordMessageNewReaction': {
+            'alias': [],
+            'legacySupport': False
+        },
+        'discordMessageRemovedReaction': {
+            'alias': [],
+            'legacySupport': False
+        },
+        'discordMessageReactionsCleared': {
+            'alias': [],
+            'legacySupport': False
+        },
+        'discordMessageReactionEmojiCleared': {
+            'alias': [],
+            'legacySupport': False
+        },
+        'discordMemberJoined': {
+            'alias': [],
+            'legacySupport': False
+        },
+        'discordMemberRemoved': {
+            'alias': [],
+            'legacySupport': False
+        },
+        'discordMemberUpdated': {
+            'alias': [],
+            'legacySupport': False
+        },
+        'discordMemberBanned': {
+            'alias': [],
+            'legacySupport': False
+        },
+        'discordMemberUnbanned': {
+            'alias': [],
+            'legacySupport': False
+        },
+        'discordGuildJoined': {
+            'alias': [],
+            'legacySupport': False
+        },
+        'discordGuildRemoved': {
+            'alias': [],
+            'legacySupport': False
+        },
+        'discordVoiceStateUpdate': {
+            'alias': [],
+            'legacySupport': False
+        }
+    }
+
+    def __init__(self, func, extension : Extension):
+        self.extension = extension
+        self.callback = func
+        self.asyncMethod : bool = None
+        self.name : str = ExtensionMethod.getFuncName(self.callback.__name__)
+        if self.name == None: return
+
+        if ExtensionMethod.isLegacy(func):
+            self.asyncMethod = False
+        elif ExtensionMethod.isAsync(func):
+            self.asyncMethod = True
+
+    def getFuncName(funcName : str):
+        match : str = ExtensionMethod.ENDPOINTS.get(funcName, None)
+        if match != None: return funcName
+        for realFuncName in ExtensionMethod.ENDPOINTS:
+            for funcAlias in realFuncName['alias']:
+                if funcAlias == funcName: return realFuncName
+        return None
+    
+    def isFuncOrMethod(func):
+        return inspect.isfunction(func) or inspect.ismethod(func)
+
+    def isLegacy(func):
+        return ExtensionMethod.isFuncOrMethod(func) and not inspect.iscoroutinefunction(func)
+
+    def isAsync(func):
+        return inspect.iscoroutinefunction(func)
 
 class Extensions():
-    def __init__(self, chat, SE, users, SIO, appContext, serverPort):
-        self.__chat = chat
-        self.__SE = SE
-        self.__users = users
-        self.__SIO = SIO
-        self.__appContext = appContext
-        self.__serverPort = serverPort
-        self.__crossover = ExtensionCrossover(serverPort, self.__chat.connectedTwitchChannel, self.__chat.connectedTwitchBotname)
+    def __init__(self):
+        self.__twitchInstances : typing.List[Twitch.Twitch] = []
+        self.__discordInstances : typing.List[Discord.Discord] = []
+        self.__streamElementsInstances : typing.List[StreamElements.StreamElements] = []
 
-        self.__executionDelay = 1 / 60
-        self.log = []
-        self.__extensions = []
-        self.settings = []
-        self.__enabled = self.__loadEnabled()
-        self.__loadExtensions(Path('extensions'))
+        self.EXTENSION_PATH = Path('extensions')
 
-        self.initializeHandles = [{'port': self.__serverPort, 'twitch_channel': self.__chat.connectedTwitchChannel, 'twitch_bot_name': self.__chat.connectedTwitchBotname}]
-        self.newSettingsHandles = []
-        self.crossTalkHandles = []
-        self.webHookHandles = []
-        self.toggleHandles = []
-        
-        self.__thread = threading.Thread(target=self.__extensionsThread, daemon=True, name='ExtensionThread')
-        self.__thread.start()
+        self.logs = []
 
-        Path('extensions').mkdir(parents=True, exist_ok=True)
+        self.__extensions : typing.List[Extension] = []
 
-        threading.Thread(target=self.__dataInThread, daemon=True, name='DataIn').start()
+        self.__callbacks : typing.Dict[str, typing.List[ExtensionMethod]] = {}
+        self.__legacyCallbacks : typing.Dict[str, typing.List[ExtensionMethod]] = {}
 
-    def setCrossoverData(self, twitchChannel=None, twitchBotName=None):
-        self.__crossover.setAttributes(twitchChannel, twitchBotName)
 
-    def setData(self, executionsPerSecond=None):
-        if isinstance(executionsPerSecond, (int, float)):
-            self.__executionDelay = 1 / executionsPerSecond
+        self.__legacyThreads : typing.List[threading.Thread] = []
+
+        self.reloadExtensions()
+
+        self.__loop = asyncio.get_event_loop()
+        self.__loop.create_task(self.__ticker())
     
-    def crossTalk(self, content):
-        if not isinstance(content, dict):
-            return False, 'Please forward JSON: requests.post(url, json=JSON_DATA) / socket.emit(event, json)'
-        if not 'event' in content or not isinstance(content['event'], str):
-            return False, 'JSON require the key \"event\"'
-        if not 'data' in content:
-            return False, 'JSON require the key \"data\"'
-        if content['event'][:2] != 'p-':
-            return False, 'Value of the key \"event\" has to start with \"p-\", example: \"p-example\"'
-        with self.__appContext:
-            self.__SIO.emit(content['event'], content['data'], broadcast=True)
-        return True, None
+    def load(self):
+        self.__twitchInstances = self.__loadTwitchInstances()
+        self.__discordInstances = self.__loadDiscordInstances()
+        self.__streamElementsInstances = self.__loadStreamElementsInstances()
     
-    def scriptTalk(self, content):
-        if not isinstance(content, dict):
-            return False, 'Please forward json... requests.post(url, json=JSON_DATA) / socket.emit(event, json)'
-        if not 'module' in content:
-            return False, 'JSON require the key \"module\"'
-        if not 'data' in content:
-            return False, 'JSON require the key \"data\"'
-        if not isinstance(content['module'], str) or len(content['module']) == 0:
-            return False, 'Invalid module'
-        self.crossTalkHandles.append({'module': content['module'], 'data': content['data']})
-        return True, None
+    def reloadExtensions(self):
+        self.__unloadExtensions()
+        self.__loadExtensions()
+    
+    def addTwitchInstance(self):
+        pass
+    
+    def removeTwitchInstance(self):
+        pass
+    
+    def addDiscordInstance(self):
+        pass
+    
+    def removeDiscordInstance(self):
+        pass
 
-    def resetExtensions(self):
-        for i in threading._active.items():
-            if i[1] == self.__thread:
-                ctypes.pythonapi.PyThreadState_SetAsyncExc(i[0], ctypes.py_object(SystemExit))
-                self.__thread = None
-                break
+    def addStreamElementsInstance(self):
+        pass
 
+    def removeStreamElementsInstance(self):
+        pass
+
+    def addExtension(self, extension : Extension):
         for i in self.__extensions:
-            if i['module'].__name__ in sys.modules:
-                del sys.modules[i['module'].__name__]
+            if i.moduleName == extension.moduleName: return
+        self.__extensions.append(extension)
         
-        self.__extensions.clear()
-        self.settings.clear()
-
-        self.__loadExtensions(Path('extensions'))
-        
-        self.__thread = threading.Thread(target=self.__extensionsThread, daemon=True, name='ExtensionThread')
-        self.__thread.start()
-
-        self.initializeHandles.append({'port': self.__serverPort, 'twitch_channel': self.__chat.connectedTwitchChannel, 'twitch_bot_name': self.__chat.connectedTwitchBotname})
-
-    def __loadExtensions(self, directory):
-        if not isinstance(directory, Path): return
-
-        glob = directory.glob('*')
-        
-        for i in glob:
-            if i.is_dir():
-                self.__loadExtensions(i)
-            elif i.name[-7:] == '_LSE.py':
-                self.addExtension(i)
-            elif i.name == 'SettingsUI.json':
-                self.addSetting(i)
-
-    def addSetting(self, settingPath):
-        if not isinstance(settingPath, Path) or not settingPath.is_file(): return
-
-        with open(settingPath, 'r') as f:
-            try: settings = json.load(f)
-            except Exception: return
-
-        if not self.__validateSettings(settings): return
-
-        Path(settings['path'])
-
-        configPath = Path(settings['path']) / 'settings.json'
-
-        if configPath.is_file():
-            with open(configPath, 'r') as f:
-                try: config = json.load(f)
-                except Exception: config = {}
-        else:
-            config = {}
-
-        changes = False
-
-        for setting in settings['settings']:
-            notFound = True
-            for settingName in config:
-                if setting == settingName:
-                    settings['settings'][setting]['current_value'] = config[settingName]
-                    notFound = False
-                    break
-            if notFound:
-                settings['settings'][setting]['current_value'] = settings['settings'][setting]['value']
-                config[setting] = settings['settings'][setting]['value']
-                changes = True
-        
-        
-        self.settings.append(settings)
-        if changes:
-            self.__saveSettings(len(self.settings)-1)
-
-    def addExtension(self, pyPath):
-        if not isinstance(pyPath, Path) or not pyPath.is_file(): return
-        importPath = pyPath.relative_to(Path()).as_posix()[:-3].replace('/', '.')
-
-        self.__extensions.append({
-            'active': importPath in self.__enabled,
-            'module': importlib.import_module(importPath)
-        })
-
-    def __validateSettings(self, settings):
-        if not isinstance(settings, dict): return False
-
-        if not 'name' in settings or not 'path' in settings or not 'settings' in settings: return False
-
-        if not isinstance(settings['name'], str) or not isinstance(settings['path'], str) or not isinstance(settings['settings'], dict): return False
-
-        for setting in settings['settings']:
-            if not 'value' in settings['settings'][setting]: return False
-            if settings['settings'][setting]['type'].lower() == 'dropdown':
-                if not 'choices' in settings['settings'][setting] or not isinstance(settings['settings'][setting]['choices'], list):
-                    return False
-                if not settings['settings'][setting]['value'] in settings['settings'][setting]['choices']:
-                    return False
-
-        return True
-    
-    def updateSettings(self, index, name, new_settings):
-        if self.settings[index]['name'] == name:
-            settings = self.settings[index]['settings']
-        else:
-            for settingIndex in range(len(self.settings)):
-                if self.settings[settingIndex]['name'] == name:
-                    settings = self.settings[settingIndex]['settings']
-                    index = settingIndex
-                    break
-        
-        for setting in settings:
-            if not setting in new_settings: continue
-            settings[setting]['current_value'] = new_settings[setting]
-        
-        self.__saveSettings(index)
-    
-    def __loadEnabled(self):
-        enabledPath = Path('dependencies/data/enabled.json')
-        enabledPath.parent.mkdir(parents=True, exist_ok=True)
-
-        if enabledPath.is_file():
-            with open(enabledPath, 'r') as f:
-                try: enabled = json.load(f)
-                except Exception: enabled = []
-        else:
-            enabled = []
-        
-        if isinstance(enabled, list): return enabled
-        else: return []
-    
-    def __saveSettings(self, index):
-        if not isinstance(index, int) or index < 0 or index >= len(self.settings): return
-
-        content = {}
-
-        for setting in self.settings[index]['settings']:
-            if 'current_value' in self.settings[index]['settings'][setting]:
-                content[setting] = self.settings[index]['settings'][setting]['current_value']
-            elif 'value' in self.settings[index]['settings'][setting]:
-                content[setting] = self.settings[index]['settings'][setting]['value']
-
-        content = json.dumps(content)
-
-        path = Path(self.settings[index]['path'])
-        path.mkdir(parents=True, exist_ok=True)
-        with open (path / 'settings.json', 'w') as f:
-            f.write(content)
-        with open (path / 'settings.js', 'w') as f:
-            f.write('var settings = ' + content + ';')
-
-    def __saveEnabled(self):
-        enabledPath = Path('dependencies/data/enabled.json')
-        enabledPath.parent.mkdir(parents=True, exist_ok=True)
-        with open(enabledPath, 'w') as f:
-            json.dump(self.__enabled, f)
-    
-    def toggle(self, raw_module, enable=None):
-        module = 'extensions.' + raw_module
-        if module in self.__enabled:
-            if enable == True:
-                return
-            self.__enabled.remove(module)
-            toValue = False
-        else:
-            if enable == False:
-                return
-            self.__enabled.append(module)
-            toValue = True
-        
-        for extension in self.__extensions:
-            if extension['module'].__name__ == module:
-                extension['active'] = toValue
-                break
-        
-        self.__saveEnabled()
-
-    def dump(self):
-        dumped = []
-        for extension in self.__extensions:
-            dumped.append({
-                'active': extension['active'],
-                'module': extension['module'].__name__[11:]
-            })
-        return dumped
-    
-    def __dataInThread(self):
-        while True:
-            time.sleep(self.__executionDelay * 10)
-            
-            while True:
-                event = self.__crossover.GetValue()
-                if not event['success'] or event['event'] == None:
-                    break
-                if event['event'] == 'StreamElementsAPI':
-                    self.__SE.APIRequest(event['data'])
-                if event['event'] == 'SendMessage':
-                    self.__chat.addMessage(event['data'])
-                if event['event'] == 'CrossTalk':
-                    self.crossTalk(event['data'])
-                if event['event'] == 'ScriptTalk':
-                    self.scriptTalk(event['data'])
-                if event['event'] == 'AddRegulars':
-                    self.__users.addRegular(event['data'])
-                if event['event'] == 'DeleteRegulars':
-                    self.__users.removeRegular(event['data'])
-
-    def __handleExtensionError(self, item, e, action):
-        module = item['module'].__name__[11:]
-        entry = {'module': module, 'message': str(e) + ' (' + action + ')'}
-        self.log.append(entry)
-        self.toggle(module, False)
-        with self.__appContext:
-            self.__SIO.emit('log', entry, broadcast=True)
-
-    def __extensionsThread(self):
-        while True:
-            if len(self.initializeHandles) > 0:
-                execType = 'initialize'
-                execData = self.initializeHandles.pop(0)
-            elif len(self.newSettingsHandles) > 0:
-                execType = 'newsettings'
-                execData = self.newSettingsHandles.pop(0)
-            elif len(self.crossTalkHandles) > 0:
-                execType = 'talk'
-                execData = self.crossTalkHandles.pop(0)
-            elif len(self.webHookHandles) > 0:
-                execType = 'webhook'
-                execData = self.webHookHandles.pop(0)
-            elif len(self.toggleHandles) > 0:
-                execType = 'toggle'
-                execData = self.toggleHandles.pop(0)
+        for method in extension.methods:
+            if extension.methods[method].asyncMethod:
+                callbackList = self.__callbacks.get(method, None)
+                if callbackList == None: callbackList = self.__callbacks[method] = []
             else:
-                execData = self.__SE.getEvent()
-                if execData != None:
-                    execType = 'event'
-                else:
-                    execData = self.__SE.getTestEvent()
-                    if execData != None:
-                        execType = 'testevent'
-                    else:
-                        execData = self.__chat.getNextTwitchMessage()
-                        if execData != None:
-                            execType = 'execute'
-                        else:
-                            execType = 'tick'
-            
-            for i in self.__extensions:
-                if execType == 'tick':
-                    if i['active'] and 'Tick' in dir(i['module']):
-                        try:
-                            i['module'].Tick()
-                        except Exception as e:
-                            self.__handleExtensionError(i, e, execType)
-                elif execType == 'testevent':
-                    if i['active'] and 'TestEvent' in dir(i['module']):
-                        try:
-                            i['module'].TestEvent(execData)
-                        except Exception as e:
-                            self.__handleExtensionError(i, e, execType)
-                elif execType == 'execute':
-                    if i['active'] and 'Execute' in dir(i['module']):
-                        try:
-                            i['module'].Execute(execData)
-                        except Exception as e:
-                            self.__handleExtensionError(i, e, execType)
-                elif execType == 'initialize':
-                    if 'Initialize' in dir(i['module']):
-                        try:
-                            i['module'].Initialize(execData.copy(), self.__crossover)
-                        except Exception as e:
-                            self.__handleExtensionError(i, e, execType)
-                elif execType == 'talk':
-                    if i['module'].__name__[11:] == execData['module'] and i['active'] and 'CrossTalk' in dir(i['module']):
-                        try:
-                            i['module'].CrossTalk(execData['data'])
-                        except Exception as e:
-                            self.__handleExtensionError(i, e, execType)
-                elif execType == 'webhook':
-                    if i['module'].__name__[11:] == execData['module'] and i['active'] and 'webhook' in dir(i['module']):
-                        try:
-                            i['module'].webhook(execData)
-                        except Exception as e:
-                            self.__handleExtensionError(i, e, execType)
-                elif execType == 'toggle':
-                    if i['module'].__name__ == execData['module'].__name__:
-                        try:
-                            i['module'].Toggle(execData['active'])
-                        except Exception as e:
-                            self.__handleExtensionError(i, e, execType)
-                elif execType == 'newsettings':
-                    if i['module'].__name__ == execData['module'] and 'NewSettings' in dir(i['module']):
-                        try:
-                            i['module'].NewSettings(execData['settings'])
-                        except Exception as e:
-                            self.__handleExtensionError(i, e, execType)
-                else: # StreamElementsEvent
-                    if i['active'] and 'Event' in dir(i['module']):
-                        try:
-                            i['module'].Event(execData.copy())
-                        except Exception as e:
-                            self.__handleExtensionError(i, e, execType)
-            time.sleep(self.__executionDelay)
+                callbackList = self.__legacyCallbacks.get(method, None)
+                if callbackList == None: callbackList = self.__legacyCallbacks[method] = []
+            callbackList.append(extension.methods[method])
+    
+    def removeExtension(self, extension : Extension):
+        for methodName in extension.methods:
+            if extension.methods[methodName].asyncMethod:
+                callbacks = self.__callbacks.get(methodName, [])
+            else:
+                callbacks = self.__legacyCallbacks.get(methodName, [])
+            for index, callback in enumerate(callbacks):
+                if callback.extension.moduleName == extension.moduleName:
+                    callbacks.pop(index)
+                    break
+        
+        for index, ext in enumerate(self.__extensions):
+            if ext.moduleName == extension.moduleName:
+                self.__extensions.pop(index)
+                break
 
+    def twitchMessage(self, message : Twitch.TwitchMessage):
+        print('[CORE] Twitch message')
+        self.__addLegacy(self.__legacyCallbacks.get('twitchMessage', []), (message.legacy(),))
+
+        for extMethod in self.__callbacks.get('twitchMessage', []):
+            self.__loop.create_task(self.__addTask(extMethod, (message,)))
+
+    def streamElementsEvent(self, event : StreamElements.StreamElementsGenericEvent):
+        print('[CORE] StreamElements event')
+        self.__addLegacy(self.__legacyCallbacks.get('streamElementsEvent', []), (event.legacy(),))
+
+        for extMethod in self.__callbacks.get('streamElementsEvent', []):
+            self.__loop.create_task(self.__addTask(extMethod, (event,)))
+
+    def streamElementsTestEvent(self, event : StreamElements.StreamElementsGenericEvent):
+        print('[CORE] StreamElements test event')
+        for extMethod in self.__callbacks.get('streamElementsTestEvent', []):
+            self.__loop.create_task(self.__addTask(extMethod, (event,)))
+
+    # TODO: implement + fix codeflow of toggle
+    def toggle(self, script : str, toggleStatus : bool):
+        print('[CORE] toggle')
+        for extMethod in self.__callbacks.get('toggle', []):
+            if extMethod.extension.moduleName == script:
+                self.__loop.create_task(self.__addTask(extMethod, (toggleStatus,)))
+                break
+
+    # TODO: implement + fix codeflow of crossTalk
+    def crossTalk(self, data, scripts : typing.List[str], events : list):
+        print('[CORE] cross talk')
+
+    # TODO: implement + fix codeflow of newSettings
+    def newSettings(self, settings : dict, scripts : list, event : str):
+        print('[CORE] new settings')
+
+    def discordMessage(self, data : Discord.DiscordMessage):
+        print('[CORE] new Discord message')
+        for extMethod in self.__callbacks.get('discordMessage', []):
+            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+
+    def discordMessageDeleted(self, data : Discord.DiscordMessageDeleted):
+        print('[CORE] Discord message deleted')
+        for extMethod in self.__callbacks.get('discordMessageDeleted', []):
+            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+
+    def discordMessageEdited(self, data : Discord.DiscordMessageEdited):
+        print('[CORE] Discord message edited')
+        for extMethod in self.__callbacks.get('discordMessageEdited', []):
+            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+
+    def discordMessageNewReaction(self, data : Discord.DiscordMessageNewReaction):
+        print('[CORE] Discord reaction added')
+        for extMethod in self.__callbacks.get('discordMessageNewReaction', []):
+            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+
+    def discordMessageRemovedReaction(self, data : Discord.DiscordMessageRemovedReaction):
+        print('[CORE] Discord reaction removed')
+        for extMethod in self.__callbacks.get('discordMessageRemovedReaction', []):
+            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+
+    def discordMessageReactionsCleared(self, data : Discord.DiscordMessageReactionsCleared):
+        print('[CORE] Discord reactions cleared')
+        for extMethod in self.__callbacks.get('discordMessageReactionsCleared', []):
+            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+
+    def discordMessageReactionEmojiCleared(self, data : Discord.DiscordMessageReactionEmojiCleared):
+        print('[CORE] Discord reaction emoji cleared')
+        for extMethod in self.__callbacks.get('discordMessageReactionEmojiCleared', []):
+            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+
+    def discordMemberJoined(self, data : Discord.DiscordMemberJoined):
+        print('[CORE] Discord member joined')
+        for extMethod in self.__callbacks.get('discordMemberJoined', []):
+            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+
+    def discordMemberRemoved(self, data : Discord.DiscordMemberRemoved):
+        print('[CORE] Discord member removed')
+        for extMethod in self.__callbacks.get('discordMemberRemoved', []):
+            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+
+    def discordMemberUpdated(self, data : Discord.DiscordMemberUpdated):
+        print('[CORE] Discord member updated')
+        for extMethod in self.__callbacks.get('discordMemberUpdated', []):
+            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+
+    def discordMemberBanned(self, data : Discord.DiscordMemberBanned):
+        print('[CORE] Discord member banned')
+        for extMethod in self.__callbacks.get('discordMemberBanned', []):
+            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+
+    def discordMemberUnbanned(self, data : Discord.DiscordMemberUnbanned):
+        print('[CORE] Discord member unbanned')
+        for extMethod in self.__callbacks.get('discordMemberUnbanned', []):
+            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+
+    def discordGuildJoined(self, data : Discord.DiscordGuildJoined):
+        print('[CORE] joined Discord guild')
+        for extMethod in self.__callbacks.get('discordGuildJoined', []):
+            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+
+    def discordGuildRemoved(self, data : Discord.DiscordGuildRemoved):
+        print('[CORE] removed from Discord guild')
+        for extMethod in self.__callbacks.get('discordGuildRemoved', []):
+            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+
+    def discordVoiceStateUpdate(self, data : Discord.DiscordVoiceStateUpdate):
+        print('[CORE] Discord voice state changed')
+        for extMethod in self.__callbacks.get('discordVoiceStateUpdate', []):
+            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+    
+    def __unloadExtensions(self):
+        self.__extensions.clear()
+    
+    def __loadExtensions(self, path = None):
+        if path is None: path = self.EXTENSION_PATH
+        for f in path.glob('*'):
+            if f.is_dir():
+                self.__loadExtensions(f)
+            elif f.name.endswith('_LSE.py'):
+                newExt = Extension(f)
+                if newExt.error:
+                    self.__handleExtensionError(newExt.moduleName, newExt.errorData, 'import')
+                self.addExtension(newExt)
+    
+    def __loadTwitchInstances(self):
+        instances = []
+        instances.append(Twitch.Twitch(self, os.environ.get('TwitchTMIToken'), os.environ.get('TwitchTMIUsername'), [os.environ.get('TwitchTMIChannel')]))
+        return instances
+
+    def __loadDiscordInstances(self):
+        instances = []
+        # Debug Bot
+        instances.append(Discord.Discord(self, os.environ.get('DiscordBotToken')))
+        return instances
+
+    def __loadStreamElementsInstances(self):
+        instances = []
+        instances.append(StreamElements.StreamElements(self, os.environ.get('SE_JWT'), False))
+        return instances
+
+    def __handleExtensionError(self, rawModuleName : str, exception : Exception, executionType : str):
+        if isinstance(rawModuleName, str): moduleName = rawModuleName[11:]
+        elif isinstance(rawModuleName, types.ModuleType): moduleName = rawModuleName.__name__[11:]
+        else: moduleName = 'unknown'
+        newLog = {
+            'module': moduleName,
+            'message': str(exception) + ' (' + executionType + ')'
+        }
+        self.logs.append(newLog)
+
+    async def __addTask(self, extMethod : ExtensionMethod, args : tuple):
+        try: await extMethod.callback(*args)
+        except Exception as e: self.__handleExtensionError(extMethod.extension.moduleName, e, extMethod.name)
+
+    def __addLegacy(self, extMethods : typing.List[ExtensionMethod], args : tuple):
+        if len(extMethods) == 0: return
+        callbacks : typing.List[ExtensionMethod] = []
+        for extMethod in extMethods:
+            if extMethod.asyncMethod == False:
+                callbacks.append(extMethod)
+        
+        t = threading.Thread(target=self.__legacyExecuter, args=(callbacks,args), daemon=True, name='LE_Thread')
+        self.__legacyThreads.append(t)
+        t.start()
+
+    def __legacyExecuter(self, extMethods : typing.List[ExtensionMethod], args : tuple):
+        t = threading.current_thread()
+        for extMethod in extMethods:
+            try: extMethod.callback(*args)
+            except Exception as e: self.__handleExtensionError(extMethod.extension.moduleName, e, 'legacy execute')
+        self.__legacyThreads.remove(t)
+    
+    async def __ticker(self):
+        while True:
+            await asyncio.sleep(1)
+
+            self.__addLegacy(self.__legacyCallbacks.get('tick', []), tuple())
+
+            for i in self.__callbacks.get('tick', []):
+                await i.callback()

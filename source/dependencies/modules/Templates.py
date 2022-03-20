@@ -1,0 +1,4 @@
+from dependencies.modules.Twitch import TwitchMessage
+from dependencies.modules.StreamElements import StreamElementsGenericEvent
+from dependencies.modules.Discord import DiscordMessage, DiscordMessageDeleted, DiscordMessageEdited, DiscordMessageNewReaction, DiscordMessageRemovedReaction, DiscordMessageReactionsCleared, DiscordMessageReactionEmojiCleared, DiscordMemberJoined, DiscordMemberRemoved, DiscordMemberUpdated, DiscordMemberBanned, DiscordMemberUnbanned, DiscordGuildJoined, DiscordGuildRemoved, DiscordVoiceStateUpdate
+from dependencies.modules.ExtensionCrossover import ExtensionCrossover

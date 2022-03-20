@@ -1,4 +1,5 @@
 <h1>StreamElements<br>Local Cloudbot</h1>
+<p>Dev branch: The current rewrite state</p>
 <h2>Rewrite of backend in progress</h2>
 <p>Use the best twitch chatbot, StreamElements</p>
 <p>Use a modern version of Python (v3.8) and create custom chatbot commands with advanced functionality!</p>
