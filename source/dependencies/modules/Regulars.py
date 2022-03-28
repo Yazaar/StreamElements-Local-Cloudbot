@@ -1,56 +1,51 @@
 from pathlib import Path
 import json, typing
 
-GROUP_DATA_TYPE = typing.Dict[str, typing.List[typing.Tuple[str, str]]]
+GROUP_DATA_TYPE = typing.Dict[str, typing.List[dict]]
 
 class Regulars:
     def __init__(self):
         regularsDir = Path('dependencies/data/regulars')
-        self.__twitchRegularsFile = regularsDir / 'twitch.json'
-        self.__discordRegularsFile = regularsDir / 'discord.json'
+        self.__twitchRegularsPath = regularsDir / 'twitch'
+        self.__discordRegularsPath = regularsDir / 'discord'
 
         self.__discordRegularGroups : GROUP_DATA_TYPE = {}
         self.__twitchRegularGroups : GROUP_DATA_TYPE = {}
 
         self.__loadRegulars()
 
-    def isRegular(self, userId : str, regularGroups : list, platform : str):
+    def isRegular(self, userId, regularGroups : list, platform : str):
         if isinstance(regularGroups, str): regularGroups = [regularGroups]
         elif not isinstance(regularGroups, list): return False
-        if not isinstance(userId, str): return False
-
-        allRegulars = self.__getPlatformList(platform)
-        if allRegulars == None: return False
-
-        for regularGroup in regularGroups:
-            for regularUser in allRegulars.get(regularGroup, []):
-                if regularUser[1] == userId: return True
+        
+        allRegulars = []
+        for i in regularGroups:
+            regulars, _ = self.__getGroup(platform, i)
+            if regulars != None: allRegulars.append(regulars)
+        
+        for regularGroup in allRegulars:
+            for regularUser in regularGroup:
+                if regularUser['id'] == userId: return True
         return False
 
     def addRegular(self, alias : str, userId : str, regularGroupName : str, platform : str):
         if not isinstance(userId, str) or not isinstance(regularGroupName, str) or not isinstance(alias, str): return False
         
-        regularGroups = self.__getPlatformList(platform)
-        if regularGroups == None: return False
-
-        regularGroup = regularGroups.get(regularGroupName, None)
+        regularGroup, regularFile = self.__getGroup(platform, regularGroupName)
         if regularGroup == None: return False
 
         for regularMember in regularGroup:
             if regularMember[1] == userId: return False
         
-        regularGroup.append((alias, userId))
+        regularGroup.append({'alias': alias, 'id': userId})
 
-        self.__saveRegulars()
+        self.__saveRegulars(regularGroup, regularFile)
         return True
 
     def removeRegular(self, userId : str, regularGroupName : str, platform : str):
         if not isinstance(userId, str) or not isinstance(regularGroupName, str): return False
 
-        regularGroups = self.__getPlatformList(platform)
-        if regularGroups == None: return False
-
-        regularGroup : list = regularGroups.get(regularGroupName, None)
+        regularGroup, regularFile = self.__getGroup(platform)
         if regularGroup == None: return False
 
         deleted = False
@@ -60,24 +55,38 @@ class Regulars:
                 deleted = True
                 break
         
-        if deleted: self.__saveRegulars()
+        if deleted: self.__saveRegulars(regularGroup, regularFile)
         return deleted
 
-    def __getPlatformList(self, platform : str):
-        if not isinstance(platform, str): return None
-        if platform == 'twitch': return self.__twitchRegularGroups
-        elif platform == 'discord': return self.__discordRegularGroups
-        else: return None
+    def __getGroup(self, platform : str, groupName : str):
+        if not isinstance(platform, str): return None, None
+        if platform == 'twitch': regularGroups, regularsPath = self.__twitchRegularGroups, self.__twitchRegularsPath
+        elif platform == 'discord': regularGroups, regularsPath = self.__discordRegularGroups, self.__discordRegularsPath
+        else: return None, None
+
+        regularGroup = regularGroups.get(groupName, None)
+        if regularGroup == None: return None, None
+
+        return regularGroup, regularsPath / f'{groupName}.json'
 
     def __loadRegulars(self):
-        discordChanges, self.__discordRegularGroups = self.__verifyRegulars(self.__loadRegularsFile(self.__discordRegularsFile))
-        if discordChanges:
-            self.__saveRegulars(self.__discordRegularGroups, self.__discordRegularsFile)
-        
-        twitchChanges, self.__twitchRegularGroups = self.__verifyRegulars(self.__loadRegularsFile(self.__twitchRegularsFile))
-        if twitchChanges:
-            self.__saveRegulars(self.__twitchRegularGroups, self.__twitchRegularsFile)
+        self.__discordRegularGroups.clear()
+        self.__twitchRegularGroups.clear()
+        for f in self.__discordRegularsPath.glob('*.json'):
+            self.__loadGroupFile(self.__discordRegularGroups, f)
+        for f in self.__twitchRegularsPath.glob('*.json'):
+            self.__loadGroupFile(self.__twitchRegularGroups, f)
 
+    def __loadGroupFile(self, dest : GROUP_DATA_TYPE, filePath : Path):
+        if not filePath.is_file(): return
+        fname = filePath.name[:-5]
+        if len(fname) == 0: return
+        changes, group = self.__verifyRegulars(self.__loadRegularsFile(filePath))
+        if group == None:
+            filePath.unlink()
+            return
+        if changes: self.__saveRegulars(group, filePath)
+        dest[fname] = group
 
     def __loadRegularsFile(self, filepath : Path) -> GROUP_DATA_TYPE | None:
         if not filepath.is_file(): return None
@@ -86,21 +95,30 @@ class Regulars:
             try: return json.load(f)
             except Exception: return None
 
-    def __verifyRegulars(self, validateGroup : GROUP_DATA_TYPE) -> typing.Tuple[bool, GROUP_DATA_TYPE]:
+    def __verifyRegulars(self, validateGroup : typing.List[dict]):
+        keys = ['alias', 'id']
         changes = False
-        if not isinstance(validateGroup, dict):
-            return True, {}
-        for regularGroup in validateGroup:
-            if not isinstance(validateGroup[regularGroup], list):
-                validateGroup[regularGroup] = []
+        if not isinstance(validateGroup, list): return changes, None
+        for index, regularMember in enumerate(reversed(validateGroup)):
+            isValid, didChanges = self.__verifyDict(regularMember, keys)
+            if not isValid:
+                validateGroup.pop(index)
                 changes = True
-                continue
-            for index, regularMember in enumerate(reversed(validateGroup[regularGroup])):
-                if not isinstance(regularMember, str):
-                    validateGroup[regularGroup].pop(index)
-                    changes = True
+            elif didChanges: changes = True
         return changes, validateGroup
+    
+    def __verifyDict(self, checkDict : dict, keys : list) -> typing.Tuple[bool, bool]:
+        changes = False
+        for i in keys:
+            if checkDict.get(i, None) == None: return False, changes
+        
+        for i in checkDict:
+            if not i in keys:
+                changes = True
+                del checkDict[i]
+        
+        return True, changes
 
-    def __saveRegulars(self, obj : GROUP_DATA_TYPE, filepath : Path):
+    def __saveRegulars(self, obj : typing.List[dict], filepath : Path):
         filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, 'w') as f: json.dump(obj, f)

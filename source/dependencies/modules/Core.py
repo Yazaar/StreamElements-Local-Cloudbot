@@ -169,7 +169,7 @@ async def run():
 
     extensions.load()
 
-    if True:
+    if False:
         extensions.addTwitchInstance('TwitchAlias', os.environ.get('TwitchTMIToken'), os.environ.get('TwitchTMIUsername'), [os.environ.get('TwitchTMIChannel')])
         extensions.addDiscordInstance('DiscordAlias', os.environ.get('DiscordBotToken'))
         extensions.addStreamElementsInstance('StreamElementsAlias', os.environ.get('SE_JWT'), False)

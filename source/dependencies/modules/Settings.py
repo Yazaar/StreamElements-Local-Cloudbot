@@ -13,14 +13,14 @@ class Settings():
         self.__defaultPort = 80
         self.port = None
 
-        self.__twitchStructure = {'tmi': str, 'botname': str, 'channels': list, 'alias': str}
-        self.twitch = []
+        self.__twitchStructure = {'tmi': str, 'botname': str, 'channels': list, 'alias': str, 'regularGroups': list}
+        self.twitch : typing.List[dict] = []
 
-        self.__streamelementsStructure = {'twt': str, 'alias': str}
-        self.streamelements = []
+        self.__streamelementsStructure = {'jwt': str, 'alias': str, 'useSocketIO': bool}
+        self.streamelements : typing.List[dict] = []
         
-        self.__discordStructure = {'token': str, 'alias': str}
-        self.discord = []
+        self.__discordStructure = {'token': str, 'alias': str, 'regularGroups': list}
+        self.discord : typing.List[dict] = []
 
         self.__loadSettings()
 
@@ -36,7 +36,7 @@ class Settings():
         if twitchChanges:
             self.__saveSettings(self.twitch, self.__twitchSettingsFile)
         
-        discordChanges, self.discord = self.__validateSettings(self.__readFile(self.__discordSettingsFile), self.__discordStructure)
+        discordChanges, self.discord = self.__validateSettings(self.__readFile(self.__discordSettingsFile), self.__discordStructure, self.__enhancedDiscordVerification)
         if discordChanges:
             self.__saveSettings(self.discord, self.__discordSettingsFile)
         
@@ -69,13 +69,15 @@ class Settings():
                     changes = True
                     continue
             
-            for key in item:
+            for key in list(item.keys()):
                 if not key in structure:
                     del item[key]
                     changes = True
             
-            if enhancedItemValidatorCallable != None and enhancedItemValidatorCallable(item):
-                changes = True
+            try:
+                if enhancedItemValidatorCallable != None and enhancedItemValidatorCallable(item):
+                    changes = True
+            except Exception: pass
         return changes, obj
 
     def __enhancedTwitchVerification(self, obj):
@@ -83,5 +85,23 @@ class Settings():
         for index, channel in enumerate(reversed(obj['channels'])):
             if not isinstance(channel, str):
                 obj['channels'].pop(index)
+                changes = True
+        if self.__enhancedRegularsVerification(obj): changes = True
+        return changes
+
+    def __enhancedDiscordVerification(self, obj):
+        changes = False
+        for index, channel in enumerate(reversed(obj['channels'])):
+            if not isinstance(channel, str):
+                obj['channels'].pop(index)
+                changes = True
+        if self.__enhancedRegularsVerification(obj): changes = True
+        return changes
+    
+    def __enhancedRegularsVerification(self, obj):
+        changes = False
+        for index, groupname in enumerate(reversed(obj['regularGroups'])):
+            if not isinstance(groupname, str):
+                obj['regularGroups'].pop(index)
                 changes = True
         return changes

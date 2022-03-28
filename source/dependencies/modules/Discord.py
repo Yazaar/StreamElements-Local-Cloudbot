@@ -19,13 +19,16 @@ class Discord(discord.Client):
         self.clientContext = DiscordClientContext(self)
 
         self.loop = asyncio.get_event_loop()
+        self.startDiscord()
+
+    def stopDiscord(self):
+        self.loop.run_until_complete(self.close())
+    
+    def startDiscord(self):
         self.loop.create_task(self.start(self.__token))
 
-    def stop(self):
-        self.loop.run_until_complete(self.close())
-
     async def on_ready(self):
-        print('[Discord] Started bot: ' + self.user.name)
+        print(f'[Discord {self.alias}] Started bot: ' + self.user.name)
     
     async def on_message(self, message : discord.Message):
         self.__extensions.discordMessage(DiscordMessage(self.clientContext, message))

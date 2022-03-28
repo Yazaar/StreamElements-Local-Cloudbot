@@ -192,7 +192,7 @@ class Extensions():
     def __init__(self, websio : socketio.AsyncServer, settings : Settings.Settings):
         self.__websio = websio
         self.__settings = settings
-        self.__regulars = Regulars.Regulars()
+        self.regulars = Regulars.Regulars()
 
         self.__twitchInstances : typing.List[Twitch.Twitch] = []
         self.__discordInstances : typing.List[Discord.Discord] = []
@@ -223,7 +223,7 @@ class Extensions():
         self.__loadExtensions()
 
     def addTwitchInstance(self, alias : str, tmi : str, botname : str, channels : typing.List[str]):
-        twitchInstance = Twitch.Twitch(alias, self, tmi, botname, channels)
+        twitchInstance = Twitch.Twitch(alias, self, tmi, botname, channels, [])
         self.__twitchInstances.append(twitchInstance)
         return twitchInstance
 
@@ -418,17 +418,19 @@ class Extensions():
     def __loadTwitchInstances(self):
         instances = []
         for twitch in self.__settings.twitch:
-            instances.append(Twitch.Twitch(self, twitch['alias'], twitch['tmi'], twitch['botname'], twitch['channels'].copy()))
+            instances.append(Twitch.Twitch(twitch['alias'], self, twitch['tmi'], twitch['botname'], twitch['channels'].copy(), twitch['regularGroups']))
         return instances
 
     def __loadDiscordInstances(self):
         instances = []
         for discord in self.__settings.discord:
-            instances.append(Discord.Discord(self, discord['token']))
+            instances.append(Discord.Discord(discord['alias'], self, discord['token']))
         return instances
 
     def __loadStreamElementsInstances(self):
         instances = []
+        for streamelements in self.__settings.streamelements:
+            instances.append(StreamElements.StreamElements(streamelements['alias'], self, streamelements['jwt'], streamelements['useSocketIO']))
         return instances
 
     def __handleExtensionError(self, rawModuleName : str, exception : Exception, executionType : str):

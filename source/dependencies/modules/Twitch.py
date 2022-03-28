@@ -4,131 +4,124 @@ if typing.TYPE_CHECKING:
     from dependencies.modules.Extensions import Extensions
 
 class Twitch:
-    def __init__(self, alias : str, extensions : 'Extensions', tmi : str, botname : str, channels : list):
+    def __init__(self, alias : str, extensions : 'Extensions', tmi : str, botname : str, channels : list, regularGroups : typing.List[str]):
         self.id = id(self)
         self.alias = alias
         
-        self.__running = True
+        self.__runnerId = 0
         self.__extensions = extensions
 
-        self.reader = None
-        self.writer = None
+        self.__reader = None
+        self.__writer = None
 
-        self.tmi = tmi
-        self.botname = botname
-        self.channels = channels
+        self.__tmi = tmi
+        self.__botname = botname
+        self.__channels = channels
 
-        self.getContext = self.__getContext()
-        self.context = self.getContext()
+        self.__regularGroups = regularGroups
 
         self.__runTask : asyncio.Task = None
 
+        self.clientContext = TwitchContext(self)
+
         self.start()
-    
-    def __getContext(self):
-        parent = self
 
-        class TwitchContext():
-            def isRegular(self, channel : str, username : str):
-                return parent.isRegular(channel, username)
-
-        return TwitchContext
-    
-    @property
-    def channel(self):
-        if len(self.channels > 0): return self.channels[0]
-
-        return None
-    
     def onrawMsg(self, rawMsg : str):
         self.__extensions.twitchMessage(TwitchMessage(self, rawMsg))
     
     def isRegular(self, channel : str, username : str):
-        un, c = username.lower(), channel.lower()
-        globalList = self.regulars['global']
-        channelList = self.regulars['channel'].get(c, [])
-        return un in globalList or un in channelList
+        regularGroups = [i for i in self.__regularGroups]
+        if channel != None: regularGroups.append(f'channel.{channel}')
+        self.__extensions.regulars.isRegular(username, regularGroups, 'twitch')
 
     def start(self):
-        self.__running = True
+        self.__runnerId += 1
 
-        if self.__runTask == None or self.__runTask.done():
-            loop = asyncio.get_event_loop()
-            self.__runTask = loop.create_task(self.listen())
+        loop = asyncio.get_event_loop()
+        loop.create_task(self.listen(self.__runnerId))
 
     def stop(self):
-        self.__running = False
         self.__close()
     
     def __close(self):
-        if self.writer == None:
-            self.reader = None
+        if self.__writer == None:
+            self.__reader = None
             return
         
-        if not self.writer.is_closing():
-            self.writer.close()
+        if not self.__writer.is_closing():
+            self.__writer.close()
         
-        self.reader = None
-        self.writer = None
+        self.__reader = None
+        self.__writer = None
     
     async def read(self):
-        if self.reader == None: return None
-        try: data = await self.reader.readuntil(b'\n')
+        if self.__reader == None: return None
+        try: data = await self.__reader.readuntil(b'\n')
         except ConnectionError: return None
         return data.decode('utf-8').rstrip()
     
-    async def listen(self):
-        while self.__running:
-            self.reader, self.writer = await asyncio.open_connection('irc.twitch.tv', 6667)
+    async def listen(self, runnerId : int):
+        myTask = asyncio.current_task()
+        running = True
+        while isinstance(self.__runTask, asyncio.Task) and not self.__runTask.done():
+            await asyncio.sleep(1)
+        
+        self.__runTask = myTask
 
-            self.writer.write(b'PASS ' + self.tmi.lower().encode('utf-8') + b'\r\n')
-            self.writer.write(b'NICK ' + self.botname.lower().encode('utf-8') + b'\r\n')
+        while running and self.__runnerId == runnerId:
+            if len(self.__channels) == 0 or self.__tmi == '' or self.__botname == '': return
 
-            for channel in self.channels:
-                if not isinstance(channel, str) or channel == '': continue
-                self.writer.write(b'JOIN #' + channel.lower().encode('utf-8') + b'\r\n')
-            self.writer.write(b'CAP REQ :twitch.tv/tags\r\n')
+            self.__reader, self.__writer = await asyncio.open_connection('irc.twitch.tv', 6667)
 
-            while self.__running:
+            self.__writer.write(b'PASS ' + self.__tmi.lower().encode('utf-8') + b'\r\n')
+            self.__writer.write(b'NICK ' + self.__botname.lower().encode('utf-8') + b'\r\n')
+
+            for channel in self.__channels:
+                if isinstance(channel, str) and channel != '': self.__writer.write(b'JOIN #' + channel.lower().encode('utf-8') + b'\r\n')
+            self.__writer.write(b'CAP REQ :twitch.tv/tags\r\n')
+
+            while running and self.__runnerId == runnerId:
                 data = await self.read()
                 
                 if data == None:
                     self.__close()
-                    print('[Twitch Chat] Connection to Twitch failed, retrying in 3 seconds...')
+                    print(f'[Twitch {self.alias}] Connection to Twitch failed, retrying in 3 seconds...')
                     await asyncio.sleep(3)
                     break
                 if data == ':tmi.twitch.tv NOTICE * :Login authentication failed' or data == ':tmi.twitch.tv NOTICE * :Improperly formatted auth':
-                    print('[Twitch Chat] Invalid TMI')
+                    print(f'[Twitch {self.alias}] Invalid TMI')
+                    running = False
                     self.__close()
-                    return
+                    break
                 elif 'End of /NAMES list' in data:
-                    print('[Twitch Chat] Connected to: ' + ', '.join(self.channels).lower())
+                    print(f'[Twitch {self.alias}] Connected to channels')
                     break
             
-            if self.__running and self.writer == None: continue
+            if running and self.__writer == None: continue
             
             lastResponse = time.time()
             sentPing = False
-            while self.__running:
+            while running and self.__runnerId == runnerId:
                 try: data = await asyncio.wait_for(self.read(), 5)
                 except asyncio.TimeoutError: data = None
 
                 if data == None:
                     if sentPing == False and time.time() - lastResponse > 30:
-                        self.writer.write(b'PING :tmi.twitch.tv\r\n')
+                        self.__writer.write(b'PING :tmi.twitch.tv\r\n')
                         sentPing = True
                     if sentPing == True and time.time() - lastResponse > 40:
                         self.__close()
-                        print('[Twitch Chat] Lost connection, retrying in 5 seconds')
+                        print(f'[Twitch {self.alias}] Lost connection, retrying in 5 seconds')
                         await asyncio.sleep(5)
                         break
                 else:
                     sentPing = False
                     lastResponse = time.time()
                     if data == 'PING :tmi.twitch.tv':
-                        self.writer.write(b'PONG :tmi.twitch.tv\r\n')
+                        self.__writer.write(b'PONG :tmi.twitch.tv\r\n')
                     elif data[0] == '@' and 'PRIVMSG #' in data:
                         self.onrawMsg(data)
+        self.__close()
 
 class TwitchMessage():
     def __init__(self, context : Twitch, rawMessage : str):
@@ -213,7 +206,7 @@ class TwitchMessage():
             name, tier = badge.split('/')
             badges[name] = int(tier)
         return badges
-    
+
     def __parseEmotes(self, emoteStr: str):
         emotes = {}
         for emote in emoteStr.split('/'):
@@ -249,3 +242,10 @@ class TwitchMessage():
                 response['emotes'][emote][i] = str(response['emotes'][emote][i]['start']) + '-' + str(response['emotes'][emote][i]['end'])
         
         return response
+
+class TwitchContext():
+    def __init__(self, twitch : Twitch):
+        self.__parent = twitch
+    
+    def isRegular(self, channel : str, username : str):
+        return self.__parent.isRegular(channel, username)
