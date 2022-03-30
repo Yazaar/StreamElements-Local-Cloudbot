@@ -2,7 +2,7 @@ from dependencies.modules import Extensions, Settings, Misc
 
 from aiohttp import web
 from pathlib import Path
-import socketio, jinja2, aiohttp_jinja2, asyncio, os
+import socketio, jinja2, aiohttp_jinja2, asyncio
 
 site = None
 STATIC_FOLDER = Path('dependencies/web/static').resolve()
@@ -167,12 +167,7 @@ async def run():
     if errorCode < 0: currentIP, errorCode = await Misc.fetchUrl('https://api.ipify.org')
     if errorCode < 0: print('[ERROR]: Unable to check for your public IP, no network connection? (trying to run anyway)')
 
-    extensions.load()
-
-    if False:
-        extensions.addTwitchInstance('TwitchAlias', os.environ.get('TwitchTMIToken'), os.environ.get('TwitchTMIUsername'), [os.environ.get('TwitchTMIChannel')])
-        extensions.addDiscordInstance('DiscordAlias', os.environ.get('DiscordBotToken'))
-        extensions.addStreamElementsInstance('StreamElementsAlias', os.environ.get('SE_JWT'), False)
+    extensions.loadServices()
 
     with open('website.html', 'w') as f: f.write('<script>window.location = "http://localhost:' + str(PORT) + '"</script>')
     urlJsPath = Path('dependencies/data/url.js')

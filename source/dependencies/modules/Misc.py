@@ -1,8 +1,8 @@
-import asyncio, aiohttp, ipaddress, socket, typing
+import asyncio, aiohttp, ipaddress, socket
 import aiohttp.client_exceptions
 from sys import argv
 
-def portOverride(defaultPort : int) -> typing.Tuple[bool, int]:
+def portOverride(defaultPort : int) -> tuple[bool, int]:
     argvLength = len(argv)
     for i in range(argvLength):
         if argv[i] == '--port' and i != argvLength - 1:

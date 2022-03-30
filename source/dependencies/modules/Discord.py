@@ -184,7 +184,7 @@ class DiscordMessage():
         self.lowerMessage = msg.lowerMessage
         self.lowerWords = msg.lowerWords.copy()
 
-    def __getAttributes(self, parts : typing.List[str]):
+    def __getAttributes(self, parts : list[str]):
         self.attributes.clear()
         index = -1
         lastIndex = len(parts) - 1

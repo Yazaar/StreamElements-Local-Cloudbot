@@ -33,6 +33,9 @@ async def crossTalk(data):
 
 async def newSettings(data):
     print('[Async example] newSettings: ', data)
+
+async def tick():
+    print('[Async example] tick')
 '''
 
 ########################

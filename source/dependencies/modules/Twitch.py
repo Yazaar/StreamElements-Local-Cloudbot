@@ -4,7 +4,7 @@ if typing.TYPE_CHECKING:
     from dependencies.modules.Extensions import Extensions
 
 class Twitch:
-    def __init__(self, alias : str, extensions : 'Extensions', tmi : str, botname : str, channels : list, regularGroups : typing.List[str]):
+    def __init__(self, alias : str, extensions : 'Extensions', tmi : str, botname : str, channels : list, regularGroups : list[str]):
         self.id = id(self)
         self.alias = alias
         

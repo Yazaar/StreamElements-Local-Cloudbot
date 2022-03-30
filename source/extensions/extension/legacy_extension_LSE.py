@@ -33,4 +33,7 @@ def crossTalk(data : dict):
 
 def newSettings(data : dict):
     print('[Legacy example] newSettings: ', data)
+
+def tick():
+    print('[Legacy example] tick')
 '''

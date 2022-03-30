@@ -1,7 +1,7 @@
 from pathlib import Path
 import json, typing
 
-GROUP_DATA_TYPE = typing.Dict[str, typing.List[dict]]
+GROUP_DATA_TYPE = dict[str, list[dict]]
 
 class Regulars:
     def __init__(self):
@@ -95,7 +95,7 @@ class Regulars:
             try: return json.load(f)
             except Exception: return None
 
-    def __verifyRegulars(self, validateGroup : typing.List[dict]):
+    def __verifyRegulars(self, validateGroup : list[dict]):
         keys = ['alias', 'id']
         changes = False
         if not isinstance(validateGroup, list): return changes, None
@@ -107,7 +107,7 @@ class Regulars:
             elif didChanges: changes = True
         return changes, validateGroup
     
-    def __verifyDict(self, checkDict : dict, keys : list) -> typing.Tuple[bool, bool]:
+    def __verifyDict(self, checkDict : dict, keys : list) -> tuple[bool, bool]:
         changes = False
         for i in keys:
             if checkDict.get(i, None) == None: return False, changes
@@ -119,6 +119,6 @@ class Regulars:
         
         return True, changes
 
-    def __saveRegulars(self, obj : typing.List[dict], filepath : Path):
+    def __saveRegulars(self, obj : list[dict], filepath : Path):
         filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, 'w') as f: json.dump(obj, f)

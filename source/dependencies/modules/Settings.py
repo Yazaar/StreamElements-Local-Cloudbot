@@ -1,4 +1,4 @@
-import json, typing
+import json
 from pathlib import Path
 
 class Settings():
@@ -14,13 +14,13 @@ class Settings():
         self.port = None
 
         self.__twitchStructure = {'tmi': str, 'botname': str, 'channels': list, 'alias': str, 'regularGroups': list}
-        self.twitch : typing.List[dict] = []
+        self.twitch : list[dict] = []
 
         self.__streamelementsStructure = {'jwt': str, 'alias': str, 'useSocketIO': bool}
-        self.streamelements : typing.List[dict] = []
+        self.streamelements : list[dict] = []
         
         self.__discordStructure = {'token': str, 'alias': str, 'regularGroups': list}
-        self.discord : typing.List[dict] = []
+        self.discord : list[dict] = []
 
         self.__loadSettings()
 
