@@ -5,7 +5,7 @@ if typing.TYPE_CHECKING:
 
 class Twitch:
     def __init__(self, alias : str, extensions : 'Extensions', tmi : str, botname : str, channels : list, regularGroups : list[str]):
-        self.id = id(self)
+        self.id = hex(id(self))
         self.alias = alias
         
         self.__runnerId = 0
@@ -16,7 +16,7 @@ class Twitch:
 
         self.__tmi = tmi
         self.__botname = botname
-        self.__channels = channels
+        self.__channels : list[str] = channels
 
         self.__regularGroups = regularGroups
 
@@ -26,22 +26,40 @@ class Twitch:
 
         self.start()
 
-    def onrawMsg(self, rawMsg : str):
-        self.__extensions.twitchMessage(TwitchMessage(self, rawMsg))
+    def defaultChannel(self):
+        if len(self.__channels) > 0: return self.__channels[0]
+    
+    async def sendMessage(self, message : str, channel=None):
+        if self.__writer == None: return False, 'twitch chat not running'
+        if not isinstance(message, str): return False, 'message has to be a string'
+        sendInChannel = None
+        if channel == None:
+            sendInChannel = self.defaultChannel()
+        for i in self.__channels:
+            if i == channel:
+                sendInChannel = i
+                break
+        
+        if sendInChannel == None: return False, 'invalid channel to send in'
+        self.__writer.write(f'PRIVMSG #{sendInChannel.lower()} :{message}\r\n'.encode('utf-8'))
+        return True, None
     
     def isRegular(self, channel : str, username : str):
         regularGroups = [i for i in self.__regularGroups]
         if channel != None: regularGroups.append(f'channel.{channel}')
         self.__extensions.regulars.isRegular(username, regularGroups, 'twitch')
-
+    
+    def onrawMsg(self, rawMsg : str):
+        self.__extensions.twitchMessage(TwitchMessage(self, rawMsg))
+    
     def start(self):
-        self.__runnerId += 1
+        self.stop()
 
         loop = asyncio.get_event_loop()
         loop.create_task(self.listen(self.__runnerId))
 
     def stop(self):
-        self.__close()
+        self.__runnerId += 1
     
     def __close(self):
         if self.__writer == None:

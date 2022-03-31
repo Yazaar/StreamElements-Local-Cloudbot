@@ -228,6 +228,30 @@ class Extensions():
 
         self.__loop.create_task(self.__ticker())
     
+    def defaultStreamElements(self):
+        if len(self.__streamElementsInstances) > 0:
+            return self.__streamElementsInstances[0]
+    
+    def streamElementsById(self, seId : str):
+        for i in self.__streamElementsInstances:
+            if i.id == seId: return i
+    
+    def streamElementsByAlias(self, alias : str):
+        for i in self.__streamElementsInstances:
+            if i.alias == alias: return i
+    
+    def defaultTwitch(self):
+        if len(self.__twitchInstances) > 0:
+            return self.__twitchInstances[0]
+    
+    def twitchById(self, twitchId : str):
+        for i in self.__twitchInstances:
+            if i.id == twitchId: return i
+    
+    def twitchByAlias(self, alias : str):
+        for i in self.__twitchInstances:
+            if i.alias == alias: return i
+
     def loadServices(self):
         self.__twitchInstances = self.__loadTwitchInstances()
         self.__discordInstances = self.__loadDiscordInstances()
@@ -235,7 +259,7 @@ class Extensions():
 
     def reloadExtensions(self):
         self.__unloadExtensions()
-        self.__loadExtensions()
+        self.__loadExtensions(self.__extensionsPath)
     
     def toggleExtension(self, moduleName : str, enabled : bool):
         if (not enabled) and moduleName in self.__enabledExtensions:
@@ -505,6 +529,9 @@ class Extensions():
         return None
 
     def __unloadExtensions(self):
+        for i in self.__callbacks: self.__callbacks[i].clear()
+        for i in self.__legacyCallbacks: self.__callbacks[i].clear()
+        for i in self.__extensions: i.reload()
         self.__extensions.clear()
 
     def __loadExtensions(self, path : Path) -> None:

@@ -5,7 +5,7 @@ if typing.TYPE_CHECKING:
 
 class Discord(discord.Client):
     def __init__(self, alias : str, extensions : 'Extensions', token : str):
-        self.id = id(self)
+        self.id = hex(id(self))
         self.alias = alias
         
         self.__extensions = extensions

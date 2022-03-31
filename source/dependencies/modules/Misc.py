@@ -1,6 +1,7 @@
 import asyncio, aiohttp, ipaddress, socket
 import aiohttp.client_exceptions
 from sys import argv
+from pathlib import Path
 
 def portOverride(defaultPort : int) -> tuple[bool, int]:
     argvLength = len(argv)
@@ -28,19 +29,40 @@ def localIP(environ, currentIP=None):
 def getServerIP():
     return socket.gethostbyname(socket.gethostname())
 
-async def fetchUrl(url):
+async def fetchUrl(url, /, method='get', headers=None, body=None):
+    kwargs = {}
+    if isinstance(headers, dict):
+        parsedHeaders = {}
+        for key in headers:
+            if isinstance(headers[key], str):
+                parsedHeaders[key] = headers[key]
+        if len(parsedHeaders.items()) > 0:
+            kwargs['headers'] = parsedHeaders
+    
+    if isinstance(body, str):
+        kwargs['data'] = body
+    
     try:
         async with aiohttp.ClientSession() as sesson:
-            async with sesson.get(url) as response:
+            async with sesson.request(method, url, **kwargs) as response:
                 text = await response.text()
     except aiohttp.client_exceptions.ClientConnectorError:
         return None, -1
     except aiohttp.client_exceptions.InvalidURL:
         return None, -2
     except Exception:
-        return None, -3
+        return None, -2
     await asyncio.sleep(0.1)
     # asyncio.sleep(0.1) prevents RuntimeError from being raised if loop is closing too soon
     # aiohttp seem have a problem with asyncio.new_event_loop(), probably used by asyncio.run(), since using asyncio.get_event_loop() to get a new loop is depricated
     # Not a problem if asyncio.get_event_loop() + loop.run_until_complete(main()) is used explicitly, except that a DepricatedWarning print is visible (python 3.10)
     return text, 1
+
+def isSubfolder(folder : Path, subfolder : Path):
+    if (not isinstance(folder, Path)) or (not isinstance(subfolder, Path)):
+        return False
+
+    try:
+        subfolder.resolve().relative_to(folder.resolve()) # throws exception if it is outside of the static folder
+        return True
+    except ValueError: return False
