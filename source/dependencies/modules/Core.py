@@ -1,5 +1,4 @@
-from dependencies.modules import Extensions, Settings, Misc, StreamElements, Twitch, Discord
-
+from dependencies.modules import Extensions, Settings, Misc, Web
 from aiohttp import web
 from pathlib import Path
 import socketio, jinja2, aiohttp_jinja2, asyncio, json
@@ -13,7 +12,7 @@ currentIP = None
 
 PORT = Misc.portOverride(settings.port)[1]
 
-sio = socketio.AsyncServer(async_mode='aiohttp', async_handlers=True)
+sio = socketio.AsyncServer(async_mode='aiohttp', async_handlers=True, cors_allowed_origins='*')
 app = web.Application()
 sio.attach(app)
 
@@ -23,57 +22,100 @@ aiohttp_jinja2.setup(app, enable_async=True, loader=jinja2.FileSystemLoader(Path
 
 routes = web.RouteTableDef()
 
-async def handleStreamElementsAPI(data : dict):
+async def handleStreamElementsAPI(data : dict) -> tuple[bool, str]:
     if not isinstance(data, dict): return False, 'data have to be of type dict'
-    streamelements : StreamElements.StreamElements = None
+    
+    args = {}
+    if 'alias' in data and isinstance(data['alias'], str): args['alias'] = data['alias']
+    if 'id' in data and isinstance(data['id'], str): args['id_'] = data['id']
 
-    if 'alias' in data:
-        streamelements = extensions.streamElementsByAlias(data['alias'])
-    if streamelements == None and 'id' in data:
-        streamelements = extensions.streamElementsById(data['id'])
-    if streamelements == None:
-        streamelements = extensions.defaultStreamElements()
-    if streamelements == None:
-        return False, 'The body requires the key alias or id'
+    streamelements = extensions.findStreamElements(**args)
+    if streamelements == None: streamelements = extensions.defaultStreamElements()
+    if streamelements == None: return False, 'The body requires the key alias or id'
     
     return await streamelements.APIRequest(data)
 
-async def handleSendMessage(data : dict) -> tuple[bool, str]:
+async def handleTwitchMessage(data : dict) -> tuple[bool, str]:
     if not isinstance(data, dict): return False, 'data have to be of type dict'
-    if not 'message' in data or not isinstance(data['message'], str): return False, 'JSON require the string key \"message\"'
-    if not 'bot' in data or not isinstance(data['bot'], str): return False, 'JSON require the string key \"bot\"'
+    if not 'message' in data or not isinstance(data['message'], str): return False, 'JSON require the string key "message"'
+    if not 'bot' in data or not isinstance(data['bot'], str): return False, 'JSON require the string key "bot"'
 
     success = False
     resp = None
 
+    kwargs = {}
+    if 'alias' in data and isinstance(data['alias'], str): kwargs['alias'] = data['alias']
+    if 'id' in data and isinstance(data['id'], str): kwargs['id_'] = data['id']
+    
     if data['bot'] in ['twitch', 'local']:
-        twitch : Twitch.Twitch = None
-        if 'alias' in data:
-            twitch = extensions.twitchByAlias(data['alias'])
-        if twitch == None and 'id' in data:
-            twitch = extensions.twitchById(data['id'])
-        if twitch == None:
-            twitch = extensions.defaultTwitch()
-        if twitch == None:
-            return False, 'The body requires the key alias or id'
-        
+        twitch = extensions.findTwitch(**kwargs)
+        if twitch == None: twitch = extensions.defaultTwitch()
+        if twitch == None: return False, 'The body requires the key alias or id'
         success, resp = await twitch.sendMessage(data['message'], data.get('channel', None))
-
     elif data['bot'] == 'streamelements':
-        streamelements : StreamElements.StreamElements = None
-        if 'alias' in data:
-            streamelements = extensions.streamElementsByAlias(data['alias'])
-        if streamelements == None and 'id' in data:
-            streamelements = extensions.streamElementsById(data['id'])
-        if streamelements == None:
-            streamelements = extensions.defaultStreamElements()
-        if streamelements == None:
-            return False, 'The body requires the key alias or id'
-        
+        streamelements = extensions.findStreamElements(**kwargs)
+        if streamelements == None: streamelements = extensions.defaultStreamElements()
+        if streamelements == None: return False, 'The body requires the key alias or id'
         success, resp = await streamelements.sendMessage(data['message'])
-
     return success, resp
 
+async def handleDiscordMessage(data : dict) -> tuple[bool, str]:
+    if not isinstance(data, dict): return False, 'data have to be of type dict'
+    if not 'message' in data or not isinstance(data['message'], str): return False, 'JSON require the string key "message"'
+    if not 'textChannel' in data: return False, 'JSON require the key "textChannel"'
+    
+    kwargs = {}
+    if 'alias' in data and isinstance(data['alias'], str): kwargs['alias'] = data['alias']
+    if 'id' in data and isinstance(data['id'], str): kwargs['id_'] = data['id']
+    
+    discordBot = extensions.findDiscord(**kwargs)
+    if discordBot == None: extensions.defaultDiscord()
+    if discordBot == None: return False, 'Unable to find dicord bot'
+
+    channel = await discordBot.getTextChannel(data['textChannel'])
+    if channel == None: return False, 'Unable to find the specified channel'
+    await channel.send(data['message'])
+
+    return True, None
+
+async def handleCrossTalk(data : dict) -> tuple[bool, str]:
+    events = []
+    scripts = []
+
+    if not isinstance(data, dict): return False, 'Data have to be of type dict'
+    if not 'data' in data: return False, 'JSON require the key "data"'
+    
+    if 'event' in data:
+        if (not isinstance(data['event'], str)) or data['event'][:2] != 'p-': return False, 'Value of the key "event" has to start with "p-", example: "p-example"'
+        events.append(data['event'])
+    
+    if 'events' in data and isinstance(data['events'], list):
+        for i in data['events']:
+            if (not isinstance(i, str)) or i[:2] != 'p-': return False, 'Value of the key "events" has to be a list with strings start with "p-", example: "p-example"'
+            events.append(i)
+    
+    if 'scripts' in data and isinstance(data['scripts'], list):
+        for script in data['scripts']:
+            if (not isinstance(script, str)) or len(script) == 0: return False, 'Value of key "scripts" has to be a list with strings containing at least one character (length 1+)'
+            scripts.append(script)
+
+    ct = Web.CrossTalk(data['data'])
+
+    extensions.crossTalk(ct, scripts, events)
+    return True, None
+
+async def handleScriptTalk(data : dict) -> tuple[bool, str]:
+    if not isinstance(data, dict): return False, 'Data have to be of type dict'
+    if 'scripts' in data and not 'module' in data: data['module'] = data['scripts']
+
+    if not 'module' in data: return False, 'JSON require the key "module" or "scripts"'
+    if not 'data' in data: return False, 'JSON require the key "data"'
+
+    return handleCrossTalk({
+        'scripts': [data['module']],
+        'data': data['data']
+    })
+    
 @routes.get('/')
 async def web_index(request : web.Request):
     context = {
@@ -88,9 +130,15 @@ async def web_index(request : web.Request):
     }
     return await aiohttp_jinja2.render_template_async('index.html', request, context)
 
-@routes.get('/static/{path:.*}')
+@routes.get('/socket.io/socket.io.js')
+async def web_socketIO_js(request : web.Request):
+    socketIOJS = Path('dependencies/web/static/scripts/socket.io.js')
+    if socketIOJS.is_file(): return web.FileResponse(socketIOJS)
+    else: return web.Response(text='console.error("ERROR: socket.io.js not found")')
+
+@routes.get('/static/{path:.+}')
 async def web_static(request : web.Request):
-    try: target : Path = (STATIC_FOLDER / request.path[8:])
+    try: target : Path = (STATIC_FOLDER / request.match_info['path'])
     except Exception: return web.Response(text='invalid file path')
     
     if not Misc.isSubfolder(STATIC_FOLDER, target):
@@ -103,11 +151,11 @@ async def web_static(request : web.Request):
 async def web_urljs(request : web.Request):
     urljs = Path('dependencies/data/url.js')
     if urljs.is_file(): return web.FileResponse(urljs)
-    else: return web.Response(text="console.error(\"ERROR: url.js not found\");var server_url=\"\"")
+    else: return web.Response(text='console.error("ERROR: url.js not found");var server_url=""')
 
-@routes.get('/extensions/{path:.*}')
+@routes.get('/extensions/{path:.+}')
 async def web_extensions(request : web.Request):
-    try: target : Path = (EXTENSIONS_FOLDER / request.path[12:])
+    try: target : Path = (EXTENSIONS_FOLDER / request.match_info['path'])
     except Exception: return web.Response(text='invalid file path')
 
     if not Misc.isSubfolder(EXTENSIONS_FOLDER, target): return web.Response(text='file path not inside of extensions folder')
@@ -131,12 +179,13 @@ async def web_SEAPI(request : web.Request):
         data : dict = await request.json()
         if not isinstance(data, dict): raise Exception()
     except Exception: return web.Response(text='{"type":"error", "message":"Please forward json... post_request(url, json=JSON_DATA)"}')
-
+    
     success, resp = handleStreamElementsAPI(data)
 
     if success: return web.Response(text=json.dumps({'type':'success', 'success': True, 'response': resp}))
     else: return web.Response(text=json.dumps({'type':'error', 'success': False, 'message': resp}))
 
+@routes.post('/TwitchMessage')
 @routes.post('/SendMessage')
 async def web_sendMessage(request : web.Request):
     try:
@@ -144,34 +193,86 @@ async def web_sendMessage(request : web.Request):
         if not isinstance(data, dict): raise Exception()
     except Exception: return web.Response(text='{"type":"error", "message":"Please forward json... post_request(url, json=JSON_DATA)"}')
 
-    success, resp = await handleSendMessage(data)
+    success, resp = await handleTwitchMessage(data)
+
+    if success: return web.Response(text='{"type":"success", "success":true}')
+    else: return web.Response(text=json.dumps({'type':'error', 'success': False, 'message': resp}))
+
+@routes.post('/DiscordMessage')
+async def web_discordMessage(request : web.Request):
+    try:
+        data : dict = await request.json()
+        if not isinstance(data, dict): raise Exception()
+    except Exception: return web.Response(text='{"type":"error", "message":"Please forward json... post_request(url, json=JSON_DATA)"}')
+
+    success, resp = await handleDiscordMessage(data)
 
     if success: return web.Response(text='{"type":"success", "success":true}')
     else: return web.Response(text=json.dumps({'type':'error', 'success': False, 'message': resp}))
 
 @routes.post('/ScriptTalk')
 async def web_scriptTalk(request : web.Request):
-    return web.Response(text='hi')
+    try:
+        data : dict = await request.json()
+        if not isinstance(data, dict): raise Exception()
+    except Exception: return web.Response(text='{"type":"error", "message":"Please forward json... post_request(url, json=JSON_DATA)"}')
+
+    success, resp = await handleScriptTalk(data)
+
+    if success: return web.Response(text='{"type":"success", "success":true}')
+    else: return web.Response(text=json.dumps({'type':'error', 'success': False, 'message': resp}))
 
 @routes.post('/CrossTalk')
 async def web_crossTalk(request : web.Request):
-    return web.Response(text='hi')
+    try:
+        data : dict = await request.json()
+        if not isinstance(data, dict): raise Exception()
+    except Exception: return web.Response(text='{"type":"error", "message":"Please forward json... post_request(url, json=JSON_DATA)"}')
+
+    success, resp = await handleCrossTalk(data)
+
+    if success: return web.Response(text='{"type":"success", "success":true}')
+    else: return web.Response(text=json.dumps({'type':'error', 'success': False, 'message': resp}))
 
 @routes.post('/DeleteRegular')
 async def web_deleteRegular(request : web.Request):
+    try:
+        data : dict = await request.json()
+        if not isinstance(data, dict): raise Exception()
+    except Exception: return web.Response(text='{"type":"error", "message":"Please forward json... post_request(url, json=JSON_DATA)"}')
+
     return web.Response(text='hi')
 
 @routes.post('/AddRegular')
 async def web_addRegular(request : web.Request):
+    try:
+        data : dict = await request.json()
+        if not isinstance(data, dict): raise Exception()
+    except Exception: return web.Response(text='{"type":"error", "message":"Please forward json... post_request(url, json=JSON_DATA)"}')
+
     return web.Response(text='hi')
 
-@routes.route('*', '/webhook/<destination>/<secret>')
+@routes.route('*', '/webhook/{moduleName:[^/]+}/{secret:.*}')
 async def web_webhook(request : web.Request):
-    return web.Response(text='hi')
+    try:
+        data = await request.text()
+        if len(data) == 0 and not request.body_exists(): raise Exception()
+    except Exception: data = None
+    method = request.method
+    secret = request.match_info['secret']
+    moduleName = request.match_info['moduleName']
 
-@sio.on('connect')
-async def sio_connect(sid, data=''):
-    print(sid, 'connected')
+    wh = Web.Webhook(method, data, secret)
+
+    extensions.webhook(moduleName, wh)
+
+    return web.Response()
+
+#@sio.on('connect')
+#def sio_connect(sid, *args): pass
+
+#@sio.on('disconnect')
+#def sio_disconnect(sid, *args): pass
 
 @sio.on('message')
 async def sio_message(sid, data=''):
@@ -253,7 +354,8 @@ async def sio_sendMessage(sid, data=''):
         except Exception:
             await sio.emit('SendMessage', {'type': 'error', 'message': 'Please forward json... sio.emit("SendMessage", JSON_DATA)'}, room=sid)
             return
-
+    
+    return
     success, resp = await handleSendMessage(data)
 
     if success: await sio.emit('SendMessage', {'type': 'success', 'success': True}, room=sid)

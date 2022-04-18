@@ -23,7 +23,8 @@ async def streamElementsTestEvent(data : Templates.StreamElementsGenericEvent): 
 # general triggers #
 ####################
 '''
-async def Initialize():
+async def initialize():
+    print('[Async example] initialize')
 
 async def toggle(data):
     print('[Async example] toggle: ', data)
@@ -36,7 +37,13 @@ async def newSettings(data):
 
 async def tick():
     print('[Async example] tick')
+
+async def webhook(webhook : Templates.Webhook):
+    print('[Async example] webhook')
 '''
+
+async def crossTalk(data : Templates.CrossTalk):
+    print('[Async example] crossTalk: ', data)
 
 ########################
 # all discord triggers #

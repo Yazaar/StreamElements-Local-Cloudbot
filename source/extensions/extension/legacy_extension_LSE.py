@@ -20,20 +20,23 @@ def streamElementsTestEvent(data : dict):
 ####################
 # general triggers #
 ####################
-
 '''
-def Initialize(data : dict):
+def initialize(data : dict):
     print('[Legacy example] toggle: ', data)
 
 def toggle(data : dict):
     print('[Legacy example] toggle: ', data)
 
-def crossTalk(data : dict):
-    print('[Legacy example] crossTalk: ', data)
 
 def newSettings(data : dict):
     print('[Legacy example] newSettings: ', data)
 
 def tick():
     print('[Legacy example] tick')
+
+def webhook(secret : str, data):
+    print('[Legacy example] webhook')
 '''
+
+def crossTalk(data):
+    print('[Legacy example] crossTalk: ', data)

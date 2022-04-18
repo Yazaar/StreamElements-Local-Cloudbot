@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <h1>hi</h1>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        let s = io()
+
+        // triggerd when the connection is open
+        s.on('connect', () => {
+            console.log('connected!')
+        })
+
+        // triggerd on error
+        s.on('error', (e) => {
+            console.log('RIP')
+        })
+
+        // All StreamElements test events are sent through this event 
+        s.on('StreamElementsTestEvent', (data) => {
+            console.log(data)
+        })
+        // All StreamElements events are sent through this event 
+        s.on('StreamElementsEvent', (data) => {
+            console.log(data)
+        })
+
+        // when someone sends data sends data through a custom event (all "p-" events are "private", not created by the main program) 
+        s.on('p-ExampleEvent', (data) => {
+            console.log(data)
+        })
+    </script>
+</body>
+</html>

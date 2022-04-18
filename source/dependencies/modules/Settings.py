@@ -1,48 +1,99 @@
-import json
+import typing, json, copy
 from pathlib import Path
+from . import Misc
 
 class Settings():
     def __init__(self):
-        settingsFolder = Path('dependencies/data/settings')
+        datafolder = Path('dependencies/data')
         
-        self.__generalSettingsFile = settingsFolder / 'general.json'
-        self.__twitchSettingsFile = settingsFolder / 'twitch.json'
-        self.__discordSettingsFile = settingsFolder / 'discord.json'
-        self.__streamelementsSettingsFile = settingsFolder / 'streamelements.json'
+        self.__generalSettingsFile = datafolder / 'settings/general.json'
+        self.__twitchSettingsFile = datafolder / 'settings/twitch.json'
+        self.__discordSettingsFile = datafolder / 'settings/discord.json'
+        self.__streamelementsSettingsFile = datafolder / 'settings/streamelements.json'
+
+        self.__extensionPermissionsFile = datafolder / 'permissions/extensions.json'
+        self.__urlPermissionsFile = datafolder / 'permissions/urls.json'
 
         self.__defaultPort = 80
         self.port = None
 
-        self.__twitchStructure = {'tmi': str, 'botname': str, 'channels': list, 'alias': str, 'regularGroups': list}
-        self.twitch : list[dict] = []
+        self.__twitch : list[dict] = []
+        self.__twitchStructure = [
+            {
+                'tmi': 'tmi',
+                'botname': 'botname',
+                'channels': ['channel'],
+                'alias': 'alias',
+                'regularGroups': ['regularGroup'],
+                'channel': {
+                    str: {
+                        'regularGroups': ['regularGroup']
+                    }
+                }
+            }
+        ]
 
-        self.__streamelementsStructure = {'jwt': str, 'alias': str, 'useSocketIO': bool}
-        self.streamelements : list[dict] = []
+        self.__streamelements : list[dict] = []
+        self.__streamelementsStructure = [
+            {
+                'jwt': 'jtw',
+                'alias': 'alias',
+                'useSocketIO': True
+            }
+        ]
         
-        self.__discordStructure = {'token': str, 'alias': str, 'regularGroups': list}
-        self.discord : list[dict] = []
+        self.__discord : list[dict] = []
+        self.__discordStructure = [
+            {
+                'token': 'token',
+                'alias': 'alias',
+                'regularGroups': ['regularGroup'],
+                'guild': {
+                    str: {
+                        'regularGroups': ['regularGroup']
+                    }
+                }
+            }
+        ]
 
         self.__loadSettings()
+    
+    def __filterYield(self, obj : list, *, filterMethod = None):
+        if filterMethod == None: filterMethod = lambda _: True
+        for i in obj:
+            iCopy = copy.deepcopy(i)
+            try:
+                if not filterMethod(iCopy): continue
+            except Exception: continue
+            yield iCopy    
+    
+    def getTwitch(self, *, filterMethod = None):
+        for twitch in self.__filterYield(self.__twitch, filterMethod=filterMethod):
+            yield twitch
+    
+    def getDiscord(self, *, filterMethod = None):
+        for discord in self.__filterYield(self.__discord, filterMethod=filterMethod):
+            yield discord
+    
+    def getStreamElements(self, *, filterMethod = None):
+        for streamelements in self.__filterYield(self.__streamelements, filterMethod=filterMethod):
+            yield streamelements
 
     def __loadSettings(self):
         generalSettings = self.__readFile(self.__generalSettingsFile)
         if not isinstance(generalSettings, dict) or (port := generalSettings.get('port', None)) == None or not isinstance(port, int):
             self.port = self.__defaultPort
             self.__saveSettings({'port': self.port}, self.__generalSettingsFile)
-        else:
-            self.port = port
+        else: self.port = port
+
+        twitchChanges, self.__twitch = Misc.verifyListStructure(self.__readFile(self.__twitchSettingsFile), self.__twitchStructure)
+        if twitchChanges: self.__saveSettings(self.__twitch, self.__twitchSettingsFile)
         
-        twitchChanges, self.twitch = self.__validateSettings(self.__readFile(self.__twitchSettingsFile), self.__twitchStructure, self.__enhancedTwitchVerification)
-        if twitchChanges:
-            self.__saveSettings(self.twitch, self.__twitchSettingsFile)
+        discordChanges, self.__discord = Misc.verifyListStructure(self.__readFile(self.__discordSettingsFile), self.__discordStructure)
+        if discordChanges: self.__saveSettings(self.__discord, self.__discordSettingsFile)
         
-        discordChanges, self.discord = self.__validateSettings(self.__readFile(self.__discordSettingsFile), self.__discordStructure, self.__enhancedDiscordVerification)
-        if discordChanges:
-            self.__saveSettings(self.discord, self.__discordSettingsFile)
-        
-        streamelementsChanges, self.streamelements = self.__validateSettings(self.__readFile(self.__streamelementsSettingsFile), self.__streamelementsStructure)
-        if streamelementsChanges:
-            self.__saveSettings(self.streamelements, self.__streamelementsSettingsFile)
+        streamelementsChanges, self.__streamelements = Misc.verifyListStructure(self.__readFile(self.__streamelementsSettingsFile), self.__streamelementsStructure)
+        if streamelementsChanges: self.__saveSettings(self.__streamelements, self.__streamelementsSettingsFile)
 
     def __readFile(self, filepath : Path):
         if not filepath.is_file(): return None
@@ -53,55 +104,3 @@ class Settings():
     def __saveSettings(self, obj, filepath : Path):
         filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, 'w') as f: json.dump(obj, f)
-
-    def __validateSettings(self, obj : list, structure : dict, enhancedItemValidatorCallable = None):
-        if not isinstance(obj, list): return True, []
-        changes = False
-        for index, item in enumerate(reversed(obj)):
-            if not isinstance(item, dict):
-                obj.pop(index)
-                changes = True
-                continue
-
-            for key in structure:
-                if not key in item or not isinstance(item[key], structure[key]):
-                    obj.pop(index)
-                    changes = True
-                    continue
-            
-            for key in list(item.keys()):
-                if not key in structure:
-                    del item[key]
-                    changes = True
-            
-            try:
-                if enhancedItemValidatorCallable != None and enhancedItemValidatorCallable(item):
-                    changes = True
-            except Exception: pass
-        return changes, obj
-
-    def __enhancedTwitchVerification(self, obj):
-        changes = False
-        for index, channel in enumerate(reversed(obj['channels'])):
-            if not isinstance(channel, str):
-                obj['channels'].pop(index)
-                changes = True
-        if self.__enhancedRegularsVerification(obj): changes = True
-        return changes
-
-    def __enhancedDiscordVerification(self, obj):
-        changes = False
-        for index, channel in enumerate(reversed(obj['channels'])):
-            if not isinstance(channel, str):
-                obj['channels'].pop(index)
-                changes = True
-        if self.__enhancedRegularsVerification(obj): changes = True
-        return changes
-    
-    def __enhancedRegularsVerification(self, obj):
-        changes = False
-        for index, groupname in enumerate(reversed(obj['regularGroups'])):
-            if not isinstance(groupname, str):
-                obj['regularGroups'].pop(index)
-                changes = True
-        return changes

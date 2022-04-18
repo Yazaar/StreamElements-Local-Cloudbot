@@ -6,9 +6,9 @@ async def fetchUrl(url):
         async with aiohttp.ClientSession() as sesson:
             async with sesson.get(url) as response:
                 text = await response.text()
-    except aiohttp.client_exceptions.ClientConnectorError:
+    except aiohttp.ClientConnectorError:
         return None, -1
-    except aiohttp.client_exceptions.InvalidURL:
+    except aiohttp.InvalidURL:
         return None, -2
     except Exception:
         return None, -3

@@ -1,9 +1,11 @@
-from . import Discord, Twitch, StreamElements, Settings, Regulars
+from . import Discord, Twitch, StreamElements, Settings, Regulars, Web, ExtensionCrossover
 import importlib, inspect, types, asyncio, threading, socketio, json
 from pathlib import Path
 
 class Extension():
     def __init__(self, modulePath : Path):
+        self.extensionCrossover = ExtensionCrossover()
+
         self.__modulePath = modulePath
         self.enabled = False
 
@@ -15,7 +17,7 @@ class Extension():
         self.error : bool = False
         self.errorData : Exception = None
 
-        self.__loadModule()
+        self.reload()
 
     def __loadModule(self):
         try:
@@ -26,7 +28,8 @@ class Extension():
             self.errorData = e
             self.__module = None
             self.error = True
-        
+    
+    def __loadMethods(self):
         self.methods.clear()
         
         if (self.error): return
@@ -42,29 +45,12 @@ class Extension():
     def reload(self):
         if self.__module == None: self.__loadModule()
         else: self.__module = importlib.reload(self.__module)
+        self.__loadMethods()
 
     def getEndpoint(self, endpointStr : str):
-        endpoint = Extension.ENDPOINTS.get(endpointStr, None)
-        if endpoint == None: return None, None
-
-        legacySupport : str = endpoint['legacySupport']
-        callback = None
-        isAsync : bool = None
-        
-        moduleItems = dir(self.__module)
-        for i in moduleItems:
-            if i in endpoint['alias']:
-                callback = self.__module[i]
-                if legacySupport and self.isLegacy(callback):
-                    isAsync = False
-                    break
-                elif self.isAsync(callback):
-                    isAsync = True
-                    break
-        
-        if isAsync == None: return None, None
-
-        return callback, isAsync
+        endpoint = self.methods.get(endpointStr, None)
+        if endpoint == None: return None
+        return endpoint
 
 class ExtensionMethod():
     ENDPOINTS = {
@@ -86,6 +72,10 @@ class ExtensionMethod():
         },
         'streamElementsTestEvent': {
             'alias': ['StreamElementsTestEvent'],
+            'legacySupport': True
+        },
+        'webhook': {
+            'alias': ['Webhook'],
             'legacySupport': True
         },
         'toggle': {
@@ -182,7 +172,7 @@ class ExtensionMethod():
         match : str = ExtensionMethod.ENDPOINTS.get(funcName, None)
         if match != None: return funcName
         for realFuncName in ExtensionMethod.ENDPOINTS:
-            for funcAlias in realFuncName['alias']:
+            for funcAlias in ExtensionMethod.ENDPOINTS[realFuncName]['alias']:
                 if funcAlias == funcName: return realFuncName
         return None
     
@@ -223,35 +213,37 @@ class Extensions():
         enabledChanged, self.__enabledExtensions = self.__verifyEnabled(self.__enabledExtensions, self.__extensions)
         if enabledChanged: self.__saveEnabled(self.__enabledExtensions, self.__enabledExtensionsPath)
 
-
         self.__loop = asyncio.get_event_loop()
 
         self.__loop.create_task(self.__ticker())
+
+    def findTwitch(self, *, alias : str = None, id_ : str = None):
+        if alias == None and id_ == None: return
+        for i in self.__twitchInstances:
+            if i.alias == alias or i.id == id_: return i
+    
+    def findDiscord(self, *, alias : str = None, id_ : str = None):
+        if alias == None and id_ == None: return
+        for i in self.__discordInstances:
+            if i.alias == alias or i.id == id_: return i
+    
+    def findStreamElements(self, *, alias : str = None, id_ : str = None):
+        if alias == None and id_ == None: return
+        for i in self.__streamElementsInstances:
+            if i.alias == alias or i.id == id_: return i
     
     def defaultStreamElements(self):
-        if len(self.__streamElementsInstances) > 0:
-            return self.__streamElementsInstances[0]
-    
-    def streamElementsById(self, seId : str):
-        for i in self.__streamElementsInstances:
-            if i.id == seId: return i
-    
-    def streamElementsByAlias(self, alias : str):
-        for i in self.__streamElementsInstances:
-            if i.alias == alias: return i
+        if len(self.__streamElementsInstances) == 0: return None
+        return self.__streamElementsInstances[0]
     
     def defaultTwitch(self):
-        if len(self.__twitchInstances) > 0:
-            return self.__twitchInstances[0]
+        if len(self.__twitchInstances) == 0: return None
+        return self.__twitchInstances[0]
     
-    def twitchById(self, twitchId : str):
-        for i in self.__twitchInstances:
-            if i.id == twitchId: return i
+    def defaultDiscord(self):
+        if len(self.__discordInstances) == 0: return None
+        return self.__discordInstances[0]
     
-    def twitchByAlias(self, alias : str):
-        for i in self.__twitchInstances:
-            if i.alias == alias: return i
-
     def loadServices(self):
         self.__twitchInstances = self.__loadTwitchInstances()
         self.__discordInstances = self.__loadDiscordInstances()
@@ -335,6 +327,12 @@ class Extensions():
         matchingExtension.reload()
         self.__loadMethods(matchingExtension)
         return True
+    
+    def initialize(self, extension : Extension):
+        ep = extension.getEndpoint('initialize')
+        if ep == None: return
+        if ep.asyncMethod: self.__loop.create_task(self.__addTask(ep, tuple()))
+        else: self.__addLegacy([ep], tuple())
 
     def twitchMessage(self, message : Twitch.TwitchMessage):
         print('[CORE] Twitch message')
@@ -355,6 +353,18 @@ class Extensions():
         for extMethod in self.__callbacks.get('streamElementsTestEvent', []):
             self.__loop.create_task(self.__addTask(extMethod, (event,)))
 
+    def webhook(self, moduleName : str, wh : Web.Webhook):
+        print('[CORE] webhook')
+        for extMethod in self.__callbacks.get('webhook', []):
+            if extMethod.extension.moduleName == moduleName:
+                self.__loop.create_task(self.__addTask(extMethod, (wh, )))
+                return
+        
+        for extMethod in self.__legacyCallbacks.get('webhook', []):
+            if extMethod.extension.moduleName == moduleName:
+                self.__addLegacy([extMethod], wh.legacy())
+                return
+
     # TODO: implement + fix codeflow of toggle
     def toggle(self, script : str, toggleStatus : bool):
         print('[CORE] toggle')
@@ -364,8 +374,19 @@ class Extensions():
                 break
 
     # TODO: implement + fix codeflow of crossTalk
-    def crossTalk(self, data, scripts : list[str], events : list):
+    def crossTalk(self, data : Web.CrossTalk, scripts : list[str], events : list):
         print('[CORE] cross talk')
+        for event in events: self.__loop.run_until_complete(self.__websio.emit(event, data, broadcast=True))
+        
+        for extMethod in self.__callbacks.get('crossTalk', []):
+            if extMethod.extension.moduleName in scripts: self.__loop.create_task(self.__addTask(extMethod, (data, )))
+        
+        legacyCallbacks = []
+        if len (scripts) != 0:
+            for extMethod in self.__legacyCallbacks.get('crossTalk', []):
+                if extMethod.extension.moduleName in scripts: legacyCallbacks.append(extMethod)
+        
+        if len(legacyCallbacks) != 0: self.__addLegacy(legacyCallbacks, data.legacy())
 
     # TODO: implement + fix codeflow of newSettings
     def newSettings(self, settings : dict, scripts : list, event : str):
@@ -455,15 +476,16 @@ class Extensions():
         
         if not isinstance(enabled, list): return []
 
-        for index, item in enumerate(reversed(enabled)):
-            if not isinstance(item, str): enabled.pop(index)
+        for index in reversed(range(len(enabled))):
+            if not isinstance(enabled[index], str): enabled.pop(index)
 
         return enabled
     
     def __loadMethods(self, extension : Extension):
         self.__unloadMethods(extension)
         for method in extension.methods:
-            if extension.methods[method].asyncMethod:
+            extMethod = extension.methods[method]
+            if extMethod.asyncMethod:
                 callbackList = self.__callbacks.get(method, None)
                 if callbackList == None: callbackList = self.__callbacks[method] = []
             else:
@@ -477,8 +499,8 @@ class Extensions():
                 callbacks = self.__callbacks.get(methodName, [])
             else:
                 callbacks = self.__legacyCallbacks.get(methodName, [])
-            for index, callback in enumerate(reversed(callbacks)):
-                if callback.extension.moduleName == extension.moduleName:
+            for index in reversed(range(len(callbacks))):
+                if callbacks[index].extension.moduleName == extension.moduleName:
                     callbacks.pop(index)
                     break
     
@@ -488,7 +510,8 @@ class Extensions():
         if not isinstance(enabled, list):
             return True, []
 
-        for index, item in enumerate(reversed(enabled)):
+        for index in reversed(range(len(enabled))):
+            item = enabled[index]
             if not isinstance(item, str):
                 enabled.pop(index)
                 changes = True
@@ -538,7 +561,7 @@ class Extensions():
         for f in path.glob('*'):
             if f.is_dir():
                 self.__loadExtensions(f)
-            elif f.name.endswith('_LSE.py'):
+            elif f.name.endswith('_LSE.py') and f.name.count('.') == 1:
                 newExt = Extension(f)
                 newExt.enabled = self.__extensionEnabled(newExt.moduleName)
                 if newExt.error: self.__handleExtensionError(newExt.moduleName, newExt.errorData, 'import')
@@ -546,19 +569,19 @@ class Extensions():
 
     def __loadTwitchInstances(self):
         instances = []
-        for twitch in self.__settings.twitch:
+        for twitch in self.__settings.getTwitch():
             instances.append(Twitch.Twitch(twitch['alias'], self, twitch['tmi'], twitch['botname'], twitch['channels'].copy(), twitch['regularGroups']))
         return instances
 
     def __loadDiscordInstances(self):
         instances = []
-        for discord in self.__settings.discord:
+        for discord in self.__settings.getDiscord():
             instances.append(Discord.Discord(discord['alias'], self, discord['token']))
         return instances
 
     def __loadStreamElementsInstances(self):
         instances = []
-        for streamelements in self.__settings.streamelements:
+        for streamelements in self.__settings.getStreamElements():
             instances.append(StreamElements.StreamElements(streamelements['alias'], self, streamelements['jwt'], streamelements['useSocketIO']))
         return instances
 

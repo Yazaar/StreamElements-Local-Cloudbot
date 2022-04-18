@@ -1,3 +1,4 @@
+from . import Misc
 from pathlib import Path
 import json, typing
 
@@ -8,6 +9,15 @@ class Regulars:
         regularsDir = Path('dependencies/data/regulars')
         self.__twitchRegularsPath = regularsDir / 'twitch'
         self.__discordRegularsPath = regularsDir / 'discord'
+
+        self.__groupStructure = {
+            str: [
+                {
+                    'id': 'id',
+                    'alias': 'alias'
+                }
+            ]
+        }
 
         self.__discordRegularGroups : GROUP_DATA_TYPE = {}
         self.__twitchRegularGroups : GROUP_DATA_TYPE = {}
@@ -49,7 +59,7 @@ class Regulars:
         if regularGroup == None: return False
 
         deleted = False
-        for index, regular in enumerate(reversed(regularGroup)):
+        for index, regular in enumerate(regularGroup):
             if regular[1] == userId:
                 regularGroup.pop(index)
                 deleted = True
@@ -81,12 +91,17 @@ class Regulars:
         if not filePath.is_file(): return
         fname = filePath.name[:-5]
         if len(fname) == 0: return
-        changes, group = self.__verifyRegulars(self.__loadRegularsFile(filePath))
-        if group == None:
-            filePath.unlink()
-            return
+        changes, group = self.__verifyGroup(self.__loadRegularsFile(filePath))
         if changes: self.__saveRegulars(group, filePath)
         dest[fname] = group
+
+    def __verifyGroup(self, group):
+        changes, group = Misc.verifyListStructure(group, self.__groupStructure[str])
+        for index in reversed(range(len(group))):
+            if '' in [group[index]['id'], group[index]['alias']]:
+                changes = True
+                group.pop(index)
+        return changes, group
 
     def __loadRegularsFile(self, filepath : Path) -> GROUP_DATA_TYPE | None:
         if not filepath.is_file(): return None
@@ -94,31 +109,7 @@ class Regulars:
         with open(filepath, 'r') as f:
             try: return json.load(f)
             except Exception: return None
-
-    def __verifyRegulars(self, validateGroup : list[dict]):
-        keys = ['alias', 'id']
-        changes = False
-        if not isinstance(validateGroup, list): return changes, None
-        for index, regularMember in enumerate(reversed(validateGroup)):
-            isValid, didChanges = self.__verifyDict(regularMember, keys)
-            if not isValid:
-                validateGroup.pop(index)
-                changes = True
-            elif didChanges: changes = True
-        return changes, validateGroup
     
-    def __verifyDict(self, checkDict : dict, keys : list) -> tuple[bool, bool]:
-        changes = False
-        for i in keys:
-            if checkDict.get(i, None) == None: return False, changes
-        
-        for i in checkDict:
-            if not i in keys:
-                changes = True
-                del checkDict[i]
-        
-        return True, changes
-
     def __saveRegulars(self, obj : list[dict], filepath : Path):
         filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, 'w') as f: json.dump(obj, f)

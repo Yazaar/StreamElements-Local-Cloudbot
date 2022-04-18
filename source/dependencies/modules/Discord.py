@@ -25,10 +25,21 @@ class Discord(discord.Client):
         self.loop.run_until_complete(self.close())
     
     def startDiscord(self):
-        self.loop.create_task(self.start(self.__token))
+        self.loop.create_task(self.startup())
+    
+    async def startup(self):
+        try: await self.start(self.__token)
+        except discord.errors.LoginFailure: print(f'[Discord {self.alias}] Failed to connect')
+    
+    async def getTextChannel(self, textChannel):
+        try: channel = await self.fetch_channel(textChannel)
+        except discord.errors.NotFound: return None
+        except discord.errors.Forbidden: return None
+        if not isinstance(channel, discord.TextChannel): return None
+        return channel
 
     async def on_ready(self):
-        print(f'[Discord {self.alias}] Started bot: ' + self.user.name)
+        print(f'[Discord {self.alias}] Connected')
     
     async def on_message(self, message : discord.Message):
         self.__extensions.discordMessage(DiscordMessage(self.clientContext, message))
