@@ -68,29 +68,33 @@ class StreamElements:
         else:
             self.__taskId += 1
     
-    async def APIRequest(self, content) -> tuple[bool, str]:
-        success, msg = StreamElements.validateApiStruct(content)
-        if not success:
-            return False, msg
-        
-        kwargs = {'body': content['options'].get('json', None), 'headers': {}, 'method': content['options'].get('type', 'get')}
-        if kwargs['body'] == None: del kwargs['body']
-        elif not isinstance(kwargs['body'], str):
-            try: kwargs['body'] = json.dumps(kwargs['body'])
-            except Exception: False, 'invalid json payload'
+    async def APIRequest(self, method : str, endpoint : str, *, body : str = None, headers : dict[str, str] = None, includeJWT : bool = False) -> tuple[bool, str | None]:
+        if headers == None: headers = {}
+        elif isinstance(headers, dict): headers = headers.copy()
 
-        if content['options']['include_jwt'] == True:
+        if not isinstance(endpoint, str): return False, 'The argument endpoint has to be a string'
+        
+        validMethods = ['get', 'post', 'put', 'delete']
+        if not method.lower() in validMethods: return False, 'The method has to be one of the following: ' + ' '.join(validMethods)
+
+        if not Misc.verifyDictStructure(headers, {str: 'str'})[0]: return False, 'The headers has to be a dict with string keys and string values'
+        
+        kwargs = {'method': method, 'headers': headers}
+        
+        if body != None:
+            if not isinstance(kwargs['body'], str):
+                try: kwargs['body'] = json.dumps(body)
+                except Exception: False, 'invalid body, has to be json or string'
+            else: kwargs['body'] = body
+
+        if includeJWT:
             kwargs['headers']['Authorization'] = 'Bearer ' + self.__jwt
 
-        if 'headers' in content['options']:
-            for header in content['options']['headers']:
-                kwargs['headers'][header] = content['options']['headers'][header]
-
-        resp, errorCode = await Misc.fetchUrl('https://api.streamelements.com/'+ content['endpoint'].replace(':channel', self.__userId), **kwargs)
+        resp, errorCode = await Misc.fetchUrl('https://api.streamelements.com/'+ endpoint.replace(':channel', self.__userId), **kwargs)
 
         return errorCode == 1, resp
 
-    async def sendMessage(self, message : str):
+    async def sendMessage(self, message : str) -> tuple[bool, str | None]:
         if not isinstance(message, str): return False, 'message has to be a string'
 
         resp, errorcode = await Misc.fetchUrl('https://api.streamelements.com/kappa/v2/bot/' + self.__userId + '/say', method='post',
@@ -99,11 +103,10 @@ class StreamElements:
                 'Authorization': 'Bearer ' + self.__jwt
             }, body=json.dumps({'message': message})
         )
-        print(resp, errorcode)
 
         return errorcode == 1, resp
 
-    def validateApiStruct(content) -> tuple[bool, str]:
+    def validateApiStruct(content) -> tuple[bool, str | None]:
         if not isinstance(content, dict):
             return False, 'Please forward JSON: post_request(url, json=JSON_DATA) / socket.emit(event, JSON_DATA)'
         if not 'endpoint' in content:

@@ -1,6 +1,6 @@
 from . import Misc
 from pathlib import Path
-import json, typing
+import json
 
 GROUP_DATA_TYPE = dict[str, list[dict]]
 
@@ -52,11 +52,12 @@ class Regulars:
         self.__saveRegulars(regularGroup, regularFile)
         return True
 
-    def removeRegular(self, userId : str, regularGroupName : str, platform : str):
-        if not isinstance(userId, str) or not isinstance(regularGroupName, str): return False
+    def removeRegular(self, userId : str, regularGroupName : str, platform : str) -> tuple[bool, str | None]:
+        if not isinstance(userId, str): return False, 'user id has to be a string'
+        if not not isinstance(regularGroupName, str): return False, 'regular group has to be a string'
 
         regularGroup, regularFile = self.__getGroup(platform)
-        if regularGroup == None: return False
+        if regularGroup == None: return False, 'invalid regular group'
 
         deleted = False
         for index, regular in enumerate(regularGroup):
@@ -64,9 +65,9 @@ class Regulars:
                 regularGroup.pop(index)
                 deleted = True
                 break
-        
+
         if deleted: self.__saveRegulars(regularGroup, regularFile)
-        return deleted
+        return deleted, None
 
     def __getGroup(self, platform : str, groupName : str):
         if not isinstance(platform, str): return None, None

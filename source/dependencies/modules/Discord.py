@@ -33,10 +33,10 @@ class Discord(discord.Client):
     
     async def getTextChannel(self, textChannel):
         try: channel = await self.fetch_channel(textChannel)
-        except discord.errors.NotFound: return None
-        except discord.errors.Forbidden: return None
-        if not isinstance(channel, discord.TextChannel): return None
-        return channel
+        except discord.errors.NotFound: return None, 'Invalid Channel ID'
+        except discord.errors.Forbidden: return None, 'You do not have permission to fetch this channel'
+        if not isinstance(channel, discord.TextChannel): return None, 'Channel not a text channel'
+        return channel, None
 
     async def on_ready(self):
         print(f'[Discord {self.alias}] Connected')

@@ -1,10 +1,12 @@
-from . import Discord, Twitch, StreamElements, Settings, Regulars, Web, ExtensionCrossover
+from . import Discord, Twitch, StreamElements, Settings, Regulars, Web, ExtensionCrossover, Misc
 import importlib, inspect, types, asyncio, threading, socketio, json
 from pathlib import Path
 
 class Extension():
-    def __init__(self, modulePath : Path):
-        self.extensionCrossover = ExtensionCrossover()
+    def __init__(self, extensions, modulePath : Path):
+        self.__extensions : Extensions = extensions
+        self.__asyncExtensionCrossover = None
+        self.__legacyExtensionCrossover = None
 
         self.__modulePath = modulePath
         self.enabled = False
@@ -18,6 +20,16 @@ class Extension():
         self.errorData : Exception = None
 
         self.reload()
+    
+    @property
+    def asyncExtensionCrossover(self):
+        if self.asyncExtensionCrossover == None: self.__asyncExtensionCrossover = ExtensionCrossover.AsyncExtensionCrossover(self.__extensions)
+        return self.__asyncExtensionCrossover
+
+    @property
+    def legacyExtensionCrossover(self):
+        if self.legacyExtensionCrossover == None: self.__legacyExtensionCrossover = ExtensionCrossover.LegacyExtensionCrossover(self.__extensions)
+        return self.__legacyExtensionCrossover
 
     def __loadModule(self):
         try:
@@ -218,17 +230,17 @@ class Extensions():
         self.__loop.create_task(self.__ticker())
 
     def findTwitch(self, *, alias : str = None, id_ : str = None):
-        if alias == None and id_ == None: return
+        if (not isinstance(alias, str)) and (not isinstance(id_, str)): return
         for i in self.__twitchInstances:
             if i.alias == alias or i.id == id_: return i
     
     def findDiscord(self, *, alias : str = None, id_ : str = None):
-        if alias == None and id_ == None: return
+        if (not isinstance(alias, str)) and (not isinstance(id_, str)): return
         for i in self.__discordInstances:
             if i.alias == alias or i.id == id_: return i
     
     def findStreamElements(self, *, alias : str = None, id_ : str = None):
-        if alias == None and id_ == None: return
+        if (not isinstance(alias, str)) and (not isinstance(id_, str)): return
         for i in self.__streamElementsInstances:
             if i.alias == alias or i.id == id_: return i
     
@@ -374,19 +386,30 @@ class Extensions():
                 break
 
     # TODO: implement + fix codeflow of crossTalk
-    def crossTalk(self, data : Web.CrossTalk, scripts : list[str], events : list):
+    def crossTalk(self, data : Web.CrossTalk, scripts : list[str], events : list[str]) -> tuple[bool, str | None]:
         print('[CORE] cross talk')
+
+        structs = ['str']
+        if isinstance(scripts, list): scripts = scripts.copy()
+        if isinstance(events, list): events = events.copy()
+
+        if not Misc.verifyListStructure(scripts, structs)[0]: return False, 'Invalid scripts, should be a list with string items'
+        if not Misc.verifyListStructure(events, structs)[0]: return False, 'Invalid events, should be a list with string items'
+
         for event in events: self.__loop.run_until_complete(self.__websio.emit(event, data, broadcast=True))
-        
+
+        if len(scripts) == 0: return True, None
+
         for extMethod in self.__callbacks.get('crossTalk', []):
             if extMethod.extension.moduleName in scripts: self.__loop.create_task(self.__addTask(extMethod, (data, )))
         
         legacyCallbacks = []
-        if len (scripts) != 0:
-            for extMethod in self.__legacyCallbacks.get('crossTalk', []):
-                if extMethod.extension.moduleName in scripts: legacyCallbacks.append(extMethod)
+        for extMethod in self.__legacyCallbacks.get('crossTalk', []):
+            if extMethod.extension.moduleName in scripts: legacyCallbacks.append(extMethod)
         
         if len(legacyCallbacks) != 0: self.__addLegacy(legacyCallbacks, data.legacy())
+
+        return True, None
 
     # TODO: implement + fix codeflow of newSettings
     def newSettings(self, settings : dict, scripts : list, event : str):
@@ -562,7 +585,7 @@ class Extensions():
             if f.is_dir():
                 self.__loadExtensions(f)
             elif f.name.endswith('_LSE.py') and f.name.count('.') == 1:
-                newExt = Extension(f)
+                newExt = Extension(self, f)
                 newExt.enabled = self.__extensionEnabled(newExt.moduleName)
                 if newExt.error: self.__handleExtensionError(newExt.moduleName, newExt.errorData, 'import')
                 self.addExtension(newExt)

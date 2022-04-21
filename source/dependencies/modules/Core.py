@@ -22,23 +22,31 @@ aiohttp_jinja2.setup(app, enable_async=True, loader=jinja2.FileSystemLoader(Path
 
 routes = web.RouteTableDef()
 
-async def handleStreamElementsAPI(data : dict) -> tuple[bool, str]:
-    if not isinstance(data, dict): return False, 'data have to be of type dict'
-    
-    args = {}
-    if 'alias' in data and isinstance(data['alias'], str): args['alias'] = data['alias']
-    if 'id' in data and isinstance(data['id'], str): args['id_'] = data['id']
+async def handleStreamElementsAPI(data : dict) -> tuple[bool, str | None]:
+    if not isinstance(data, dict): return False, 'The data has to be of type dict'
 
-    streamelements = extensions.findStreamElements(**args)
+    streamelements = extensions.findStreamElements(alias=data.get('alias', None), id_=data.get('id', None))
     if streamelements == None: streamelements = extensions.defaultStreamElements()
-    if streamelements == None: return False, 'The body requires the key alias or id'
-    
-    return await streamelements.APIRequest(data)
+    if streamelements == None: return False, 'The dict requires the key alias or id'
 
-async def handleTwitchMessage(data : dict) -> tuple[bool, str]:
+    if 'options' in data and isinstance(data['options'], dict):
+        options = data['options']
+        if 'type' in options: data['method'] = options['type']
+        if 'include_jwt' in options: data['includeJWT'] = options['include_jwt']
+        if 'headers' in options: data['headers'] = options['headers']
+
+    return await streamelements.APIRequest(
+        method=data.get('method', None),
+        endpoint=data.get('endpoint', None),
+        headers=data.get('headers', None),
+        body=data.get('body', None),
+        includeJWT=data.get('includeJWT', False)
+    )
+
+async def handleTwitchMessage(data : dict) -> tuple[bool, str | None]:
     if not isinstance(data, dict): return False, 'data have to be of type dict'
-    if not 'message' in data or not isinstance(data['message'], str): return False, 'JSON require the string key "message"'
-    if not 'bot' in data or not isinstance(data['bot'], str): return False, 'JSON require the string key "bot"'
+    if not 'message' in data or not isinstance(data['message'], str): return False, 'The dict require the string key "message"'
+    if not 'bot' in data or not isinstance(data['bot'], str): return False, 'The dict require the string key "bot"'
 
     success = False
     resp = None
@@ -59,7 +67,7 @@ async def handleTwitchMessage(data : dict) -> tuple[bool, str]:
         success, resp = await streamelements.sendMessage(data['message'])
     return success, resp
 
-async def handleDiscordMessage(data : dict) -> tuple[bool, str]:
+async def handleDiscordMessage(data : dict) -> tuple[bool, str | None]:
     if not isinstance(data, dict): return False, 'data have to be of type dict'
     if not 'message' in data or not isinstance(data['message'], str): return False, 'JSON require the string key "message"'
     if not 'textChannel' in data: return False, 'JSON require the key "textChannel"'
@@ -78,7 +86,7 @@ async def handleDiscordMessage(data : dict) -> tuple[bool, str]:
 
     return True, None
 
-async def handleCrossTalk(data : dict) -> tuple[bool, str]:
+async def handleCrossTalk(data : dict) -> tuple[bool, str | None]:
     events = []
     scripts = []
 
@@ -104,7 +112,7 @@ async def handleCrossTalk(data : dict) -> tuple[bool, str]:
     extensions.crossTalk(ct, scripts, events)
     return True, None
 
-async def handleScriptTalk(data : dict) -> tuple[bool, str]:
+async def handleScriptTalk(data : dict) -> tuple[bool, str | None]:
     if not isinstance(data, dict): return False, 'Data have to be of type dict'
     if 'scripts' in data and not 'module' in data: data['module'] = data['scripts']
 

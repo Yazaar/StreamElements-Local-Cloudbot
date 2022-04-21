@@ -25,16 +25,20 @@ class Twitch:
         self.clientContext = TwitchContext(self)
 
         self.start()
+    
+    @property
+    def botname(self): return self.__botname
+    
+    def allChannels(self): return self.__channels.copy()
 
     def defaultChannel(self):
         if len(self.__channels) > 0: return self.__channels[0]
     
-    async def sendMessage(self, message : str, channel=None):
+    async def sendMessage(self, message : str, channel : str) -> tuple[bool, str | None]:
         if self.__writer == None: return False, 'twitch chat not running'
         if not isinstance(message, str): return False, 'message has to be a string'
         sendInChannel = None
-        if channel == None:
-            sendInChannel = self.defaultChannel()
+        if not isinstance(channel, str): sendInChannel = self.defaultChannel()
         for i in self.__channels:
             if i == channel:
                 sendInChannel = i
