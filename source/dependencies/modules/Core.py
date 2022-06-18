@@ -8,9 +8,6 @@ STATIC_FOLDER = Path('dependencies/web/static').resolve()
 EXTENSIONS_FOLDER = Path('extensions').resolve()
 
 settings = Settings.Settings()
-currentIP = None
-
-PORT = Misc.portOverride(settings.port)[1]
 
 sio = socketio.AsyncServer(async_mode='aiohttp', async_handlers=True, cors_allowed_origins='*')
 app = web.Application()
@@ -127,7 +124,7 @@ async def handleScriptTalk(data : dict) -> tuple[bool, str | None]:
 @routes.get('/')
 async def web_index(request : web.Request):
     context = {
-        'extensions': [], 'ExtensionsSettings': [], 'events': [], 'messages': [], 'ExtensionLogs': [], 'regulars': [],
+        'extensions': extensions.extensions, 'ExtensionsSettings': [], 'events': [], 'messages': [], 'ExtensionLogs': [], 'regulars': [],
         'settings': {
             'tmi': '',
             'tmi_twitch_username': '',
@@ -176,7 +173,7 @@ async def web_extensions(request : web.Request):
         with open(target, 'r') as f:
             content = f.read()
         templ : jinja2.Template = jinja2.Template(content)
-        templ_rendered = templ.render(server_url=f'http://{Misc.getServerIP()}:{str(PORT)}')
+        templ_rendered = templ.render(server_url=f'http://{Misc.getServerIP()}:{str(settings.currentPort)}')
         return web.Response(text=templ_rendered, content_type='text/html')
     
     return web.FileResponse(target)
@@ -284,35 +281,102 @@ async def web_webhook(request : web.Request):
 
 @sio.on('message')
 async def sio_message(sid, data=''):
-    return
+    print(data)
 
 @sio.on('ToggleExtension')
 async def sio_toggleExtension(sid, data=''):
-    return
+    if not isinstance(data, dict):
+        await sio.emit('ToggleExtension', {'success': False}, room=sid)
+        return
+    if not 'module' in data or not isinstance(data['module'], str) or not 'active' in data or not isinstance(data['active'], bool):
+        data['success'] = False
+        await sio.emit('ToggleExtension', data, room=sid)
+        return
+    extensions.toggleExtension(data['module'], data['active'])
+    data['success'] = True
+    await sio.emit('ToggleExtension', data, room=sid)
 
 @sio.on('SaveSettings')
 async def sio_saveSettings(sid, data=''):
-    return
+    if not isinstance(data, dict):
+        await sio.emit('ToggleExtension', {'success': False}, room=sid)
+        return
+    #extensions.updateSettings()
+    data['success'] = True
+    await sio.emit('SaveSettings', data, room=sid)
 
 @sio.on('ClearEvents')
 async def sio_clearEvents(sid, data=''):
-    return
+    if not isinstance(data, dict):
+        await sio.emit('ClearEvents', {'success': False, 'message': 'data has to be a dict'})
+        return
+    alias = data.get('alias', None)
+    id_ = data.get('id', None)
+    se = extensions.findStreamElements(alias=alias, id_=id_)
+    if se == None:
+        await sio.emit('ClearEvents', {'success': False, 'message': f'Unable to find StreamElements with the specified id ({alias}) or alias ({id_})'})
+        return
+    
+    se.eventHistory.clear()
+    await sio.emit('ClearEvents', {'success': True, 'data': {'alias': alias, 'id': id_}}, room=sid)
 
 @sio.on('ClearMessages')
 async def sio_clearMessages(sid, data=''):
-    return
+    # clear messages (not implemented)
+    pass
 
 @sio.on('ClearLogs')
 async def sio_clearLogs(sid, data=''):
-    return
+    extensions.logs.clear()
+    await sio.emit('ClearLogs', room=sid)
 
 @sio.on('AddRegular')
 async def sio_addRegular(sid, data=''):
-    return
+    if isinstance(data, str):
+        parsedData = {
+            'alias': data,
+            'userId': data,
+            'groupName': 'default',
+            'platform': 'twitch'
+        }
+    if isinstance(data, dict):
+        parsedData = {
+            'alias': data.get('alias', None),
+            'userId': data.get('userId', None),
+            'groupName': data.get('groupName', None),
+            'platform': data.get('platform', None)
+        }
+    else:
+        await sio.emit('AddRegular', {'success': False, 'message': 'invalid data format (use a dict)'}, room=sid)
+        return
+    
+    success, resp = extensions.regulars.addRegular(**parsedData)
+
+    if success: await sio.emit('AddRegular', {'success': True, 'data': parsedData}, room=sid)
+    else: await sio.emit('AddRegular', {'success': False, 'message': resp, 'data': parsedData}, room=sid)
 
 @sio.on('DeleteRegular')
 async def sio_deleteRegular(sid, data=''):
-    return
+    if isinstance(data, str):
+        parsedData = {
+            'userId': data,
+            'groupName': 'default',
+            'platform': 'twitch'
+        }
+    if isinstance(data, dict):
+        parsedData = {
+            'userId': data.get('userId', None),
+            'groupName': data.get('groupName', None),
+            'platform': data.get('platform', None)
+        }
+    else:
+        await sio.emit('DeleteRegular', {'success': False, 'message': 'invalid data format (use a dict)'}, room=sid)
+        return
+    
+    success, resp = extensions.regulars.removeRegular(**parsedData)
+
+    if success: await sio.emit('DeleteRegular', {'success': True, 'data': parsedData}, room=sid)
+    else: await sio.emit('DeleteRegular', {'success': False, 'message': resp, 'data': parsedData}, room=sid)
 
 @sio.on('UpdateSettings')
 async def sio_updateSettings(sid, data=''):
@@ -347,12 +411,35 @@ async def sio_SEAPI(sid, data):
 
 @sio.on('ScriptTalk')
 async def sio_scriptTalk(sid, data=''):
-    return
+    if not isinstance(data, dict):
+        try:
+            data : dict = json.loads(data)
+            if not isinstance(data, dict): raise Exception()
+        except Exception:
+            await sio.emit('ScriptTalk', {'type': 'error', 'message': 'Please forward json... sio.emit("SendMessage", JSON_DATA)'}, room=sid)
+            return
+    
+    success, resp = await handleScriptTalk(data)
+
+    if success: await sio.emit('ScriptTalk', {'type': 'success', 'success': True}, room=sid)
+    else: await sio.emit('ScriptTalk', {'type': 'error', 'message': resp}, room=sid)
 
 @sio.on('CrossTalk')
 async def sio_crossTalk(sid, data=''):
-    return
+    if not isinstance(data, dict):
+        try:
+            data : dict = json.loads(data)
+            if not isinstance(data, dict): raise Exception()
+        except Exception:
+            await sio.emit('CrossTalk', {'type': 'error', 'message': 'Please forward json... sio.emit("SendMessage", JSON_DATA)'}, room=sid)
+            return
+    
+    success, resp = await handleCrossTalk(data)
 
+    if success: await sio.emit('CrossTalk', {'type': 'success', 'success': True}, room=sid)
+    else: await sio.emit('CrossTalk', {'type': 'error', 'message': resp}, room=sid)
+
+@sio.on('TwitchMessage')
 @sio.on('SendMessage')
 async def sio_sendMessage(sid, data=''):
     if not isinstance(data, dict):
@@ -363,8 +450,7 @@ async def sio_sendMessage(sid, data=''):
             await sio.emit('SendMessage', {'type': 'error', 'message': 'Please forward json... sio.emit("SendMessage", JSON_DATA)'}, room=sid)
             return
     
-    return
-    success, resp = await handleSendMessage(data)
+    success, resp = await handleTwitchMessage(data)
 
     if success: await sio.emit('SendMessage', {'type': 'success', 'success': True}, room=sid)
     else: await sio.emit('SendMessage', {'type': 'error', 'message': resp}, room=sid)
@@ -374,24 +460,20 @@ app.add_routes(routes=routes)
 runner = web.AppRunner(app)
 
 async def run():
-    global site, currentIP
+    global site
     if site != None: return
-
-    currentIP, errorCode = await Misc.fetchUrl('https://ident.me')
-    if errorCode < 0: currentIP, errorCode = await Misc.fetchUrl('https://api.ipify.org')
-    if errorCode < 0: print('[ERROR]: Unable to check for your public IP, no network connection? (trying to run anyway)')
 
     extensions.loadServices()
 
-    with open('website.html', 'w') as f: f.write('<script>window.location = "http://localhost:' + str(PORT) + '"</script>')
+    with open('website.html', 'w') as f: f.write('<script>window.location = "http://localhost:' + str(settings.currentPort) + '"</script>')
     urlJsPath = Path('dependencies/data/url.js')
     urlJsPath.parent.mkdir(parents=True, exist_ok=True)
-    with open(urlJsPath, 'w') as f: f.write('var server_url = \"http://' + Misc.getServerIP() + ':' + str(PORT) + '\";')
+    with open(urlJsPath, 'w') as f: f.write('var server_url = \"http://' + Misc.getServerIP() + ':' + str(settings.currentPort) + '\";')
 
-    print('starting website: http://localhost:' + str(PORT) + ' (Saving website shortcut to website.html)')
+    print('starting website: http://localhost:' + str(settings.currentPort) + ' (Saving website shortcut to website.html)')
 
     await runner.setup()
-    site = web.TCPSite(runner=runner, host='0.0.0.0', port=PORT)
+    site = web.TCPSite(runner=runner, host='0.0.0.0', port=settings.currentPort)
     await site.start()
 
     while True:

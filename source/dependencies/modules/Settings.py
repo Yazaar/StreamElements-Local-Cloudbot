@@ -1,6 +1,7 @@
-import json, copy
+import json, copy, asyncio
 from pathlib import Path
 from . import Misc
+from .vendor.StructGuard import StructGuard
 
 class Settings():
     def __init__(self):
@@ -15,19 +16,26 @@ class Settings():
         self.__urlPermissionsFile = datafolder / 'permissions/urls.json'
 
         self.__defaultPort = 80
-        self.port = None
+        self.port : int = None
+
+        loop = asyncio.get_event_loop()
+
+        self.currentPort : int = None
+        self.currentIP : str = None
+        
+        loop.create_task(self.__getIP())
 
         self.__twitch : list[dict] = []
         self.__twitchStructure = [
             {
-                'tmi': 'tmi',
-                'botname': 'botname',
-                'channels': ['channel'],
-                'alias': 'alias',
-                'regularGroups': ['regularGroup'],
+                'tmi': str,
+                'botname': str,
+                'channels': [str],
+                'alias': str,
+                'regularGroups': [str],
                 'channel': {
                     str: {
-                        'regularGroups': ['regularGroup']
+                        'regularGroups': [str]
                     }
                 }
             }
@@ -36,27 +44,33 @@ class Settings():
         self.__streamelements : list[dict] = []
         self.__streamelementsStructure = [
             {
-                'jwt': 'jtw',
-                'alias': 'alias',
-                'useSocketIO': True
+                'jwt': str,
+                'alias': str,
+                'useSocketIO': bool
             }
         ]
         
         self.__discord : list[dict] = []
         self.__discordStructure = [
             {
-                'token': 'token',
-                'alias': 'alias',
-                'regularGroups': ['regularGroup'],
+                'token': str,
+                'alias': str,
+                'regularGroups': [str],
                 'guild': {
                     str: {
-                        'regularGroups': ['regularGroup']
+                        'regularGroups': [str]
                     }
                 }
             }
         ]
 
         self.__loadSettings()
+    
+    async def __getIP(self):
+        currentIP, errorCode = await Misc.fetchUrl('https://ident.me')
+        if errorCode < 0: currentIP, errorCode = await Misc.fetchUrl('https://api.ipify.org')
+        if errorCode < 0: print('[ERROR]: Unable to check for your public IP, no network connection? (trying to run anyway)')
+        self.currentIP = currentIP
     
     def __filterYield(self, obj : list, *, filterMethod = None):
         if filterMethod == None: filterMethod = lambda _: True
@@ -86,14 +100,18 @@ class Settings():
             self.__saveSettings({'port': self.port}, self.__generalSettingsFile)
         else: self.port = port
 
-        twitchChanges, self.__twitch = Misc.verifyListStructure(self.__readFile(self.__twitchSettingsFile), self.__twitchStructure)
-        if twitchChanges: self.__saveSettings(self.__twitch, self.__twitchSettingsFile)
+        portOverride = Misc.portOverride(self.port)
+        if portOverride[0]: self.currentPort = portOverride[1]
+        else: self.currentPort = self.port
+
+        twitchChanges, self.__twitch = StructGuard.verifyListStructure(self.__readFile(self.__twitchSettingsFile), self.__twitchStructure)
+        if twitchChanges != StructGuard.NO_CHANGES: self.__saveSettings(self.__twitch, self.__twitchSettingsFile)
         
-        discordChanges, self.__discord = Misc.verifyListStructure(self.__readFile(self.__discordSettingsFile), self.__discordStructure)
-        if discordChanges: self.__saveSettings(self.__discord, self.__discordSettingsFile)
+        discordChanges, self.__discord = StructGuard.verifyListStructure(self.__readFile(self.__discordSettingsFile), self.__discordStructure)
+        if discordChanges != StructGuard.NO_CHANGES: self.__saveSettings(self.__discord, self.__discordSettingsFile)
         
-        streamelementsChanges, self.__streamelements = Misc.verifyListStructure(self.__readFile(self.__streamelementsSettingsFile), self.__streamelementsStructure)
-        if streamelementsChanges: self.__saveSettings(self.__streamelements, self.__streamelementsSettingsFile)
+        streamelementsChanges, self.__streamelements = StructGuard.verifyListStructure(self.__readFile(self.__streamelementsSettingsFile), self.__streamelementsStructure)
+        if streamelementsChanges != StructGuard.NO_CHANGES: self.__saveSettings(self.__streamelements, self.__streamelementsSettingsFile)
 
     def __readFile(self, filepath : Path):
         if not filepath.is_file(): return None

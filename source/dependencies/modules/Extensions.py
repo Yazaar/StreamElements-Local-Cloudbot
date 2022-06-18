@@ -1,10 +1,11 @@
+from .vendor.StructGuard import StructGuard
 from . import Discord, Twitch, StreamElements, Settings, Regulars, Web, ExtensionCrossover, Misc
 import importlib, inspect, types, asyncio, threading, socketio, json
 from pathlib import Path
 
 class Extension():
     def __init__(self, extensions, modulePath : Path):
-        self.__extensions : Extensions = extensions
+        self.extensions : Extensions = extensions
         self.__asyncExtensionCrossover = None
         self.__legacyExtensionCrossover = None
 
@@ -23,12 +24,12 @@ class Extension():
     
     @property
     def asyncExtensionCrossover(self):
-        if self.asyncExtensionCrossover == None: self.__asyncExtensionCrossover = ExtensionCrossover.AsyncExtensionCrossover(self.__extensions)
+        if self.asyncExtensionCrossover == None: self.__asyncExtensionCrossover = ExtensionCrossover.AsyncExtensionCrossover(self.extensions)
         return self.__asyncExtensionCrossover
 
     @property
     def legacyExtensionCrossover(self):
-        if self.legacyExtensionCrossover == None: self.__legacyExtensionCrossover = ExtensionCrossover.LegacyExtensionCrossover(self.__extensions)
+        if self.legacyExtensionCrossover == None: self.__legacyExtensionCrossover = ExtensionCrossover.LegacyExtensionCrossover(self.extensions)
         return self.__legacyExtensionCrossover
 
     def __loadModule(self):
@@ -219,10 +220,10 @@ class Extensions():
         self.__enabledExtensionsPath = Path('dependencies/data/enabled.json')
         self.__enabledExtensions = self.__loadEnabled(self.__enabledExtensionsPath)
 
-        self.__extensions : list[Extension] = []
+        self.extensions : list[Extension] = []
         self.__loadExtensions(self.__extensionsPath)
 
-        enabledChanged, self.__enabledExtensions = self.__verifyEnabled(self.__enabledExtensions, self.__extensions)
+        enabledChanged, self.__enabledExtensions = self.__verifyEnabled(self.__enabledExtensions, self.extensions)
         if enabledChanged: self.__saveEnabled(self.__enabledExtensions, self.__enabledExtensionsPath)
 
         self.__loop = asyncio.get_event_loop()
@@ -266,19 +267,21 @@ class Extensions():
         self.__loadExtensions(self.__extensionsPath)
     
     def toggleExtension(self, moduleName : str, enabled : bool):
-        if (not enabled) and moduleName in self.__enabledExtensions:
-            self.__enabledExtensions.remove(moduleName)
-            self.__saveEnabled(self.__enabledExtensions, self.__enabledExtensionsPath)
-            return True
-        
+        matchExt = self.__extensionByName(moduleName)
+        if matchExt == None: return False
+        isEnabled = moduleName in self.__enabledExtensions
         if enabled:
-            for ext in self.__extensions:
-                if ext.moduleName == moduleName:
-                    self.__enabledExtensions.append(moduleName)
-                    self.__saveEnabled(self.__enabledExtensions, self.__enabledExtensionsPath)
-                    return True
-        
-        return False
+            if not isEnabled: self.__enabledExtensions.append(moduleName)
+        else:
+            if isEnabled: self.__enabledExtensions.remove(moduleName)
+        matchExt.enabled = enabled
+        self.__saveEnabled(self.__enabledExtensions, self.__enabledExtensionsPath)
+        return True
+
+    def __extensionByName(self, moduleName):
+        for ext in self.extensions:
+            if ext.moduleName == moduleName: return ext
+        return None
 
     def addTwitchInstance(self, alias : str, tmi : str, botname : str, channels : list[str]):
         twitchInstance = Twitch.Twitch(alias, self, tmi, botname, channels, [])
@@ -314,23 +317,23 @@ class Extensions():
             removeThis.stop()
 
     def addExtension(self, extension : Extension):
-        for i in self.__extensions:
+        for i in self.extensions:
             if i.moduleName == extension.moduleName: return
-        self.__extensions.append(extension)
+        self.extensions.append(extension)
 
         self.__loadMethods(extension)
 
     def removeExtension(self, extension : Extension):
-        for index, ext in enumerate(self.__extensions):
+        for index, ext in enumerate(self.extensions):
             if ext.moduleName == extension.moduleName:
-                self.__extensions.pop(index)
+                self.extensions.pop(index)
                 break
         
         self.__unloadMethods(extension)
     
     def reloadExtension(self, moduleName : str):
         matchingExtension : Extension = None
-        for ext in self.__extensions:
+        for ext in self.extensions:
             if ext.moduleName == moduleName:
                 matchingExtension = ext
                 break
@@ -385,16 +388,15 @@ class Extensions():
                 self.__loop.create_task(self.__addTask(extMethod, (toggleStatus,)))
                 break
 
-    # TODO: implement + fix codeflow of crossTalk
     def crossTalk(self, data : Web.CrossTalk, scripts : list[str], events : list[str]) -> tuple[bool, str | None]:
         print('[CORE] cross talk')
 
-        structs = ['str']
+        structs = [str]
         if isinstance(scripts, list): scripts = scripts.copy()
         if isinstance(events, list): events = events.copy()
 
-        if not Misc.verifyListStructure(scripts, structs)[0]: return False, 'Invalid scripts, should be a list with string items'
-        if not Misc.verifyListStructure(events, structs)[0]: return False, 'Invalid events, should be a list with string items'
+        if not StructGuard.verifyListStructure(scripts, structs)[0]: return False, 'Invalid scripts, should be a list with string items'
+        if not StructGuard.verifyListStructure(events, structs)[0]: return False, 'Invalid events, should be a list with string items'
 
         for event in events: self.__loop.run_until_complete(self.__websio.emit(event, data, broadcast=True))
 
@@ -577,8 +579,8 @@ class Extensions():
     def __unloadExtensions(self):
         for i in self.__callbacks: self.__callbacks[i].clear()
         for i in self.__legacyCallbacks: self.__callbacks[i].clear()
-        for i in self.__extensions: i.reload()
-        self.__extensions.clear()
+        for i in self.extensions: i.reload()
+        self.extensions.clear()
 
     def __loadExtensions(self, path : Path) -> None:
         for f in path.glob('*'):
@@ -619,13 +621,14 @@ class Extensions():
         self.logs.append(newLog)
 
     async def __addTask(self, extMethod : ExtensionMethod, args : tuple):
+        if not extMethod.extension.enabled: return
         try: await extMethod.callback(*args)
         except Exception as e: self.__handleExtensionError(extMethod.extension.moduleName, e, extMethod.name)
 
     def __addLegacy(self, extMethods : list[ExtensionMethod], args : tuple):
         callbacks : list[ExtensionMethod] = []
         for extMethod in extMethods:
-            if extMethod.asyncMethod == False:
+            if (not extMethod.asyncMethod) and extMethod.extension.enabled:
                 callbacks.append(extMethod)
 
         if len(callbacks) == 0: return
@@ -648,4 +651,4 @@ class Extensions():
             self.__addLegacy(self.__legacyCallbacks.get('tick', []), tuple())
             
             for i in self.__callbacks.get('tick', []):
-                await i.callback()
+                await self.__addTask(i, tuple())

@@ -1,3 +1,4 @@
+from .vendor.StructGuard import StructGuard
 from . import Misc
 import socketio, asyncio, json, time, websockets, typing, datetime
 
@@ -77,7 +78,7 @@ class StreamElements:
         validMethods = ['get', 'post', 'put', 'delete']
         if not method.lower() in validMethods: return False, 'The method has to be one of the following: ' + ' '.join(validMethods)
 
-        if not Misc.verifyDictStructure(headers, {str: 'str'})[0]: return False, 'The headers has to be a dict with string keys and string values'
+        if not StructGuard.verifyDictStructure(headers, {str: str})[0]: return False, 'The headers has to be a dict with string keys and string values'
         
         kwargs = {'method': method, 'headers': headers}
         

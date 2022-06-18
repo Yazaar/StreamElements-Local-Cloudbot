@@ -3,26 +3,21 @@ from dependencies.modules import Templates
 #######################
 # all twitch triggers #
 #######################
-'''
 async def twitchMessage(message : Templates.TwitchMessage):
     print('[Async example] twitchMessage: ', message)
-'''
 
 ###############################
 # all StreamElements triggers #
 ###############################
-'''
 async def streamElementsEvent(data : Templates.StreamElementsGenericEvent): # DonationEvent etc in reality, all going through this trigger
     print('[Async example] streamElementsEvent: ', data)
 
 async def streamElementsTestEvent(data : Templates.StreamElementsGenericEvent): # DonationEvent etc in reality, all going through this trigger
     print('[Async example] streamElementsTestEvent: ', data)
-'''
 
 ####################
 # general triggers #
 ####################
-'''
 async def initialize():
     print('[Async example] initialize')
 
@@ -40,7 +35,6 @@ async def tick():
 
 async def webhook(webhook : Templates.Webhook):
     print('[Async example] webhook')
-'''
 
 async def crossTalk(data : Templates.CrossTalk):
     print('[Async example] crossTalk: ', data)
@@ -48,7 +42,6 @@ async def crossTalk(data : Templates.CrossTalk):
 ########################
 # all discord triggers #
 ########################
-'''
 async def discordMessage(data : Templates.DiscordMessage):
     print('[Async example] discordMessage: ', data)
 
@@ -93,4 +86,3 @@ async def discordGuildRemoved(data : Templates.DiscordGuildRemoved):
 
 async def discordVoiceStateUpdate(data : Templates.DiscordVoiceStateUpdate):
     print('[Async example] discordVoiceStateUpdate: ', data)
-'''

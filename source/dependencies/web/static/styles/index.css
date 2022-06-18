@@ -329,12 +329,11 @@ footer {
 
 footer h2 {
     text-align: center;
-    font-size: 2rem;
+    font-size: 1.5rem;
 }
 
-footer h3 {
+footer p {
     text-align: center;
-    font-size: 1.5rem;
     margin-top: .5rem;
 }
 

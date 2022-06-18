@@ -30,12 +30,12 @@
         <section class="data">
             {% for extension in extensions %}
             <section class="ExtensionItem">
-                {% if extension['active'] %}
-                <input class="CustomCheckbox ToggleExtension" type="checkbox" checked data-module="{{extension['module']}}"/>
+                {% if extension.enabled %}
+                <input class="CustomCheckbox ToggleExtension" type="checkbox" checked data-module="{{extension.moduleName}}"/>
                 {% else %}
-                <input class="CustomCheckbox ToggleExtension" type="checkbox" data-module="{{extension['module']}}"/>
+                <input class="CustomCheckbox ToggleExtension" type="checkbox" data-module="{{extension.moduleName}}"/>
                 {% endif %}
-                <p>{{extension['module']}}</p>
+                <p>{{extension.moduleName}}</p>
             </section>
             {% endfor %}
         </section>
@@ -177,27 +177,7 @@
                 <input type="number" id="exec_per_second-input" value="{{settings['executions_per_second']}}" /><div class="CompactButton saveSetupButton">SAVE</div>
             </section>
             <section>
-                <p>TMI (generate <a target="_blank" rel="noopener noreferrer" href="https://twitchapps.com/tmi/">HERE</a>)</p>
-                <input type="password" id="tmi-input" value="{{settings['tmi']}}" /><div class="CompactButton saveSetupButton">SAVE</div>
-            </section>
-            <section>
-                <p>The username which connected to TMI</p>
-                <input type="text" id="tmi_username-input" value="{{settings['tmi_twitch_username']}}" /><div class="CompactButton saveSetupButton">SAVE</div>
-            </section>
-            <section>
-                <p>The twitch channel to listen on</p>
-                <input type="text" id="twitch_channel-input" value="{{settings['twitch_channel']}}" /><div class="CompactButton saveSetupButton">SAVE</div>
-            </section>
-            <section>
-                <p>Restart Twitch chat (if changed settings)</p>
-                <div class="CompactButton" id="RestartTwitch">Restart</div>
-            </section>
-            <section>
-                <p>JWT Token (found on the StreamElements profile)</p>
-                <input type="password" id="jwt-input" value="{{settings['jwt_token']}}" /><div class="CompactButton saveSetupButton">SAVE</div>
-            </section>
-            <section>
-                <p>StreamElements might disconnect using the Socket IO<br>Would recommend using Websocket.<br>(compatibility issues with newer versions)</p>
+                <p>StreamElements might disconnect using the Socket IO option<br>Would recommend using Websocket.<br>(compatibility issues with newer versions)</p>
                 <select id="SEListenerMethod">
                     {% if settings['SEListener'] == 1 %}
                     <option value="1" selected>Socket IO</option>
@@ -208,15 +188,11 @@
                     {% endif %}
                 </select>
             </section>
-            <section>
-                <p>Restart StreamElements (if changed settings)</p>
-                <div class="CompactButton" id="RestartSE">Restart</div>
-            </section>
         </section>
     </article>
     <footer>
-        <h2><a target="_blank" rel="noopener noreferrer" href="https://streamelements.com/yazaar/tip" >Support me (donate)</a></h2>
-        <h3>Unofficial creation by Yazaar</h3>
+        <h2>Unofficial creation by Yazaar</h2>
+        <p><a target="_blank" rel="noopener noreferrer" href="https://streamelements.com/yazaar/tip" >Support me (donate)</a></p>
     </footer>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.1.3/socket.io.min.js"></script>
     <script src="/static/scripts/index.js"></script>

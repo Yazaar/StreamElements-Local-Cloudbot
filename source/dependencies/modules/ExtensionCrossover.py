@@ -6,7 +6,7 @@ if typing.TYPE_CHECKING:
     from .Extensions import Extensions
 
 class AsyncExtensionCrossover():
-    def __init__(self, extensions : Extensions):
+    def __init__(self, extensions : 'Extensions'):
         self.__extensions = extensions
     
     @property
@@ -50,7 +50,7 @@ class AsyncExtensionCrossover():
         return self.__extensions.regulars.addRegular(alias, userId, regularGroupName, platform)
 
 class LegacyExtensionCrossover():
-    def __init__(self, extensions : Extensions):
+    def __init__(self, extensions : 'Extensions'):
         self.__extensions = extensions
         self.__asyncExtensionCrossover = AsyncExtensionCrossover(extensions)
         self.__loop = asyncio.get_event_loop()
@@ -118,9 +118,7 @@ class LegacyExtensionCrossover():
             body=data.get('body', None),
             includeJWT=data.get('includeJWT', False)
         ))
-
         return {'type':'success', 'success': True}
-
     
     def ScriptTalk(self, data : dict = None):
         if not isinstance(data, dict): return {'type': 'error', 'success': False, 'message': 'The input has to be a dictionary'}
@@ -131,6 +129,7 @@ class LegacyExtensionCrossover():
         if not isinstance(data['module'], str): return {'type':'error', 'success': False, 'message':'The module has to be a string'}
 
         self.__loop.create_task(self.__asyncExtensionCrossover.crossTalk(data=data['data'], scripts=[data['module']]))
+        return {'type':'success', 'success': True}
     
     def CrossTalk(self, data : dict = None):
         if not isinstance(data, dict): return {'type': 'error', 'success': False, 'message': 'The input has to be a dictionary'}
@@ -142,11 +141,14 @@ class LegacyExtensionCrossover():
         if not data['event'][:2] == 'p-': return {'type':'error', 'success': False, 'message':'The value for the key "event" has to start with "p-", for example: p-example'}
 
         self.__loop.create_task(self.__asyncExtensionCrossover.crossTalk(data=data['data'], events=[data['event']]))
+        return {'type':'success', 'success': True}
     
     def DeleteRegular(self, data : str = None):
         if not isinstance(data, str): return {'type': 'error', 'success': False, 'message': 'The input has to be a string'}
         self.__loop.create_task(self.__asyncExtensionCrossover.deleteRegular(data, 'default', 'twitch'))
+        return {'type':'success', 'success': True}
     
     def AddRegular(self, data : dict = None):
         if not isinstance(data, str): return {'type': 'error', 'success': False, 'message': 'The input has to be a string'}
         self.__loop.create_task(self.__asyncExtensionCrossover.addRegular(data, data, 'default', 'twitch'))
+        return {'type':'success', 'success': True}

@@ -29,7 +29,7 @@ def localIP(environ, currentIP=None):
 def getServerIP():
     return socket.gethostbyname(socket.gethostname())
 
-async def fetchUrl(url, *, method='get', headers=None, body=None):
+async def fetchUrl(url, *, method='get', headers=None, body=None) -> tuple[str | None, int]:
     kwargs = {}
     if isinstance(headers, dict):
         parsedHeaders = {}
@@ -65,65 +65,3 @@ def isSubfolder(folder : Path, subfolder : Path):
         subfolder.resolve().relative_to(folder.resolve())
         return True
     except ValueError: return False
-
-def verifyDictStructure(obj : dict, structure : dict) -> tuple[bool, dict]:
-    changes = False
-    if not isinstance(obj, dict):
-        changes = True
-        obj = {}
-    
-    if not isinstance(structure, dict): return True, {}
-    
-    objKeys = list(obj.keys())
-
-    for key in objKeys:
-        structkey = None
-        if key in structure: structkey = key
-        elif type(key) in structure: structkey = type(key)
-
-        if structkey == None:
-            del obj[key]
-            changes = True
-            continue
-
-        keytype = type(structure[structkey])
-        if not isinstance(obj[key], keytype):
-            changes = True
-            obj[key] = keytype()
-            changes = True
-            if keytype == dict: obj[key] = verifyDictStructure(obj[key], structure[structkey])[1]
-        elif keytype == list:
-            newChanges, obj[key] = verifyListStructure(obj[key], structure[structkey])
-            if newChanges: changes = True
-        elif keytype == dict:
-            newChanges, obj[key] = verifyDictStructure(obj[key], structure[structkey])
-            if newChanges: changes = True
-    
-    objKeys = obj.keys()
-
-    for key in structure:
-        if type(key) == type: continue
-
-        if not key in objKeys:
-            keytype = type(structure[key])
-            obj[key] = keytype()
-            changes = True
-            if keytype == dict: obj[key] = verifyDictStructure(obj[key], structure[key])[1]
-    
-    return changes, obj
-
-def verifyListStructure(obj : list, structure : list) -> tuple[bool, list]:
-    if not isinstance(obj, list) or len(structure) != 1: return True, []
-    changes = False
-    listStruct = type(structure[0])
-    for index in reversed(range(len(obj))):
-        if not isinstance(obj[index], listStruct):
-            obj.pop(index)
-            changes = True
-        elif listStruct == dict:
-            newChanges, obj[index] = verifyDictStructure(obj[index], structure[0])
-            if newChanges: changes = True
-        elif listStruct == list:
-            newChanges, obj[index] = verifyListStructure(obj[index], structure[0])
-            if newChanges: changes = True
-    return changes, obj
