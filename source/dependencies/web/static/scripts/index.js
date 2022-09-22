@@ -18,6 +18,34 @@ function parseJSON(data) {
     return parsed
 }
 
+function setListeners() {
+    let e = document.querySelectorAll('#settings .rangeNumber[data-settingTarget]')
+    for (let i = 0; i < e.length; i++) {
+        let subE = e[i]
+        let eRange = document.querySelector('#settings input[type=range][data-settingname="' + e[i].getAttribute('data-settingTarget') + '"]')
+        if (!eRange) continue
+        subE.innerText = eRange.value;
+        eRange.addEventListener('input', function() {
+            subE.innerText = eRange.value;
+        });
+    }
+
+    e = document.querySelectorAll('#settings input[type=number]')
+    for (let i = 0; i < e.length; i++) {
+        let subE = e[i]
+        let prevV = subE.value
+        let minV = parseFloat(subE.min)
+        let maxV = parseFloat(subE.max)
+        subE.addEventListener('input', function() {
+            let newV = parseFloat(subE.value)
+            if ((!isNaN(minV) && newV < minV) || (!isNaN(maxV) && newV > maxV)) subE.value = prevV
+            else prevV = newV
+        })
+    }
+}
+
+setListeners();
+
 let s = io.connect(window.location.origin)
 let Waiting4Response = false
 let ToggleQueue = []
@@ -145,14 +173,18 @@ for (let i of document.querySelectorAll('.SetDefaultSetting')) {
         let value = i.getAttribute('data-default')
         let input = i.parentElement.querySelector('input, select')
         
-        if (input === null) {
-            return
-        }
+        if (!input) return
         
-        if (input.type.toLowerCase() === 'checkbox') {
+        let typeLower = input.type.toLowerCase()
+        if (typeLower === 'checkbox') {
             input.checked = value
         } else {
             input.value = value
+
+            if (typeLower === 'range') {
+                let rangeNum = document.querySelector('#settings p[data-settingTarget="' + input.getAttribute('data-settingname') + '"]')
+                if (rangeNum) rangeNum.innerText = value
+            }
         }
     })
 }
@@ -217,7 +249,7 @@ document.getElementById('ClearMessages').addEventListener('click', () => {
     document.querySelector('article#messages section.data').innerHTML = ''
     s.emit('ClearMessages')
 })
-
+/*
 let cooldownUntilTW = new Date()
 let timeoutTW = false
 let disableUpdateTwitchBtn = false
@@ -254,9 +286,9 @@ document.querySelector('#RestartSE').addEventListener('click', function() {
     if (disableUpdateSEBtn === true) {
         return
     }
-
+    
     let currentTime = new Date()
-
+    
     if (cooldownUntilSE > currentTime) {
         let duration = cooldownUntilSE - currentTime
         this.innerText = 'Restart: ' + parseInt((duration) / 1000) + 's cooldown'
@@ -331,6 +363,7 @@ s.on('RestartSE', function(data) {
         }, duration)
     }
 })
+*/
 
 s.on('AddRegular', function(name) {
     let e = document.createElement('option')

@@ -48,34 +48,37 @@
             {% for setting in ExtensionsSettings %}
             <div>
                 <div class="OpenCloseButton" data-target="#setting{{loop.index-1}}">{{setting['name']}}</div>
-                <section class="ClosedSetting" id="setting{{loop.index-1}}" data-index="{{loop.index-1}}" data-name="{{setting['name']}}" data-path="{{setting['path']}}">
-                    {% for subsetting in setting['settings'] %}
+                <section class="ClosedSetting" id="setting{{loop.index-1}}" data-index="{{loop.index-1}}" data-name="{{setting.name}}">
+                    {% for subsetting in setting.config %}
                     <section>
                         <h3>{{subsetting}}</h3>
-                        <div class="CompactButton SetDefaultSetting" data-default="{{setting['settings'][subsetting]['value']}}">Set Default</div>
+                        <div class="CompactButton SetDefaultSetting" data-default="{{setting.config[subsetting]['value']}}">Set Default</div>
                         <p>{{setting['tip']}}</p>
-                        {% if setting['settings'][subsetting]['type']|lower == 'dropdown' %}
+                        {% if setting.config[subsetting]['type']|lower == 'dropdown' %}
                         <select name="{{subsetting}}" data-settingname="{{subsetting}}">
-                            {% for choice in setting['settings'][subsetting]['choices'] %}
-                            {% if setting['settings'][subsetting]['current_value'] == choice %}
-                            <option value="{{choice}}" selected>{{choice}} yes</option>
+                            {% for choice in setting.config[subsetting]['choices'] %}
+                            {% if setting.current[subsetting] == choice %}
+                            <option value="{{choice}}" selected>{{choice}}</option>
                             {% else %}
                             <option value="{{choice}}">{{choice}}</option>
                             {% endif %}
                             {% endfor %}
                         </select>
-                        {% elif setting['settings'][subsetting]['type']|lower == 'checkbox' %}
-                        {% if setting['settings'][subsetting]['current_value'] == True %}
+                        {% elif setting.config[subsetting]['type']|lower == 'checkbox' %}
+                        {% if setting.current[subsetting] == True %}
                         <input class="CustomCheckbox" type="checkbox" checked data-settingname="{{subsetting}}" />
                         {% else %}
                         <input class="CustomCheckbox" type="checkbox" data-settingname="{{subsetting}}" />
                         {% endif %}
                         {% else %}
-                        <input type="{{setting['settings'][subsetting]['type']}}" value="{{setting['settings'][subsetting]['current_value']}}" data-settingname="{{subsetting}}" />
+                        <input type="{{setting.config[subsetting]['type']}}" value="{{setting.current[subsetting]}}" data-settingname="{{subsetting}}" min="{{setting.config[subsetting]['min']}}" max="{{setting.config[subsetting]['max']}}" step="{{setting.config[subsetting]['step']}}"/>
+                        {% if setting.config[subsetting]['type']|lower == 'range' %}
+                        <p data-settingTarget="{{subsetting}}" class="rangeNumber"></p>
+                        {% endif %}
                         {% endif %}
                     </section>
                     {% endfor %}
-                    <div class="save_settings CompactButton" data-index="{{loop.index-1}}" data-name="{{setting['name']}}">Save Settings</div>
+                    <div class="save_settings CompactButton" data-index="{{loop.index-1}}" data-name="{{setting.name}}">Save Settings</div>
                 </section>
             </div>
             {% endfor %}
@@ -192,7 +195,6 @@
     </article>
     <footer>
         <h2>Unofficial creation by Yazaar</h2>
-        <p><a target="_blank" rel="noopener noreferrer" href="https://streamelements.com/yazaar/tip" >Support me (donate)</a></p>
     </footer>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.1.3/socket.io.min.js"></script>
     <script src="/static/scripts/index.js"></script>

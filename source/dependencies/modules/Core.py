@@ -124,7 +124,7 @@ async def handleScriptTalk(data : dict) -> tuple[bool, str | None]:
 @routes.get('/')
 async def web_index(request : web.Request):
     context = {
-        'extensions': extensions.extensions, 'ExtensionsSettings': [], 'events': [], 'messages': [], 'ExtensionLogs': [], 'regulars': [],
+        'extensions': extensions.extensions, 'ExtensionsSettings': extensions.settings, 'events': [], 'messages': [], 'ExtensionLogs': extensions.logs, 'regulars': [],
         'settings': {
             'tmi': '',
             'tmi_twitch_username': '',
@@ -301,7 +301,7 @@ async def sio_saveSettings(sid, data=''):
     if not isinstance(data, dict):
         await sio.emit('ToggleExtension', {'success': False}, room=sid)
         return
-    #extensions.updateSettings()
+    extensions.updateSettings(data)
     data['success'] = True
     await sio.emit('SaveSettings', data, room=sid)
 

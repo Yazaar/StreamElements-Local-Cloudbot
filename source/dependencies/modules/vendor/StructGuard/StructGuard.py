@@ -30,11 +30,12 @@ class AdvancedType:
     
     def isinstance(self, obj): return isinstance(obj, self.__instanceOf)
 
-def verifyDictStructure(obj : dict, structure : dict) -> tuple[int, dict]:
+def verifyDictStructure(obj : dict, structure : dict, *, rebuild=True) -> tuple[int, dict]:
     changes = 0
     if not isinstance(obj, dict):
         changes = INVALID
         obj = {}
+        if not rebuild: return changes, obj
     
     if not isinstance(structure, dict): raise StructFormatError(f'Structure has to be of type dict (not {type(structure)})')
     
@@ -43,10 +44,12 @@ def verifyDictStructure(obj : dict, structure : dict) -> tuple[int, dict]:
     for key in structure:
         if type(key) == type or key in objKeys: continue
 
+        if not rebuild: return INVALID, {}
+
         valuetype = type(structure[key])
         if valuetype == type: obj[key] = structure[key]()
         elif valuetype == list: obj[key] = []
-        elif valuetype == dict: obj[key] = verifyDictStructure({}, structure[key])[1]
+        elif valuetype == dict: obj[key] = verifyDictStructure({}, structure[key], rebuild=rebuild)[1]
         elif valuetype == AdvancedType: obj[key] = structure[key].createInstance()
         else: raise StructValueError(f'Invalid value of type {valuetype} in structure (key: {key})')
 
@@ -78,12 +81,12 @@ def verifyDictStructure(obj : dict, structure : dict) -> tuple[int, dict]:
                 obj[key] = at.createInstance()
 
         elif valuetype == dict:
-            subChanges, obj[key] = verifyDictStructure(obj[key], structure[structkey])
+            subChanges, obj[key] = verifyDictStructure(obj[key], structure[structkey], rebuild=rebuild)
             if subChanges == INVALID: changes = INVALID
             elif subChanges == CHANGES and changes == NO_CHANGES: changes = CHANGES
         
         elif valuetype == list:
-            subChanges, obj[key] = verifyListStructure(obj[key], structure[structkey])
+            subChanges, obj[key] = verifyListStructure(obj[key], structure[structkey], rebuild=rebuild)
             if subChanges == INVALID: changes = INVALID
             elif subChanges == CHANGES and changes == NO_CHANGES: changes = CHANGES
         
@@ -91,7 +94,7 @@ def verifyDictStructure(obj : dict, structure : dict) -> tuple[int, dict]:
 
     return changes, obj
 
-def verifyListStructure(obj : list, structure : list) -> tuple[int, list]:
+def verifyListStructure(obj : list, structure : list, *, rebuild=True) -> tuple[int, list]:
     if not isinstance(obj, list): return INVALID, []
     changes = NO_CHANGES
 
@@ -104,16 +107,14 @@ def verifyListStructure(obj : list, structure : list) -> tuple[int, list]:
 
     if valuetype == list:
         for index in iterable:
-            subChanges, subItem = verifyListStructure(obj[index], checktype)
+            subChanges, subItem = verifyListStructure(obj[index], checktype, rebuild=rebuild)
             if subChanges == INVALID: obj.pop(index)
             elif subChanges == CHANGES: obj[index] = subItem
             if changes != NO_CHANGES: changes = CHANGES
-        
-        if len(obj) == 0: return INVALID, obj
     
     elif valuetype == dict:
         for index in iterable:
-            subChanges, subItem = verifyDictStructure(obj[index], checktype)
+            subChanges, subItem = verifyDictStructure(obj[index], checktype, rebuild=rebuild)
             if subChanges == INVALID: obj.pop(index)
             elif subChanges == CHANGES: obj[index] = subItem
             if changes != NO_CHANGES: changes = CHANGES

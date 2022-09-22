@@ -26,7 +26,6 @@ async def main():
     await Core.run()
 
 async def update():
-
     text, errorCode = await fetchUrl('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json')
     if errorCode < 0:
         print('[Error] Unable to check for updates. No internet connection? (trying to launch anyways)')

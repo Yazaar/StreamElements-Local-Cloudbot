@@ -306,6 +306,10 @@ section.ExtensionItem p {
     padding: 0;
 }
 
+.rangeNumber {
+    display: inline-block;
+}
+
 .CompactButton {
     border: #000000 .1rem solid;
     display: inline-block;

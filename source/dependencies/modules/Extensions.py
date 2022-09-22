@@ -1,6 +1,6 @@
 from .vendor.StructGuard import StructGuard
-from . import Discord, Twitch, StreamElements, Settings, Regulars, Web, ExtensionCrossover, Misc
-import importlib, inspect, types, asyncio, threading, socketio, json
+from . import Discord, Twitch, StreamElements, Settings, Regulars, Web, ExtensionCrossover, SettingsUI, MinorExtensionArgs
+import importlib, inspect, asyncio, threading, socketio, json, time
 from pathlib import Path
 
 class Extension():
@@ -17,6 +17,8 @@ class Extension():
         self.moduleName : str = self.__importName[11:]
 
         self.__module = None
+
+        # TODO: exception management
         self.error : bool = False
         self.errorData : Exception = None
 
@@ -221,6 +223,8 @@ class Extensions():
         self.__enabledExtensions = self.__loadEnabled(self.__enabledExtensionsPath)
 
         self.extensions : list[Extension] = []
+        self.settings : list[SettingsUI.SettingsUI] = []
+
         self.__loadExtensions(self.__extensionsPath)
 
         enabledChanged, self.__enabledExtensions = self.__verifyEnabled(self.__enabledExtensions, self.extensions)
@@ -278,7 +282,7 @@ class Extensions():
         self.__saveEnabled(self.__enabledExtensions, self.__enabledExtensionsPath)
         return True
 
-    def __extensionByName(self, moduleName):
+    def __extensionByName(self, moduleName : str):
         for ext in self.extensions:
             if ext.moduleName == moduleName: return ext
         return None
@@ -380,7 +384,6 @@ class Extensions():
                 self.__addLegacy([extMethod], wh.legacy())
                 return
 
-    # TODO: implement + fix codeflow of toggle
     def toggle(self, script : str, toggleStatus : bool):
         print('[CORE] toggle')
         for extMethod in self.__callbacks.get('toggle', []):
@@ -398,7 +401,7 @@ class Extensions():
         if not StructGuard.verifyListStructure(scripts, structs)[0]: return False, 'Invalid scripts, should be a list with string items'
         if not StructGuard.verifyListStructure(events, structs)[0]: return False, 'Invalid events, should be a list with string items'
 
-        for event in events: self.__loop.run_until_complete(self.__websio.emit(event, data, broadcast=True))
+        for event in events: self.__loop.create_task(self.__websio.emit(event, data, broadcast=True))
 
         if len(scripts) == 0: return True, None
 
@@ -413,9 +416,20 @@ class Extensions():
 
         return True, None
 
-    # TODO: implement + fix codeflow of newSettings
-    def newSettings(self, settings : dict, scripts : list, event : str):
+    def newSettings(self, changedSettingsUI : SettingsUI.SettingsUI):
         print('[CORE] new settings')
+        changedSettings = SettingsUI.Settings(changedSettingsUI)
+        settingObj = changedSettings.settings
+        for event in changedSettingsUI.events: self.__loop.create_task(self.__websio.emit(event, settingObj, broadcast=True))
+        legacies = []
+        for extName in changedSettingsUI.scripts:
+            extObj = self.__extensionByName(extName)
+            if not extObj: continue
+            extMethod = extObj.getEndpoint('newSettings')
+            if not extMethod: continue
+            if extMethod.asyncMethod: self.__loop.create_task(self.__addTask(extMethod, (changedSettings,)))
+            else: legacies.append(extMethod)
+        if len(legacies) > 0: self.__addLegacy(legacies, (changedSettings.legacy(),))
 
     def discordMessage(self, data : Discord.DiscordMessage):
         print('[CORE] new Discord message')
@@ -581,16 +595,51 @@ class Extensions():
         for i in self.__legacyCallbacks: self.__callbacks[i].clear()
         for i in self.extensions: i.reload()
         self.extensions.clear()
+        self.settings.clear()
+
+    def __addExtension(self, path : Path):
+        newExt = Extension(self, path)
+        newExt.enabled = self.__extensionEnabled(newExt.moduleName)
+        if newExt.error: self.__handleExtensionError(newExt, newExt.errorData, 'import')
+        self.addExtension(newExt)
+    
+    def __addSetting(self, path : Path):
+        try: settingsUI = SettingsUI.SettingsUI(path.parent)
+        except SettingsUI.SettingsUIError as e: return False, e.args[0]
+        self.settings.append(settingsUI)
+    
+    def updateSettings(self, data):
+        sgResp = StructGuard.verifyDictStructure(data, {
+            'name': str,
+            'index': int,
+            'settings': {
+                str: StructGuard.AdvancedType((str, int, float, bool, list), str)
+            }
+        }, rebuild=False)[0]
+        if sgResp == StructGuard.INVALID: return False, 'Update settings data dict has invalid keys and values. Check documentation.'
+
+        try: setting = self.settings[data[data['index']]]
+        except Exception: setting = None
+
+        if (not setting is None) and setting['name'] != data['name']: setting = None
+
+        if setting is None:
+            for i in self.settings:
+                if i.name == data['name']:
+                    setting = i
+                    break
+        
+        if setting is None: return False, 'Update settings key index is invalid (have to be an int in range of existing settings or matching name for key name)'
+        
+        setting.update(data['settings'])
+
+        self.newSettings(setting)
 
     def __loadExtensions(self, path : Path) -> None:
         for f in path.glob('*'):
-            if f.is_dir():
-                self.__loadExtensions(f)
-            elif f.name.endswith('_LSE.py') and f.name.count('.') == 1:
-                newExt = Extension(self, f)
-                newExt.enabled = self.__extensionEnabled(newExt.moduleName)
-                if newExt.error: self.__handleExtensionError(newExt.moduleName, newExt.errorData, 'import')
-                self.addExtension(newExt)
+            if f.is_dir(): self.__loadExtensions(f)
+            elif f.name.endswith('_LSE.py'): self.__addExtension(f)
+            elif f.name == 'SettingsUI.json': self.__addSetting(f)
 
     def __loadTwitchInstances(self):
         instances = []
@@ -610,20 +659,21 @@ class Extensions():
             instances.append(StreamElements.StreamElements(streamelements['alias'], self, streamelements['jwt'], streamelements['useSocketIO']))
         return instances
 
-    def __handleExtensionError(self, rawModuleName : str, exception : Exception, executionType : str):
-        if isinstance(rawModuleName, str): moduleName = rawModuleName[11:]
-        elif isinstance(rawModuleName, types.ModuleType): moduleName = rawModuleName.__name__[11:]
-        else: moduleName = 'unknown'
+    def __handleExtensionError(self, ext : Extension, exception : Exception, executionType : str):
+        #if isinstance(rawModuleName, str): moduleName = rawModuleName[11:]
+        #elif isinstance(rawModuleName, types.ModuleType): moduleName = rawModuleName.__name__[11:]
+        #else: moduleName = 'unknown'
         newLog = {
-            'module': moduleName,
+            'module': ext.moduleName[11:],
             'message': str(exception) + ' (' + executionType + ')'
         }
+        self.toggleExtension(ext.moduleName, False)
         self.logs.append(newLog)
 
     async def __addTask(self, extMethod : ExtensionMethod, args : tuple):
         if not extMethod.extension.enabled: return
         try: await extMethod.callback(*args)
-        except Exception as e: self.__handleExtensionError(extMethod.extension.moduleName, e, extMethod.name)
+        except Exception as e: self.__handleExtensionError(extMethod.extension, e, extMethod.name)
 
     def __addLegacy(self, extMethods : list[ExtensionMethod], args : tuple):
         callbacks : list[ExtensionMethod] = []
@@ -641,14 +691,17 @@ class Extensions():
         t = threading.current_thread()
         for extMethod in extMethods:
             try: extMethod.callback(*args)
-            except Exception as e: self.__handleExtensionError(extMethod.extension.moduleName, e, 'legacy execute')
+            except Exception as e: self.__handleExtensionError(extMethod.extension, e, 'legacy execute')
         self.__legacyThreads.remove(t)
 
     async def __ticker(self):
+        arg = tuple()
+        prev_time_ns = time.time_ns()
         while True:
             await asyncio.sleep(1)
 
-            self.__addLegacy(self.__legacyCallbacks.get('tick', []), tuple())
+            self.__addLegacy(self.__legacyCallbacks.get('tick', []), arg)
             
+            tickArg = MinorExtensionArgs.Tick(prev_time_ns)
             for i in self.__callbacks.get('tick', []):
-                await self.__addTask(i, tuple())
+                await self.__addTask(i, (tickArg,))

@@ -1,0 +1,1 @@
+var settings = {"NameOfVariable": 8, "NameOfVariable2": "hello world", "NameOfVariable3": 3, "NameOfVariable4": "a", "NameOfVariable0": 0};
