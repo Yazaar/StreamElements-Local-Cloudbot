@@ -156,13 +156,24 @@
         </header>
         <section class="data">
             <div id="RegularWrapper">
-                <div id="AddDeleteRegular">Specify user</div>
-                <input type="text" id="RegularInput" list="RegularList">
-                <datalist id="RegularList">
-                    {% for regular in regulars %}
-                    <option class="RegularUser{{regular|lower}}" value="{{regular|lower}}"></option>
+                <h2>Platform & group</h2>
+                <select id="RegularPlatforms">
+                    <option selected hidden>Select platform</option>
+                    {% for regularPlatform in regularPlatforms %}
+                    <option value="{{regularPlatform}}">{{regularPlatform}}</option>
                     {% endfor %}
-                </datalist>
+                </select>
+                <input type="text" id="RegularGroupInput" list="RegularGroupList" placeholder="groupname">
+                <datalist id="RegularGroupList"></datalist>
+                <h2>New regular</h2>
+                <input type="text" id="RegularInput" placeholder="regular alias">
+                <input type="text" id="RegularIdInput" placeholder="regular id">
+                <div id="AddRegular">Add regular</div>
+                <h2>Regulars in group</h2>
+                <p>Click twice (second time once red) to delete</p>
+                <input type="text" id="SearchRegularAlias" placeholder="filter by alias">
+                <div id="CurrentRegulars">
+                </div>
             </div>
         </section>
     </article>
@@ -173,23 +184,11 @@
         <section class="data">
             <section>
                 <p>Server port</p>
-                <input type="number" id="server_port-input" value="{{settings['server_port']}}" /><div class="CompactButton saveSetupButton">SAVE</div>
+                <input type="number" id="server_port-input" value="{{serverPort}}" /><div class="CompactButton saveSetupButton">SAVE</div>
             </section>
             <section>
                 <p>Script executions per second</p>
-                <input type="number" id="exec_per_second-input" value="{{settings['executions_per_second']}}" /><div class="CompactButton saveSetupButton">SAVE</div>
-            </section>
-            <section>
-                <p>StreamElements might disconnect using the Socket IO option<br>Would recommend using Websocket.<br>(compatibility issues with newer versions)</p>
-                <select id="SEListenerMethod">
-                    {% if settings['SEListener'] == 1 %}
-                    <option value="1" selected>Socket IO</option>
-                    <option value="2">Websocket</option>
-                    {% else %}
-                    <option value="1">Socket IO</option>
-                    <option value="2" selected>Websocket</option>
-                    {% endif %}
-                </select>
+                <input type="number" id="exec_per_second-input" value="{{tickrate}}" /><div class="CompactButton saveSetupButton">SAVE</div>
             </section>
         </section>
     </article>

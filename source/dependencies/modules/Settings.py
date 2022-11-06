@@ -15,6 +15,9 @@ class Settings():
         self.__extensionPermissionsFile = datafolder / 'permissions/extensions.json'
         self.__urlPermissionsFile = datafolder / 'permissions/urls.json'
 
+        self.__defaultTickrate = 60
+        self.__tickrate = 60
+
         self.__defaultPort = 80
         self.port : int = None
 
@@ -64,8 +67,16 @@ class Settings():
             }
         ]
 
+        self.__generalStucture = {
+            'port': int,
+            'tickrate': int
+        }
+
         self.__loadSettings()
     
+    @property
+    def tickrate(self) -> int: return self.__tickrate
+
     async def __getIP(self):
         currentIP, errorCode = await Misc.fetchUrl('https://ident.me')
         if errorCode < 0: currentIP, errorCode = await Misc.fetchUrl('https://api.ipify.org')
@@ -95,11 +106,14 @@ class Settings():
 
     def __loadSettings(self):
         generalSettings = self.__readFile(self.__generalSettingsFile)
-        if not isinstance(generalSettings, dict) or (port := generalSettings.get('port', None)) == None or not isinstance(port, int):
+        if StructGuard.verifyDictStructure(generalSettings, self.__generalStucture, rebuild=False)[0] != StructGuard.NO_CHANGES:
+            self.__saveSettings({'port': self.__defaultPort, 'tickrate': self.__defaultTickrate}, self.__generalSettingsFile)
             self.port = self.__defaultPort
-            self.__saveSettings({'port': self.port}, self.__generalSettingsFile)
-        else: self.port = port
-
+            self.__tickrate = self.__defaultTickrate
+        else:
+            self.port = generalSettings['port']
+            self.__tickrate = generalSettings['tickrate']
+        
         portOverride = Misc.portOverride(self.port)
         if portOverride[0]: self.currentPort = portOverride[1]
         else: self.currentPort = self.port

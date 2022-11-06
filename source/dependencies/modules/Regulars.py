@@ -1,6 +1,6 @@
 from .vendor.StructGuard import StructGuard
 from pathlib import Path
-import json
+import json, os
 
 GROUP_DATA_TYPE = dict[str, list[dict]]
 
@@ -46,7 +46,7 @@ class Regulars:
         if regularGroup == None: return False, 'unable to find groupName in platform ' + platform
 
         for regularMember in regularGroup:
-            if regularMember[1] == userId: return False
+            if regularMember['id'] == userId: return False, 'regular does already exist'
         
         regularGroup.append({'alias': alias, 'id': userId})
 
@@ -55,31 +55,60 @@ class Regulars:
 
     def removeRegular(self, userId : str, groupName : str, platform : str) -> tuple[bool, str | None]:
         if not isinstance(userId, str): return False, 'userId has to be a string'
-        if not not isinstance(groupName, str): return False, 'groupName has to be a string'
+        if not isinstance(groupName, str): return False, 'groupName has to be a string'
 
-        regularGroup, regularFile = self.__getGroup(platform)
+        regularGroup, regularFile = self.__getGroup(platform, groupName)
         if regularGroup == None: return False, 'invalid regular group'
 
         deleted = False
         for index, regular in enumerate(regularGroup):
-            if regular[1] == userId:
+            if regular['id'] == userId:
                 regularGroup.pop(index)
                 deleted = True
                 break
 
-        if deleted: self.__saveRegulars(regularGroup, regularFile)
+        if deleted:
+            if len(regularGroup) == 0: self.__deleteGroup(platform, groupName)
+            else: self.__saveRegulars(regularGroup, regularFile)
         return True, None
 
-    def __getGroup(self, platform : str, groupName : str):
+    def getRegulars(self, platform : str, groupname : str):
+        if platform == 'twitch': return self.__twitchRegularGroups.get(groupname)
+        elif platform == 'discord': return self.__discordRegularGroups.get(groupname)
+
+    def getGroups(self, platform : str):
+        if platform == 'twitch': return sorted(self.__twitchRegularGroups.keys())
+        elif platform == 'discord': return sorted(self.__discordRegularGroups.keys())
+        else: return None
+
+    def __getGroupCategory(self, platform : str):
         if not isinstance(platform, str): return None, None
-        if platform == 'twitch': regularGroups, regularsPath = self.__twitchRegularGroups, self.__twitchRegularsPath
-        elif platform == 'discord': regularGroups, regularsPath = self.__discordRegularGroups, self.__discordRegularsPath
+        if platform == 'twitch': return self.__twitchRegularGroups, self.__twitchRegularsPath
+        elif platform == 'discord': return self.__discordRegularGroups, self.__discordRegularsPath
         else: return None, None
+    
+    def __getGroup(self, platform : str, groupName : str) -> tuple[list[dict], Path] | tuple[None, None]:
+        regularGroups, regularsPath = self.__getGroupCategory(platform)
+        if regularGroups is None: return None, None
 
         regularGroup = regularGroups.get(groupName, None)
-        if regularGroup == None: return None, None
+        if regularGroup == None:
+            regularGroups[groupName] = []
+            regularGroup = regularGroups[groupName]
 
         return regularGroup, regularsPath / f'{groupName}.json'
+
+    def __deleteGroup(self, platform : str, groupName : str):
+        regularGroups, _ = self.__getGroupCategory(platform)
+        if regularGroups is None: return
+        
+        _, regularsPath = self.__getGroup(platform, groupName)
+        if regularsPath is None: return
+
+        if not groupName in regularGroups: return
+        del regularGroups[groupName]
+
+        if regularsPath.is_file(): os.remove(regularsPath)
 
     def __loadRegulars(self):
         self.__discordRegularGroups.clear()

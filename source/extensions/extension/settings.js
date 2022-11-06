@@ -1,1 +1,1 @@
-var settings = {"NameOfVariable": 8, "NameOfVariable2": "hello world", "NameOfVariable3": 3, "NameOfVariable4": "a", "NameOfVariable0": 0};
+var settings = {"NameOfVariable": 0, "NameOfVariable2": "", "NameOfVariable3": 0, "NameOfVariable4": "is", "NameOfVariable0": 0};

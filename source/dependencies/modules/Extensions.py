@@ -206,9 +206,9 @@ class Extensions():
         self.__settings = settings
         self.regulars = Regulars.Regulars()
 
-        self.__twitchInstances : list[Twitch.Twitch] = []
-        self.__discordInstances : list[Discord.Discord] = []
-        self.__streamElementsInstances : list[StreamElements.StreamElements] = []
+        self.twitchInstances : list[Twitch.Twitch] = []
+        self.discordInstances : list[Discord.Discord] = []
+        self.streamElementsInstances : list[StreamElements.StreamElements] = []
 
         self.__callbacks : dict[str, list[ExtensionMethod]] = {}
         self.__legacyCallbacks : dict[str, list[ExtensionMethod]] = {}
@@ -236,35 +236,35 @@ class Extensions():
 
     def findTwitch(self, *, alias : str = None, id_ : str = None):
         if (not isinstance(alias, str)) and (not isinstance(id_, str)): return
-        for i in self.__twitchInstances:
+        for i in self.twitchInstances:
             if i.alias == alias or i.id == id_: return i
     
     def findDiscord(self, *, alias : str = None, id_ : str = None):
         if (not isinstance(alias, str)) and (not isinstance(id_, str)): return
-        for i in self.__discordInstances:
+        for i in self.discordInstances:
             if i.alias == alias or i.id == id_: return i
     
     def findStreamElements(self, *, alias : str = None, id_ : str = None):
         if (not isinstance(alias, str)) and (not isinstance(id_, str)): return
-        for i in self.__streamElementsInstances:
+        for i in self.streamElementsInstances:
             if i.alias == alias or i.id == id_: return i
     
     def defaultStreamElements(self):
-        if len(self.__streamElementsInstances) == 0: return None
-        return self.__streamElementsInstances[0]
+        if len(self.streamElementsInstances) == 0: return None
+        return self.streamElementsInstances[0]
     
     def defaultTwitch(self):
-        if len(self.__twitchInstances) == 0: return None
-        return self.__twitchInstances[0]
+        if len(self.twitchInstances) == 0: return None
+        return self.twitchInstances[0]
     
     def defaultDiscord(self):
-        if len(self.__discordInstances) == 0: return None
-        return self.__discordInstances[0]
+        if len(self.discordInstances) == 0: return None
+        return self.discordInstances[0]
     
     def loadServices(self):
-        self.__twitchInstances = self.__loadTwitchInstances()
-        self.__discordInstances = self.__loadDiscordInstances()
-        self.__streamElementsInstances = self.__loadStreamElementsInstances()
+        self.twitchInstances = self.__loadTwitchInstances()
+        self.discordInstances = self.__loadDiscordInstances()
+        self.streamElementsInstances = self.__loadStreamElementsInstances()
 
     def reloadExtensions(self):
         self.__unloadExtensions()
@@ -289,35 +289,35 @@ class Extensions():
 
     def addTwitchInstance(self, alias : str, tmi : str, botname : str, channels : list[str]):
         twitchInstance = Twitch.Twitch(alias, self, tmi, botname, channels, [])
-        self.__twitchInstances.append(twitchInstance)
+        self.twitchInstances.append(twitchInstance)
         return twitchInstance
 
     def removeTwitchInstance(self, twitchId : int):
-        removeThis : Twitch.Twitch = self.__find(self.__twitchInstances, twitchId)
+        removeThis : Twitch.Twitch = self.__find(self.twitchInstances, twitchId)
         if removeThis != None:
-            self.__twitchInstances.remove(removeThis)
+            self.twitchInstances.remove(removeThis)
             removeThis.stop()
 
     def addDiscordInstance(self, alias : str, key : str):
         discordInstance = Discord.Discord(alias, self, key)
-        self.__discordInstances.append(discordInstance)
+        self.discordInstances.append(discordInstance)
         return discordInstance
 
     def removeDiscordInstance(self, discordId : int):
-        removeThis : Discord.Discord = self.__find(self.__discordInstances, discordId)
+        removeThis : Discord.Discord = self.__find(self.discordInstances, discordId)
         if removeThis != None:
-            self.__discordInstances.remove(removeThis)
+            self.discordInstances.remove(removeThis)
             removeThis.stop()
 
     def addStreamElementsInstance(self, alias : str, jwt : str, useSocketio : bool):
         streamElementsInstance = StreamElements.StreamElements(alias, self, jwt, useSocketio)
-        self.__streamElementsInstances.append(streamElementsInstance)
+        self.streamElementsInstances.append(streamElementsInstance)
         return streamElementsInstance
 
     def removeStreamElementsInstance(self, streamElementsId : int):
-        removeThis : StreamElements.StreamElements = self.__find(self.__streamElementsInstances, streamElementsId)
+        removeThis : StreamElements.StreamElements = self.__find(self.streamElementsInstances, streamElementsId)
         if removeThis != None:
-            self.__streamElementsInstances.remove(removeThis)
+            self.streamElementsInstances.remove(removeThis)
             removeThis.stop()
 
     def addExtension(self, extension : Extension):

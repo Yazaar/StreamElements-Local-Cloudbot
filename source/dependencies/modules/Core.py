@@ -124,20 +124,19 @@ async def handleScriptTalk(data : dict) -> tuple[bool, str | None]:
 @routes.get('/')
 async def web_index(request : web.Request):
     context = {
-        'extensions': extensions.extensions, 'ExtensionsSettings': extensions.settings, 'events': [], 'messages': [], 'ExtensionLogs': extensions.logs, 'regulars': [],
-        'settings': {
-            'tmi': '',
-            'tmi_twitch_username': '',
-            'twitch_channel': '',
-            'jwt_token': '',
-            'SEListener': 2
-        }
+        'extensions': extensions.extensions, 'ExtensionsSettings': extensions.settings, 'events': [],
+        'messages': [], 'ExtensionLogs': extensions.logs, 'regularPlatforms': ['Discord', 'Twitch'],
+        'serverPort': settings.currentPort,
+        'tickrate': settings.tickrate,
+        'discords': extensions.discordInstances,
+        'twitch': extensions.twitchInstances,
+        'streamelements': extensions.streamElementsInstances,
     }
     return await aiohttp_jinja2.render_template_async('index.html', request, context)
 
 @routes.get('/socket.io/socket.io.js')
 async def web_socketIO_js(request : web.Request):
-    socketIOJS = Path('dependencies/web/static/scripts/socket.io.js')
+    socketIOJS = Path('dependencies/web/static/scripts/SocketIO/socket.io.js')
     if socketIOJS.is_file(): return web.FileResponse(socketIOJS)
     else: return web.Response(text='console.error("ERROR: socket.io.js not found")')
 
@@ -339,7 +338,7 @@ async def sio_addRegular(sid, data=''):
             'groupName': 'default',
             'platform': 'twitch'
         }
-    if isinstance(data, dict):
+    elif isinstance(data, dict):
         parsedData = {
             'alias': data.get('alias', None),
             'userId': data.get('userId', None),
@@ -454,6 +453,33 @@ async def sio_sendMessage(sid, data=''):
 
     if success: await sio.emit('SendMessage', {'type': 'success', 'success': True}, room=sid)
     else: await sio.emit('SendMessage', {'type': 'error', 'message': resp}, room=sid)
+
+@sio.on('GetRegularGroups')
+async def sio_getRegularGroups(sid, data=''):
+    if not isinstance(data, str):
+        await sio.emit('GetRegularGroups', {'type': 'error', 'success': False, 'message': 'Please forward string... sio.emit("GetRegularGroups", "platform")'}, room=sid)
+        return
+    
+    rgs = extensions.regulars.getGroups(data)
+    if rgs is None:
+        await sio.emit('GetRegularGroups', {'type': 'error', 'success': False, 'message': 'Platform does not exist'}, room=sid)
+        return
+    
+    await sio.emit('GetRegularGroups', {'type': 'success', 'success': True, 'groups': rgs}, room=sid)
+
+@sio.on('GetRegulars')
+async def sio_getRegularGroups(sid, data=''):
+    if not isinstance(data, dict) or not 'platform' in data or not 'group' in data:
+        await sio.emit('GetRegulars', {'type': 'error', 'success': False, 'message': 'Please forward json... sio.emit("GetRegularGroups", {"platform": platform, "group": groupname})'}, room=sid)
+        return
+    
+    regulars = extensions.regulars.getRegulars(data['platform'], data['group'])
+
+    if regulars is None:
+        await sio.emit('GetRegulars', {'type': 'error', 'success': False, 'message': 'Groupname or platform does not exist'}, room=sid)
+        return
+
+    await sio.emit('GetRegulars', {'type': 'success', 'success': True, 'regulars': regulars}, room=sid)
 
 app.add_routes(routes=routes)
 

@@ -1,3 +1,10 @@
+let selectedPlatform = null
+
+let regularList = document.getElementById('CurrentRegulars')
+let newRegularAliasTextField = document.getElementById('RegularInput')
+let newRegularIDTextField = document.getElementById('RegularIdInput')
+let newRegularGroupNameField = document.getElementById('RegularGroupInput')
+
 function createLog(title, message) {
     let new_element = document.createElement('div')
     let new_h2 = document.createElement('h2')
@@ -42,6 +49,71 @@ function setListeners() {
             else prevV = newV
         })
     }
+}
+
+function searchRegularGroup(regulargroup) {
+    if (selectedPlatform === null) return
+    s.emit('GetRegulars', {platform: selectedPlatform, group: regulargroup})
+}
+
+function filterAlias(alias) {
+    let aliasL = alias.toLowerCase()
+    let users = document.querySelectorAll('#CurrentRegulars > .user');
+    for (let u of users) {
+        if (u.querySelector('.alias').innerText.toLowerCase().startsWith(aliasL)) {
+            u.classList.remove('hidden')
+        } else {
+            u.classList.add('hidden')
+            u.classList.remove('selected')
+        }
+    }
+}
+
+function finaliseDelete(regularElement) {
+    let regularID = regularElement.querySelector('.platformID')
+    let groupname = newRegularGroupNameField.value
+
+    if (regularID === null) return
+
+    s.emit('DeleteRegular', {platform: selectedPlatform, userId: regularID.innerText, groupName: groupname})
+}
+
+function disposeDelete(regularElement) {
+    regularElement.classList.remove('deletable')
+    regularElement.classList.remove('clicked')
+}
+
+function activateDelete(regularElement) {
+    regularElement.classList.add('deletable')
+    setTimeout(disposeDelete, 5000, regularElement)
+}
+
+function deleteRegular(regularElement) {
+    if (regularElement.classList.contains('deletable')) {
+        finaliseDelete(regularElement)
+        return
+    }
+
+    if (regularElement.classList.contains('clicked')) return
+
+    regularElement.classList.add('clicked')
+    setTimeout(activateDelete, 1000, regularElement)
+}
+
+function showRegular(regular) {
+    let div = document.createElement('div')
+    div.classList.add('user')
+    div.setAttribute('data-platformID', regular.id)
+    let alias = document.createElement('div')
+    alias.classList.add('alias')
+    alias.innerText = regular.alias
+    let platformID = document.createElement('div')
+    platformID.classList.add('platformID')
+    platformID.innerText = regular.id
+    div.appendChild(alias)
+    div.appendChild(platformID)
+    div.addEventListener('click', function(){ deleteRegular(this) })
+    regularList.appendChild(div)
 }
 
 setListeners();
@@ -112,33 +184,6 @@ for (let i of document.querySelectorAll('article#setup .saveSetupButton')) {
     })
 }
 
-let lastSEListenerMethod = document.querySelector('#SEListenerMethod').value
-document.querySelector('#SEListenerMethod').addEventListener('input', function() {
-    if (Waiting4Save) {
-        this.value = lastSEListenerMethod
-    }
-    
-    let val = parseInt(this.value)
-    if (isNaN(val))
-    {
-        this.value = lastSEListenerMethod
-        return
-    }
-    
-    lastSEListenerMethod = this.value
-    
-    let e = document.querySelector('article#setup')
-    if (e != null) {
-        e.classList.add('WaitingForSave')
-    }
-
-    Waiting4Save = true
-
-    s.emit('UpdateSettings', {
-        SEListener: val
-    })
-})
-
 for (let i of document.querySelectorAll('.OpenCloseButton')) {
     i.addEventListener('click', function() {
         document.querySelector(this.getAttribute('data-target')).classList.toggle('ClosedSetting')
@@ -198,43 +243,6 @@ for (let i of document.querySelectorAll('.ToggleExtension')) {
     })
 }
 
-{
-    let AddDeleteRegular = document.querySelector('#AddDeleteRegular')
-    let RegularOperation = 0
-    let RegularUser = ''
-    document.getElementById('RegularInput').addEventListener('input', function() {
-        RegularUser = this.value.toLowerCase()
-        if (RegularUser === '') {
-            AddDeleteRegular.innerText = 'Specify user'
-            RegularOperation = 0
-        } else if (this.parentElement.querySelector('option.RegularUser' + RegularUser) !== null) {
-            AddDeleteRegular.innerText = 'Delete'
-            RegularOperation = 1
-        } else {
-            AddDeleteRegular.innerText = 'Add'
-            RegularOperation = 2
-        }
-    })
-
-    document.getElementById('AddDeleteRegular').addEventListener('click', function() {
-        switch (RegularOperation) {
-            case 0:
-                return
-            case 1:
-                s.emit('DeleteRegular', RegularUser)
-                break
-                case 2:
-                s.emit('AddRegular', RegularUser)
-                break
-        }
-
-        document.getElementById('RegularInput').value = ''
-        RegularUser = ''
-        RegularOperation = 0
-        AddDeleteRegular.innerText = '-'
-    })
-}
-
 document.getElementById('ClearEvents').addEventListener('click', () => {
     document.querySelector('article#events section.data').innerHTML = ''
     s.emit('ClearEvents')
@@ -249,136 +257,44 @@ document.getElementById('ClearMessages').addEventListener('click', () => {
     document.querySelector('article#messages section.data').innerHTML = ''
     s.emit('ClearMessages')
 })
-/*
-let cooldownUntilTW = new Date()
-let timeoutTW = false
-let disableUpdateTwitchBtn = false
-document.querySelector('#RestartTwitch').addEventListener('click', function() {
-    if (disableUpdateTwitchBtn === true) {
-        return
-    }
 
-    let currentTime = new Date()
+document.getElementById('RegularPlatforms').addEventListener('input', function() {
+    selectedPlatform = this.value.toLowerCase();
+    s.emit('GetRegularGroups', selectedPlatform)
+})
 
-    if (cooldownUntilTW > currentTime) {
-        let duration = cooldownUntilTW - currentTime
-        this.innerText = 'Restart: ' + parseInt((duration) / 1000) + 's cooldown'
-        
-        let e = this
-        
-        if (timeoutTW === false) {
-            timeoutTW = setTimeout(function() {
-                e.innerText = 'Restart'
-                timeoutTW = false
-            }, duration)
-        }
-        
-        return
-    }
+let searchTimeout = null;
+document.getElementById("RegularGroupInput").addEventListener('input', function() {
+    if (searchTimeout !== null) clearTimeout(searchTimeout)
+    let v = this.value;
+    searchTimeout = setTimeout(() => searchRegularGroup(v), 1000);
+});
+
+document.getElementById('AddRegular').addEventListener('click', function() {
+    let regularAlias = newRegularAliasTextField.value
+    let regularID = newRegularIDTextField.value
+    let regularGroupName = newRegularGroupNameField.value
     
-    s.emit('RestartTwitch')
+    if (regularAlias.length === 0 || regularID.length === 0 || regularGroupName.length === 0 || selectedPlatform === null) return
+
+    newRegularAliasTextField.value = ''
+    newRegularIDTextField.value = ''
+
+    s.emit('AddRegular', {alias: regularAlias, userId: regularID, groupName: regularGroupName, platform: selectedPlatform})
 })
 
-let cooldownUntilSE = new Date()
-let timeoutSE = false
-let disableUpdateSEBtn = false
-document.querySelector('#RestartSE').addEventListener('click', function() {
-    if (disableUpdateSEBtn === true) {
-        return
-    }
-    
-    let currentTime = new Date()
-    
-    if (cooldownUntilSE > currentTime) {
-        let duration = cooldownUntilSE - currentTime
-        this.innerText = 'Restart: ' + parseInt((duration) / 1000) + 's cooldown'
-        
-        let e = this
-        
-        if (timeoutSE === false) {
-            timeoutSE = setTimeout(function() {
-                e.innerText = 'Restart'
-                timeoutSE = false
-            }, duration)
-        }
-        
-        return
-    }
-    
-    s.emit('RestartSE')
+document.getElementById('SearchRegularAlias').addEventListener('input', function() { filterAlias(this.value) })
+
+s.on('AddRegular', function(data) {
+    if (!data.success) return
+    showRegular({alias: data.data.alias, id: data.data.userId})
 })
 
-s.on('RestartTwitch', function(data) {
-    if (disableUpdateTwitchBtn) {
-        return
-    }
-    let e = document.querySelector('#RestartTwitch')
-    let duration
-    if (data.state === -1) {
-        cooldownUntil = new Date(data.cooldown * 1000)
-        duration = cooldownUntil - new Date()
-        e.innerText = 'Restart: ' + parseInt((duration) / 1000) + 's cooldown'
-    } else if (data.state === 0) {
-        duration = 1000
-        disableUpdateTwitchBtn = true
-        e.innerText = 'No new data'
-    } else {
-        duration = 1000
-        disableUpdateTwitchBtn = true
-        e.innerText = 'Restart complete'
-    }
-    if (timeoutTW === false) {
-        timeoutTW = setTimeout(function() {
-            e.innerText = 'Restart'
-            timeoutTW = false
-            disableUpdateTwitchBtn = false
-        }, duration)
-    }
-})
-
-s.on('RestartSE', function(data) {
-    if (disableUpdateSEBtn) {
-        return
-    }
-    let e = document.querySelector('#RestartSE')
-    let duration
-    if (data.state === -1) {
-        cooldownUntil = new Date(data.cooldown * 1000)
-        duration = cooldownUntil - new Date()
-        e.innerText = 'Restart: ' + parseInt((duration) / 1000) + 's cooldown'
-    } else if (data.state === 0) {
-        duration = 1000
-        disableUpdateSEBtn = true
-        e.innerText = 'No new data'
-    } else {
-        duration = 1000
-        disableUpdateSEBtn = true
-        e.innerText = 'Restart complete'
-    }
-    if (timeoutSE === false) {
-        timeoutSE = setTimeout(function() {
-            e.innerText = 'Restart'
-            timeoutSE = false
-            disableUpdateSEBtn = false
-        }, duration)
-    }
-})
-*/
-
-s.on('AddRegular', function(name) {
-    let e = document.createElement('option')
-    e.value = name
-    e.classList.add('RegularUser' + name)
-    document.querySelector('#RegularList').appendChild(e)
-})
-
-s.on('DeleteRegular', function(name) {
-    let e = document.querySelector('option.RegularUser' + name)
-    if (e === null) {
-        return
-    }
-
-    e.parentElement.removeChild(e)
+s.on('DeleteRegular', function(data) {
+    if (!data.success) return
+    let regularElement = document.querySelector('#CurrentRegulars > .user[data-platformID="' + data.data.userId + '"]')
+    if (regularElement === null) return
+    regularElement.parentElement.removeChild(regularElement)
 })
 
 s.on('UpdateSettings', () => {
@@ -465,7 +381,6 @@ s.on('StreamElementsEvent', (data) => {
             break
     }
     
-
     wrap.appendChild(h2)
     wrap.appendChild(p)
     
@@ -574,3 +489,21 @@ s.on('TwitchMessage', (message) => {
     new_element.classList.add('message')
     document.querySelector('article#messages section.data').appendChild(new_element)
 })
+
+let regularGroupList = document.getElementById('RegularGroupList')
+s.on('GetRegularGroups', (data) => {
+    if (!data.success) return
+    regularGroupList.innerHTML = ''
+    data.groups.forEach(g => {
+        let opt = document.createElement('option');
+        opt.value = g
+        opt.text = g
+        regularGroupList.appendChild(opt)
+    })
+})
+
+s.on('GetRegulars', (data) => {
+    regularList.innerHTML = ''
+    if (!data.success) return
+    data.regulars.forEach(regular => showRegular(regular))
+});
