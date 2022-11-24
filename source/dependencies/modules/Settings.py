@@ -1,11 +1,16 @@
-import json, copy, asyncio
+import json, asyncio, typing
 from pathlib import Path
-from . import Misc
+from . import Twitch, Discord, StreamElements, Misc
 from .vendor.StructGuard import StructGuard
 
+if typing.TYPE_CHECKING:
+    from . import Extensions
+
 class Settings():
-    def __init__(self):
+    def __init__(self, extensions : 'Extensions.Extensions'):
         datafolder = Path('dependencies/data')
+
+        self.__extensions = extensions
         
         self.__generalSettingsFile = datafolder / 'settings/general.json'
         self.__twitchSettingsFile = datafolder / 'settings/twitch.json'
@@ -19,16 +24,15 @@ class Settings():
         self.__tickrate = 60
 
         self.__defaultPort = 80
-        self.port : int = None
+        self.__port : int = None
 
         loop = asyncio.get_event_loop()
 
-        self.currentPort : int = None
-        self.currentIP : str = None
+        self.__currentPort : int = None
+        self.__currentIP : str = None
         
         loop.create_task(self.__getIP())
 
-        self.__twitch : list[dict] = []
         self.__twitchStructure = [
             {
                 'tmi': str,
@@ -44,7 +48,6 @@ class Settings():
             }
         ]
 
-        self.__streamelements : list[dict] = []
         self.__streamelementsStructure = [
             {
                 'jwt': str,
@@ -53,7 +56,6 @@ class Settings():
             }
         ]
         
-        self.__discord : list[dict] = []
         self.__discordStructure = [
             {
                 'token': str,
@@ -75,57 +77,97 @@ class Settings():
         self.__loadSettings()
     
     @property
+    def currentPort(self): return self.__currentPort
+    
+    @property
+    def currentIP(self): return self.__currentIP
+
+    @property
     def tickrate(self) -> int: return self.__tickrate
+
+    @property
+    def port(self) -> int: return self.__port
 
     async def __getIP(self):
         currentIP, errorCode = await Misc.fetchUrl('https://ident.me')
         if errorCode < 0: currentIP, errorCode = await Misc.fetchUrl('https://api.ipify.org')
         if errorCode < 0: print('[ERROR]: Unable to check for your public IP, no network connection? (trying to run anyway)')
-        self.currentIP = currentIP
+        self.__currentIP = currentIP
+
+    def loadTwitch(self):
+        twitchChanges, twitchData = StructGuard.verifyListStructure(self.__readFile(self.__twitchSettingsFile), self.__twitchStructure)
+        if twitchChanges != StructGuard.NO_CHANGES: self.__saveSettings(twitchData, self.__twitchSettingsFile)
+        twitchs : list[Twitch.Twitch] = []
+        for td in twitchData: twitchs.append(Twitch.Twitch(td['alias'], self.__extensions, td['tmi'], td['botname'], td['channels'], td['regularGroups'], td['channel']))
+        return twitchs
     
-    def __filterYield(self, obj : list, *, filterMethod = None):
-        if filterMethod == None: filterMethod = lambda _: True
-        for i in obj:
-            iCopy = copy.deepcopy(i)
-            try:
-                if not filterMethod(iCopy): continue
-            except Exception: continue
-            yield iCopy    
+    def loadDiscord(self):
+        discordChanges, discordData = StructGuard.verifyListStructure(self.__readFile(self.__discordSettingsFile), self.__discordStructure)
+        if discordChanges != StructGuard.NO_CHANGES: self.__saveSettings(discordData, self.__discordSettingsFile)
+        discords : list[Discord.Discord] = []
+        for dd in discordData: discords.append(Discord.Discord(dd['alias'], self.__extensions, dd['token'], dd['regularGroups'], dd['guild']))
+        return discords
     
-    def getTwitch(self, *, filterMethod = None):
-        for twitch in self.__filterYield(self.__twitch, filterMethod=filterMethod):
-            yield twitch
+    def loadStreamElements(self):
+        streamelementsChanges, streamElementsData = StructGuard.verifyListStructure(self.__readFile(self.__streamelementsSettingsFile), self.__streamelementsStructure)
+        if streamelementsChanges != StructGuard.NO_CHANGES: self.__saveSettings(streamElementsData, self.__streamelementsSettingsFile)
+        streamElements : list[StreamElements.StreamElements] = []
+        for sed in streamElementsData: streamElements.append(StreamElements.StreamElements(sed['alias'], self.__extensions, sed['jwt'], sed['useSocketIO']))
+        return streamElements
     
-    def getDiscord(self, *, filterMethod = None):
-        for discord in self.__filterYield(self.__discord, filterMethod=filterMethod):
-            yield discord
+    def saveTwitch(self, twitchList : list[Twitch.Twitch]):
+        td = []
+        for t in twitchList: td.append({
+            'tmi': t.tmi,
+            'botname': t.botname,
+            'channels': t.allChannels,
+            'alias': t.alias,
+            'regularGroups': t.regularGroups,
+            'channel': t.channelConfig
+            })
+        self.__saveSettings(td, self.__twitchSettingsFile)
     
-    def getStreamElements(self, *, filterMethod = None):
-        for streamelements in self.__filterYield(self.__streamelements, filterMethod=filterMethod):
-            yield streamelements
+    def saveDiscord(self, discordList : list[Discord.Discord]):
+        dd = []
+        for d in discordList: dd.append({
+                'token': d.token,
+                'alias': d.alias,
+                'regularGroups': d.regularGroups,
+                'guild': d.guildConfig
+            })
+        self.__saveSettings(dd, self.__discordSettingsFile)
+    
+    def saveStreamElements(self, streamElementsList : list[StreamElements.StreamElements]):
+        sed = []
+        for se in streamElementsList: sed.append({
+                'jwt': se.jwt,
+                'alias': se.alias,
+                'useSocketIO': se.useSocketIO
+            })
+        self.__saveSettings(sed, self.__streamelementsSettingsFile)
+
+    def setPort(self, port : int):
+        if not Misc.validPort(port): return
+        self.__port = port
+        self.__saveSettings({'port': self.__port, 'tickrate': self.__tickrate}, self.__generalSettingsFile)
+
+    def setTickrate(self, tickrate : int):
+        self.__tickrate = tickrate
+        self.__saveSettings({'port': self.__port, 'tickrate': self.__tickrate}, self.__generalSettingsFile)
 
     def __loadSettings(self):
         generalSettings = self.__readFile(self.__generalSettingsFile)
         if StructGuard.verifyDictStructure(generalSettings, self.__generalStucture, rebuild=False)[0] != StructGuard.NO_CHANGES:
             self.__saveSettings({'port': self.__defaultPort, 'tickrate': self.__defaultTickrate}, self.__generalSettingsFile)
-            self.port = self.__defaultPort
+            self.__port = self.__defaultPort
             self.__tickrate = self.__defaultTickrate
         else:
-            self.port = generalSettings['port']
+            self.__port = generalSettings['port']
             self.__tickrate = generalSettings['tickrate']
         
-        portOverride = Misc.portOverride(self.port)
-        if portOverride[0]: self.currentPort = portOverride[1]
-        else: self.currentPort = self.port
-
-        twitchChanges, self.__twitch = StructGuard.verifyListStructure(self.__readFile(self.__twitchSettingsFile), self.__twitchStructure)
-        if twitchChanges != StructGuard.NO_CHANGES: self.__saveSettings(self.__twitch, self.__twitchSettingsFile)
-        
-        discordChanges, self.__discord = StructGuard.verifyListStructure(self.__readFile(self.__discordSettingsFile), self.__discordStructure)
-        if discordChanges != StructGuard.NO_CHANGES: self.__saveSettings(self.__discord, self.__discordSettingsFile)
-        
-        streamelementsChanges, self.__streamelements = StructGuard.verifyListStructure(self.__readFile(self.__streamelementsSettingsFile), self.__streamelementsStructure)
-        if streamelementsChanges != StructGuard.NO_CHANGES: self.__saveSettings(self.__streamelements, self.__streamelementsSettingsFile)
+        portOverride = Misc.portOverride(self.__port)
+        if portOverride[0]: self.__currentPort = portOverride[1]
+        else: self.__currentPort = self.__port      
 
     def __readFile(self, filepath : Path):
         if not filepath.is_file(): return None

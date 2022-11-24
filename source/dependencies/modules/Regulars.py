@@ -30,7 +30,7 @@ class Regulars:
         
         allRegulars = []
         for i in regularGroups:
-            regulars, _ = self.__getGroup(platform, i)
+            regulars, _, _ = self.__getGroup(platform, i)
             if regulars != None: allRegulars.append(regulars)
         
         for regularGroup in allRegulars:
@@ -38,27 +38,27 @@ class Regulars:
                 if regularUser['id'] == userId: return True
         return False
 
-    def addRegular(self, alias : str, userId : str, groupName : str, platform : str) -> tuple[bool, str | None]:
+    def addRegular(self, alias : str, userId : str, groupName : str, platform : str) -> tuple[bool, str | None, bool]:
         if not isinstance(userId, str) or not isinstance(groupName, str) or not isinstance(alias, str):
-            return False, 'alias, userId, groupName and platform has to be strings'
+            return False, 'alias, userId, groupName and platform has to be strings', False
         
-        regularGroup, regularFile = self.__getGroup(platform, groupName)
-        if regularGroup == None: return False, 'unable to find groupName in platform ' + platform
+        regularGroup, regularFile, createdGroup = self.__getGroup(platform, groupName, create=True)
+        if regularGroup == None: return False, f'invalid regular group', False
 
         for regularMember in regularGroup:
-            if regularMember['id'] == userId: return False, 'regular does already exist'
+            if regularMember['id'] == userId: return False, 'regular does already exist', False
         
         regularGroup.append({'alias': alias, 'id': userId})
 
         self.__saveRegulars(regularGroup, regularFile)
-        return True, None
+        return True, None, createdGroup
 
-    def removeRegular(self, userId : str, groupName : str, platform : str) -> tuple[bool, str | None]:
-        if not isinstance(userId, str): return False, 'userId has to be a string'
-        if not isinstance(groupName, str): return False, 'groupName has to be a string'
+    def removeRegular(self, userId : str, groupName : str, platform : str) -> tuple[bool, str | None, bool]:
+        if not isinstance(userId, str): return False, 'userId has to be a string', False
+        if not isinstance(groupName, str): return False, 'groupName has to be a string', False
 
-        regularGroup, regularFile = self.__getGroup(platform, groupName)
-        if regularGroup == None: return False, 'invalid regular group'
+        regularGroup, regularFile, _ = self.__getGroup(platform, groupName)
+        if regularGroup == None: return False, 'invalid regular group', False
 
         deleted = False
         for index, regular in enumerate(regularGroup):
@@ -66,11 +66,14 @@ class Regulars:
                 regularGroup.pop(index)
                 deleted = True
                 break
-
+        
+        deletedGroup = False
         if deleted:
-            if len(regularGroup) == 0: self.__deleteGroup(platform, groupName)
+            if len(regularGroup) == 0:
+                deletedGroup = True
+                self.__deleteGroup(platform, groupName)
             else: self.__saveRegulars(regularGroup, regularFile)
-        return True, None
+        return True, None, deletedGroup
 
     def getRegulars(self, platform : str, groupname : str):
         if platform == 'twitch': return self.__twitchRegularGroups.get(groupname)
@@ -87,22 +90,27 @@ class Regulars:
         elif platform == 'discord': return self.__discordRegularGroups, self.__discordRegularsPath
         else: return None, None
     
-    def __getGroup(self, platform : str, groupName : str) -> tuple[list[dict], Path] | tuple[None, None]:
+    def __getGroup(self, platform : str, groupName : str, *, create=False) -> tuple[list[dict], Path, bool] | tuple[None, None, False]:
         regularGroups, regularsPath = self.__getGroupCategory(platform)
-        if regularGroups is None: return None, None
+        if regularGroups is None: return None, None, False
+
+        createdGroup = False
 
         regularGroup = regularGroups.get(groupName, None)
+        if not create and regularGroup is None: return None, None, False
+
         if regularGroup == None:
+            createdGroup = True
             regularGroups[groupName] = []
             regularGroup = regularGroups[groupName]
 
-        return regularGroup, regularsPath / f'{groupName}.json'
+        return regularGroup, regularsPath / f'{groupName}.json', createdGroup
 
     def __deleteGroup(self, platform : str, groupName : str):
         regularGroups, _ = self.__getGroupCategory(platform)
         if regularGroups is None: return
         
-        _, regularsPath = self.__getGroup(platform, groupName)
+        _, regularsPath, _ = self.__getGroup(platform, groupName)
         if regularsPath is None: return
 
         if not groupName in regularGroups: return

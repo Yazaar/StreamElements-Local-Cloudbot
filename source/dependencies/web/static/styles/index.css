@@ -303,7 +303,88 @@ section.ExtensionItem p {
     margin-left: .5rem;
 }
 
+.hideEmptyList:not([list]) {
+    display: none;
+}
+
+#TwitchInstanceConfigs > #TwitchInstanceChannels,
+#TwitchInstanceConfigs > #TwitchInstanceRegularGroups {
+    display: none;
+}
+
+#TwitchInstanceConfigs.channels > #TwitchInstanceChannels {
+    display: block;
+}
+
+#TwitchInstanceConfigs.regularGroups > #TwitchInstanceRegularGroups {
+    display: block;
+}
+
+.configItem {
+    display: inline-block;
+    margin: .5rem;
+    padding: .5rem;
+    background: rgba(0, 0, 0, .25);
+    border-radius: .5rem;
+    cursor: pointer;
+    transition: background 100ms ease-in-out;
+}
+
+.configItem.clicked {
+    background: rgba(182, 179, 5, 0.5);
+}
+
+.configItem.clicked.deletable {
+    background: rgba(255, 0, 0, 0.5);
+}
+
+.configItem.clicked:hover {
+    background: rgba(133, 130, 5, 0.5);
+}
+
+.configItem.clicked.deletable:hover {
+    background: rgba(165, 0, 0, 0.5);
+}
+
+.configItem:hover {
+    background: rgba(0, 0, 0, .4);
+}
+
+.configItem.selected {
+    background: rgba(0, 170, 0, 0.5);
+}
+
+.configItem.selected:hover {
+    background: rgba(0, 170, 0, 0.9);
+}
+
+.hidden {
+    display: none;
+}
+
+.button {
+    display: inline-block;
+    padding: .2rem .5rem;
+    border: #FFFFFF .1rem solid;
+    margin: .5rem 0;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.button:not(.disabled):hover { background: rgba(0, 0, 0, .25); }
+.button:not(.disabled):active { background: rgba(0, 0, 0, .5); }
+.button.disabled { background: rgba(255, 0, 0, .5); }
+
+h3.smaller {
+    font-size: .9rem;
+}
+
+.pushDown {
+    margin-top: .5rem;
+}
+
 .CustomCheckbox {
+    appearance: none;
     -webkit-appearance: none;
     width: 1.5rem;
     height: 1.5rem;
@@ -378,7 +459,7 @@ footer p {
     margin-top: .5rem;
 }
 
-@media screen and (max-width:37rem){
+@media screen and (max-width:38.5rem){
     article {
         width: 100%;
     }

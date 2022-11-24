@@ -1,14 +1,26 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>StreamElements Local Cloudbot</title>
-    <link rel= "stylesheet" type= "text/css" href= "/static/styles/index.css">
+    <link rel="stylesheet" type="text/css" href="/static/styles/index.css">
     <link href="https://fonts.googleapis.com/css?family=Roboto:400,700&display=swap" rel="stylesheet">
 </head>
+
 <body>
+    <datalist id="DiscordRegularGroupList">
+        {% for drg in discordRegularGroups %}
+        <option value="{{drg}}">{{drg}}</option>
+        {% endfor %}
+    </datalist>
+    <datalist id="TwitchRegularGroupList">
+        {% for trg in twitchRegularGroups %}
+        <option value="{{trg}}">{{trg}}</option>
+        {% endfor %}
+    </datalist>
     <header id="MainHeader">
         <h1>StreamElements<br>Local Cloudbot</h1>
         <nav>
@@ -18,6 +30,9 @@
             <a href="#logs">Logs</a>
             <a href="#messages">Messages</a>
             <a href="#regulars">Regulars</a>
+            <a href="#twitch">Twitch</a>
+            <a href="#streamelements">StreamElements</a>
+            <a href="#discord">Discord</a>
             <a href="#setup">Setup</a>
         </nav>
     </header>
@@ -31,9 +46,10 @@
             {% for extension in extensions %}
             <section class="ExtensionItem">
                 {% if extension.enabled %}
-                <input class="CustomCheckbox ToggleExtension" type="checkbox" checked data-module="{{extension.moduleName}}"/>
+                <input class="CustomCheckbox ToggleExtension" type="checkbox" checked
+                    data-module="{{extension.moduleName}}" />
                 {% else %}
-                <input class="CustomCheckbox ToggleExtension" type="checkbox" data-module="{{extension.moduleName}}"/>
+                <input class="CustomCheckbox ToggleExtension" type="checkbox" data-module="{{extension.moduleName}}" />
                 {% endif %}
                 <p>{{extension.moduleName}}</p>
             </section>
@@ -48,11 +64,13 @@
             {% for setting in ExtensionsSettings %}
             <div>
                 <div class="OpenCloseButton" data-target="#setting{{loop.index-1}}">{{setting['name']}}</div>
-                <section class="ClosedSetting" id="setting{{loop.index-1}}" data-index="{{loop.index-1}}" data-name="{{setting.name}}">
+                <section class="ClosedSetting" id="setting{{loop.index-1}}" data-index="{{loop.index-1}}"
+                    data-name="{{setting.name}}">
                     {% for subsetting in setting.config %}
                     <section>
                         <h3>{{subsetting}}</h3>
-                        <div class="CompactButton SetDefaultSetting" data-default="{{setting.config[subsetting]['value']}}">Set Default</div>
+                        <div class="CompactButton SetDefaultSetting"
+                            data-default="{{setting.config[subsetting]['value']}}">Set Default</div>
                         <p>{{setting['tip']}}</p>
                         {% if setting.config[subsetting]['type']|lower == 'dropdown' %}
                         <select name="{{subsetting}}" data-settingname="{{subsetting}}">
@@ -71,14 +89,17 @@
                         <input class="CustomCheckbox" type="checkbox" data-settingname="{{subsetting}}" />
                         {% endif %}
                         {% else %}
-                        <input type="{{setting.config[subsetting]['type']}}" value="{{setting.current[subsetting]}}" data-settingname="{{subsetting}}" min="{{setting.config[subsetting]['min']}}" max="{{setting.config[subsetting]['max']}}" step="{{setting.config[subsetting]['step']}}"/>
+                        <input type="{{setting.config[subsetting]['type']}}" value="{{setting.current[subsetting]}}"
+                            data-settingname="{{subsetting}}" min="{{setting.config[subsetting]['min']}}"
+                            max="{{setting.config[subsetting]['max']}}" step="{{setting.config[subsetting]['step']}}" />
                         {% if setting.config[subsetting]['type']|lower == 'range' %}
                         <p data-settingTarget="{{subsetting}}" class="rangeNumber"></p>
                         {% endif %}
                         {% endif %}
                     </section>
                     {% endfor %}
-                    <div class="save_settings CompactButton" data-index="{{loop.index-1}}" data-name="{{setting.name}}">Save Settings</div>
+                    <div class="save_settings CompactButton" data-index="{{loop.index-1}}" data-name="{{setting.name}}">
+                        Save Settings</div>
                 </section>
             </div>
             {% endfor %}
@@ -163,18 +184,87 @@
                     <option value="{{regularPlatform}}">{{regularPlatform}}</option>
                     {% endfor %}
                 </select>
-                <input type="text" id="RegularGroupInput" list="RegularGroupList" placeholder="groupname">
-                <datalist id="RegularGroupList"></datalist>
-                <h2>New regular</h2>
-                <input type="text" id="RegularInput" placeholder="regular alias">
-                <input type="text" id="RegularIdInput" placeholder="regular id">
-                <div id="AddRegular">Add regular</div>
-                <h2>Regulars in group</h2>
-                <p>Click twice (second time once red) to delete</p>
-                <input type="text" id="SearchRegularAlias" placeholder="filter by alias">
-                <div id="CurrentRegulars">
+                <input type="text" id="RegularGroupInput" class="hideEmptyList" placeholder="groupname">
+                <div id="ManageRegularGroup" class="hidden">
+                    <h2>New regular</h2>
+                    <input type="text" id="RegularInput" placeholder="regular alias">
+                    <div>
+                        <input type="text" id="RegularIdInput" placeholder="regular id">
+                    </div>
+                    <div id="AddRegular">Add regular</div>
+                    <h2>Regulars in group</h2>
+                    <p>Click twice (second time once red) to delete</p>
+                    <input type="text" id="SearchRegularAlias" placeholder="filter by alias">
+                    <div id="CurrentRegulars"></div>
                 </div>
             </div>
+        </section>
+    </article>
+    <article id="twitch">
+        <header>
+            <h1>Twitch</h1>
+        </header>
+        <section class="data">
+            <a href="https://twitchapps.com/tmi/" target="_blank" rel="noopener noreferrer" class="button">Get TMI</a>
+            <p>Keep the TMI secret!</p>
+            <select id="SelectedTwitch">
+                <option selected hidden>Select bot</option>
+                {% for t in twitch %}
+                <option value="NEW">Create</option>
+                <option value="{{t.id}}">{{t.alias}}</option>
+                {% endfor %}
+            </select>
+            <div id="TwitchInstanceData" class="hidden">
+                <div>
+                    <div id="SaveTwitch" class="button">Save instance</div>
+                </div>
+                <h2>TMI</h3>
+                    <input type="password" id="GeneratedTMI">
+                    <p id="TMIAccountName">TMI account name: <span></span></p>
+                    <h2>Alias</h2>
+                    <input type="text" id="NewTwitchAlias">
+                    <h2>Configuration</h2>
+                    <select id="TwitchInstanceCategory">
+                        <option hidden selected></option>
+                        <option value="channels">Channels</option>
+                        <option value="regularGroups">Regular groups</option>
+                    </select>
+                    <div id="TwitchInstanceConfigs">
+                        <div id="TwitchInstanceChannels">
+                            <h3 class="smaller pushDown">Add new</h3>
+                            <input id="TwitchConfigItemInput" type="text">
+                            <div>
+                                <div id="TwitchAddConfigItem" class="button">Add new</div>
+                            </div>
+                            <h3>Channels</h3>
+                            <p>Click twice (second time once red) to delete</p>
+                            <div id="TwitchCurrentChannels"></div>
+                        </div>
+                        <div id="TwitchInstanceRegularGroups">
+                            <h3>Channels</h3>
+                            <p>Click to include regular group (green = included)</p>
+                            <div id="TwitchCurrentRegularGroups">
+                                {% for trg in twitchRegularGroups %}
+                                <div class="configItem" data-regularGroupName="{{trg}}" data-enabled="0">{{trg}}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+            </div>
+        </section>
+    </article>
+    <article id="streamelements">
+        <header>
+            <h1>StreamElements</h1>
+        </header>
+        <section class="data">
+        </section>
+    </article>
+    <article id="discord">
+        <header>
+            <h1>Discord</h1>
+        </header>
+        <section class="data">
         </section>
     </article>
     <article id="setup">
@@ -184,18 +274,21 @@
         <section class="data">
             <section>
                 <p>Server port</p>
-                <input type="number" id="server_port-input" value="{{serverPort}}" /><div class="CompactButton saveSetupButton">SAVE</div>
+                <input type="number" id="server_port-input" value="{{serverPort}}" />
+                <div class="CompactButton saveSetupButton">SAVE</div>
             </section>
             <section>
                 <p>Script executions per second</p>
-                <input type="number" id="exec_per_second-input" value="{{tickrate}}" /><div class="CompactButton saveSetupButton">SAVE</div>
+                <input type="number" id="exec_per_second-input" value="{{tickrate}}" />
+                <div class="CompactButton saveSetupButton">SAVE</div>
             </section>
         </section>
     </article>
     <footer>
-        <h2>Unofficial creation by Yazaar</h2>
+        <h2>Unofficial creation by <a href="https://github.com/Yazaar">Yazaar</a></h2>
     </footer>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.1.3/socket.io.min.js"></script>
     <script src="/static/scripts/index.js"></script>
 </body>
+
 </html>

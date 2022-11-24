@@ -1,9 +1,38 @@
-let selectedPlatform = null
+let s = io.connect(window.location.origin)
 
-let regularList = document.getElementById('CurrentRegulars')
+let ResetExtensionBtnActive = false
+let ResetExtensionBtn = document.querySelector('#ResetExtensions')
+
+let selectedPlatform = null
+let currentTMI = null
+let generateTMITimeout = null
+
 let newRegularAliasTextField = document.getElementById('RegularInput')
 let newRegularIDTextField = document.getElementById('RegularIdInput')
 let newRegularGroupNameField = document.getElementById('RegularGroupInput')
+
+let saveTwitchInstanceBTN = document.getElementById('SaveTwitch')
+let currentTwitchInstanceAliasElement = document.getElementById('NewTwitchAlias')
+let currentTMIElement = document.getElementById('GeneratedTMI')
+let currentTMIAccountNameElement = document.querySelector('#TMIAccountName span')
+let twitchBotsSelector = document.getElementById('SelectedTwitch')
+let twitchInstanceDataBlock = document.getElementById('TwitchInstanceData')
+let twitchInstanceCategory = document.getElementById('TwitchInstanceCategory')
+let twitchConfigItemInput = document.getElementById('TwitchConfigItemInput')
+let twitchConfigs = document.getElementById('TwitchInstanceConfigs')
+let twitchCurrentRegularGroups = document.getElementById('TwitchCurrentRegularGroups')
+
+let twitchCurrentChannels = document.getElementById('TwitchCurrentChannels')
+
+let manageRegularGroup = document.getElementById('ManageRegularGroup')
+
+let twitchRegularGroupList = document.getElementById('TwitchRegularGroupList')
+let discordRegularGroupList = document.getElementById('DiscordRegularGroupList')
+
+let regularList = document.getElementById('CurrentRegulars')
+let searchTimeout = null
+
+function voidFunc() {}
 
 function createLog(title, message) {
     let new_element = document.createElement('div')
@@ -18,11 +47,10 @@ function createLog(title, message) {
 
 function parseJSON(data) {
     try {
-        parsed = JSON.parse(data)
+        return JSON.parse(data)
     } catch(e) {
-        parsed = null
+        return null
     }
-    return parsed
 }
 
 function setListeners() {
@@ -34,7 +62,7 @@ function setListeners() {
         subE.innerText = eRange.value;
         eRange.addEventListener('input', function() {
             subE.innerText = eRange.value;
-        });
+        })
     }
 
     e = document.querySelectorAll('#settings input[type=number]')
@@ -56,6 +84,36 @@ function searchRegularGroup(regulargroup) {
     s.emit('GetRegulars', {platform: selectedPlatform, group: regulargroup})
 }
 
+function validateTMI(tmi) {
+    if (tmi.startsWith('oauth:')) tmi = tmi.substring(6)
+
+    fetch('https://id.twitch.tv/oauth2/validate', {
+        headers: {
+            Authorization: 'Bearer ' + tmi
+        }
+    }).then(fetchdata => fetchdata.json())
+    .then(tmiJSON => {
+         if (tmiJSON.login === undefined) {
+            currentTMIAccountNameElement.innerText = 'invalid :('
+            return
+        }
+        currentTMI = 'oauth:' + tmi
+        currentTMIAccountNameElement.innerText = tmiJSON.login
+    })
+}
+
+function newTMI(tmi) {
+    if (generateTMITimeout !== null) clearTimeout(generateTMITimeout)
+
+    currentTMI = null
+    if (tmi.length === 0) {
+        currentTMIAccountNameElement.innerText = ''
+        return
+    }
+    currentTMIAccountNameElement.innerText = 'loading...'
+    generateTMITimeout = setTimeout(() => validateTMI(tmi), 2500)
+}
+
 function filterAlias(alias) {
     let aliasL = alias.toLowerCase()
     let users = document.querySelectorAll('#CurrentRegulars > .user');
@@ -69,35 +127,41 @@ function filterAlias(alias) {
     }
 }
 
-function finaliseDelete(regularElement) {
-    let regularID = regularElement.querySelector('.platformID')
-    let groupname = newRegularGroupNameField.value
-
-    if (regularID === null) return
-
-    s.emit('DeleteRegular', {platform: selectedPlatform, userId: regularID.innerText, groupName: groupname})
+function finaliseDelete(triggerElement, onDeleteCallback) {
+    onDeleteCallback(triggerElement)
+    triggerElement.parentElement.removeChild(triggerElement)
 }
 
-function disposeDelete(regularElement) {
-    regularElement.classList.remove('deletable')
-    regularElement.classList.remove('clicked')
+function disposeDelete(triggerElement) {
+    triggerElement.classList.remove('deletable')
+    triggerElement.classList.remove('clicked')
 }
 
-function activateDelete(regularElement) {
-    regularElement.classList.add('deletable')
-    setTimeout(disposeDelete, 5000, regularElement)
+function activateDelete(triggerElement) {
+    triggerElement.classList.add('deletable')
+    setTimeout(disposeDelete, 5000, triggerElement)
 }
 
-function deleteRegular(regularElement) {
-    if (regularElement.classList.contains('deletable')) {
-        finaliseDelete(regularElement)
+function triggerDelete(triggerElement, onDeleteCallback) {
+    if (triggerElement.classList.contains('deletable')) {
+        finaliseDelete(triggerElement, onDeleteCallback)
         return
     }
+    
+    if (triggerElement.classList.contains('clicked')) return
+    
+    triggerElement.classList.add('clicked')
+    
+    setTimeout(activateDelete, 1000, triggerElement)
+}
 
-    if (regularElement.classList.contains('clicked')) return
-
-    regularElement.classList.add('clicked')
-    setTimeout(activateDelete, 1000, regularElement)
+function onRegularDelete(regularElement) {
+    let regularID = regularElement.querySelector('.platformID')
+    let groupname = newRegularGroupNameField.value
+    
+    if (regularID === null) return
+    
+    s.emit('DeleteRegular', {platform: selectedPlatform, userId: regularID.innerText, groupName: groupname})
 }
 
 function showRegular(regular) {
@@ -112,20 +176,152 @@ function showRegular(regular) {
     platformID.innerText = regular.id
     div.appendChild(alias)
     div.appendChild(platformID)
-    div.addEventListener('click', function(){ deleteRegular(this) })
+    div.addEventListener('click', function(){ triggerDelete(this, onRegularDelete) })
     regularList.appendChild(div)
+}
+
+function addToGroupList(grouplist, regularGroup) {
+    if (grouplist.querySelector('option[value="' + regularGroup + '"]') !== null) return
+    let opt = document.createElement('option')
+    opt.value = regularGroup
+    opt.innerText = regularGroup
+    grouplist.appendChild(opt)
+}
+
+function deleteFromGroupList(grouplist, regularGroup) {
+    let match = grouplist.querySelector('option[value="' + regularGroup + '"]')
+    if (match === null) return
+    grouplist.removeChild(match)
+}
+
+function showTwitchRegularGroup(regularGroup) {
+    addToGroupList(twitchRegularGroupList, regularGroup)
+
+    let d = document.createElement('div')
+    d.innerText = regularGroup
+    d.classList.add('configItem')
+    d.setAttribute('data-regulargroupname', regularGroup)
+    twitchCurrentRegularGroups.appendChild(d)
+}
+
+function showDiscordRegularGroup(regularGroup) {
+    addToGroupList(discordRegularGroupList, regularGroup)
+}
+
+function deleteTwitchRegularGroup(regularGroup) {
+    deleteFromGroupList(twitchRegularGroupList, regularGroup)
+
+    let d = twitchCurrentRegularGroups.querySelector('div[data-regulargroupname="' + regularGroup + '"]')
+    if (d === null) return
+    d.parentElement.removeChild(d)
+}
+
+function deleteDiscordRegularGroup(regularGroup) {
+    deleteFromGroupList(discordRegularGroupList, regularGroup)
+}
+
+function showTwitchInstance(twitch) {
+    let opt = document.createElement('option')
+    opt.selected = true
+    opt.value = twitch.id
+    opt.text = twitch.alias
+    twitchBotsSelector.appendChild(opt)
+    selectedTwitchInstance(twitch.id)
+}
+
+function selectedTwitchInstance(twitchID) {
+    twitchInstanceCategory.value = 'channels'
+    twitchInstanceCategoryChanged()
+    
+    if (twitchID === 'NEW') {
+        displayTwitchInstance([], [])
+        return;
+    }
+    s.emit('GetTwitchInstanceConfigs', twitchID)
+}
+
+function twitchConfigAddChannel(channel) {
+    if (channel.length === 0) return false
+    let channelL = channel.toLowerCase()
+    if (twitchCurrentChannels.querySelector('[data-channel="' + channelL + '"]') !== null) return false
+    let d = document.createElement('div')
+    d.innerText = channelL
+    d.classList.add('configItem')
+    d.setAttribute('data-channel', channelL)
+    twitchCurrentChannels.appendChild(d)
+    d.addEventListener('click', function() { triggerDelete(d, voidFunc) })
+    return true
+}
+
+function twitchConfigRemoveChannel(channel) {
+    console.log('remove channel', channel)
+}
+
+function displayTwitchInstance(alias, tmi, channels, regularGroups) {
+    twitchCurrentChannels.innerHTML = ''
+    currentTMIElement.value = tmi
+    newTMI(tmi)
+    currentTwitchInstanceAliasElement.value = alias
+    for(let rg of twitchCurrentRegularGroups.children) {
+        rg.classList.remove('selected')
+        rg.setAttribute('data-enabled', '0')
+    }
+    
+    channels.forEach((c) => {
+        let d = document.createElement('div')
+        d.className.add('configItem')
+        d.setAttribute('data-channel', c)
+        d.innerText = c
+        twitchCurrentChannels.appendChild(d)
+    });
+
+    regularGroups.forEach((rg) => {
+        let d = twitchCurrentRegularGroups.querySelector('div[data-regulargroupname="' + rg + '"]')
+        d.classList.add('selected')
+        d.setAttribute('data-enabled', '1')
+    });
+}
+
+function regularGroupNameInputChanged() {
+    if (searchTimeout !== null) clearTimeout(searchTimeout)
+    manageRegularGroup.classList.add('hidden')
+    let v = this.value || ''
+    if (v.length === 0) return
+    searchTimeout = setTimeout(() => searchRegularGroup(v), 1000)
+}
+
+function bubbleToClass(container, clicked, classname) {
+    while (!clicked.classList.contains(classname)) {
+        if (clicked === container) return null
+        clicked = clicked.parentElement
+    }
+    return clicked
+}
+
+function twitchInstanceCategoryChanged() {
+    twitchInstanceDataBlock.classList.remove('hidden')
+    twitchConfigs.classList.remove(...twitchConfigs.classList)
+    twitchConfigs.classList.add(twitchInstanceCategory.value)
+}
+
+function convertNodeList(nodeList, converter) {
+    let res = []
+    for (let e of nodeList) {
+        res.push(converter(e))
+    }
+    return res
+}
+
+function getSelectedRegularGroups(e) {
+    return convertNodeList(e.querySelectorAll('.configItem.selected'), x => x.getAttribute('data-regulargroupname'))
+}
+
+function getChannels(e) {
+    return convertNodeList(e.querySelectorAll('.configItem'), x => x.getAttribute('data-channel'))
 }
 
 setListeners();
 
-let s = io.connect(window.location.origin)
-let Waiting4Response = false
-let ToggleQueue = []
-let Waiting4Save = false
-
-let ResetExtensionBtnActive = false
-
-let ResetExtensionBtn = document.querySelector('#ResetExtensions')
 setTimeout(function() {
     ResetExtensionBtnActive = true
     ResetExtensionBtn.style.display = ''
@@ -141,10 +337,6 @@ document.getElementById('ResetExtensions').addEventListener('click', () => {
 
 for (let i of document.querySelectorAll('article#setup .saveSetupButton')) {
     i.addEventListener('click', function() {
-        if (Waiting4Save) {
-            return
-        }
-
         let e = document.querySelector('article#setup')
         if (e != null) {
             e.classList.add('WaitingForSave')
@@ -160,21 +352,6 @@ for (let i of document.querySelectorAll('article#setup .saveSetupButton')) {
                 break
             case 'exec_per_second-input':
                 obj.executions_per_second = parseFloat(node.value)
-                break
-            case 'jwt-input':
-                obj.jwt_token =  node.value
-                break
-            case 'user_id-input':
-                obj.user_id =  node.value
-                break
-            case 'tmi-input':
-                obj.tmi =  node.value
-                break
-            case 'tmi_username-input':
-                obj.tmi_twitch_username =  node.value
-                break
-            case 'twitch_channel-input':
-                obj.twitch_channel =  node.value
                 break
             default:
                 return
@@ -260,15 +437,21 @@ document.getElementById('ClearMessages').addEventListener('click', () => {
 
 document.getElementById('RegularPlatforms').addEventListener('input', function() {
     selectedPlatform = this.value.toLowerCase();
-    s.emit('GetRegularGroups', selectedPlatform)
+    newRegularGroupNameField.value = ''
+    regularGroupNameInputChanged()
+    switch(selectedPlatform) {
+        case 'twitch':
+            newRegularGroupNameField.setAttribute('list', 'TwitchRegularGroupList')
+            break
+            case 'discord':
+            newRegularGroupNameField.setAttribute('list', 'DiscordRegularGroupList')
+            break
+            default:
+            newRegularGroupNameField.setAttribute('list', '')
+    }
 })
 
-let searchTimeout = null;
-document.getElementById("RegularGroupInput").addEventListener('input', function() {
-    if (searchTimeout !== null) clearTimeout(searchTimeout)
-    let v = this.value;
-    searchTimeout = setTimeout(() => searchRegularGroup(v), 1000);
-});
+newRegularGroupNameField.addEventListener('input', regularGroupNameInputChanged);
 
 document.getElementById('AddRegular').addEventListener('click', function() {
     let regularAlias = newRegularAliasTextField.value
@@ -285,16 +468,94 @@ document.getElementById('AddRegular').addEventListener('click', function() {
 
 document.getElementById('SearchRegularAlias').addEventListener('input', function() { filterAlias(this.value) })
 
+document.getElementById('TwitchAddConfigItem').addEventListener('click', function() {
+    let v = twitchConfigItemInput.value
+    if (twitchConfigAddChannel(v)) twitchConfigItemInput.value = ''
+})
+
+currentTMIElement.addEventListener('input', function() {
+    newTMI(this.value)
+})
+
+twitchInstanceCategory.addEventListener('input', twitchInstanceCategoryChanged)
+
+twitchCurrentRegularGroups.addEventListener('click', function(e) {
+    let configItem = bubbleToClass(this, e.target, 'configItem')
+    if (configItem === null) return
+    configItem.classList.toggle('selected')
+})
+
+twitchBotsSelector.addEventListener('input', function() { selectedTwitchInstance(this.value) })
+
+saveTwitchInstanceBTN.addEventListener('click', function() {
+    if (this.classList.contains('disabled')) return
+
+    let instanceID = twitchBotsSelector.value
+    let instanceAlias = currentTwitchInstanceAliasElement.value
+    let instanceTmi = currentTMI
+    let instanceChannels = getChannels(twitchCurrentChannels)
+    let instanceRegularGroups = getSelectedRegularGroups(twitchCurrentRegularGroups)
+
+    console.log(instanceID, instanceAlias, instanceTmi, instanceChannels, instanceRegularGroups)
+    if (instanceTmi === null || instanceAlias.length === 0) return
+
+    this.classList.add('disabled')
+
+    s.emit('SaveTwitchInstance', {
+        id: instanceID,
+        alias: instanceAlias,
+        tmi: instanceTmi,
+        channels: instanceChannels,
+        regularGroups: instanceRegularGroups
+    })
+})
+
+s.on('SaveTwitchInstance', function(data) {
+    saveTwitchInstanceBTN.classList.remove('disabled')
+    if (data.success) {
+        let e = twitchBotsSelector.querySelector('option[value="' + data.data.id + '"]')
+        if (e) {
+            e.innerText = data.data.alias
+        }
+    }
+})
+
+s.on('GetTwitchInstanceConfigs', function(data) {
+    if (twitchBotsSelector.value !== data.id) {
+        displayTwitchInstance([], [])
+        return
+    }
+    console.log(data)
+    displayTwitchInstance(data.alias, data.tmi, data.channels, data.regularGroups)
+})
+
 s.on('AddRegular', function(data) {
     if (!data.success) return
     showRegular({alias: data.data.alias, id: data.data.userId})
+    if (data.createdGroup) {
+        switch (data.data.platform) {
+            case 'twitch':
+                showTwitchRegularGroup(data.data.groupName)
+                break
+                case 'discord':
+                showDiscordRegularGroup(data.data.groupName)
+                break
+        }
+    }
 })
 
 s.on('DeleteRegular', function(data) {
     if (!data.success) return
-    let regularElement = document.querySelector('#CurrentRegulars > .user[data-platformID="' + data.data.userId + '"]')
-    if (regularElement === null) return
-    regularElement.parentElement.removeChild(regularElement)
+    if (data.deletedGroup) {
+        switch (data.data.platform) {
+            case 'twitch':
+                deleteTwitchRegularGroup(data.data.groupName)
+                break
+                case 'discord':
+                deleteDiscordRegularGroup(data.data.groupName)
+                break
+        }
+    }
 })
 
 s.on('UpdateSettings', () => {
@@ -302,8 +563,6 @@ s.on('UpdateSettings', () => {
     if (e != null) {
         e.classList.remove('WaitingForSave')
     }
-    
-    Waiting4Save = false
 })
 
 s.on('ResetExtensions', (message) => {
@@ -468,7 +727,7 @@ s.on('StreamElementsTestEvent', (data) => {
 })
 
 s.on('ToggleExtension', (message) => {
-    data = parseJSON(message)
+    let data = parseJSON(message)
 
     if (data === null) { return }
     if (data.success === false) {
@@ -490,20 +749,9 @@ s.on('TwitchMessage', (message) => {
     document.querySelector('article#messages section.data').appendChild(new_element)
 })
 
-let regularGroupList = document.getElementById('RegularGroupList')
-s.on('GetRegularGroups', (data) => {
-    if (!data.success) return
-    regularGroupList.innerHTML = ''
-    data.groups.forEach(g => {
-        let opt = document.createElement('option');
-        opt.value = g
-        opt.text = g
-        regularGroupList.appendChild(opt)
-    })
-})
-
 s.on('GetRegulars', (data) => {
     regularList.innerHTML = ''
+    manageRegularGroup.classList.remove('hidden')
     if (!data.success) return
     data.regulars.forEach(regular => showRegular(regular))
 });

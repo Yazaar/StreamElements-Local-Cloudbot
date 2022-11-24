@@ -7,15 +7,15 @@ if typing.TYPE_CHECKING:
 
 class StreamElements:
     def __init__(self, alias : str, extensions : 'Extensions', jwt : str, useSocketio : bool):
-        self.id = hex(id(self))
-        self.alias = alias
+        self.__id = hex(id(self))
+        self.__alias = alias
         
         self.__extensions = extensions
 
         self.__jwt = jwt
         self.__userId : str = None
         self.__clientId : str = None
-        self.eventHistory = []
+        self.__eventHistory = []
 
         self.__sio = socketio.AsyncClient()
         self.__useSocketioMethod = useSocketio == True
@@ -33,9 +33,18 @@ class StreamElements:
         self.__sio.on('event:test', self.__onTestEvent)
         self.__sio.on('disconnect', self.__onDisconnect)
 
-        loop = asyncio.get_event_loop()
-        loop.create_task(self.connect())
+        self.__loop = asyncio.get_event_loop()
+        self.__loop.create_task(self.connect())
+
+    @property
+    def id(self): return self.__id
+
+    @property
+    def alias(self): return self.__alias
     
+    @property
+    def jwt(self): return self.__jwt
+
     @property
     def useSocketIO(self): return self.__useSocketioMethod
     
@@ -43,9 +52,15 @@ class StreamElements:
     def connectedMethod(self): return self.__useSocketio
 
     @property
+    def eventHistory(self): return self.__eventHistory
+
+    @property
     def connected(self):
         if self.__useSocketio: return self.__sio.connected
         else: return self.__wsConn != None
+
+    def stopStreamElements(self):
+        self.__loop.create_task(self.disconnect())
 
     async def setMethod(self, useSocketIO : bool):
         self.__useSocketioMethod = useSocketIO == True
@@ -176,8 +191,8 @@ class StreamElements:
         if not isinstance(data, dict): return
         event = StreamElementsGenericEvent(self, data, False)
         self.__extensions.streamElementsEvent(event)
-        self.eventHistory.append(event)
-        if len(self.eventHistory) > 100: self.eventHistory.pop(0)
+        self.__eventHistory.append(event)
+        if len(self.__eventHistory) > 100: self.__eventHistory.pop(0)
 
     async def __onTestEvent(self, data=''):
         if not isinstance(data, dict): return

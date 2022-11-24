@@ -3,14 +3,15 @@ import aiohttp.client_exceptions
 from sys import argv
 from pathlib import Path
 
+def validPort(port : int): return port > -1 and port < 65354
+
 def portOverride(defaultPort : int) -> tuple[bool, int]:
     argvLength = len(argv)
     for i in range(argvLength):
         if argv[i] == '--port' and i != argvLength - 1:
             try:
                 port = int(argv[i + 1])
-                if port > -1 and port < 65354:
-                    return True, port
+                if validPort(port): return True, port
             except Exception:
                 pass
     return False, defaultPort

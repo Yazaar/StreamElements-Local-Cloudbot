@@ -1,4 +1,4 @@
-from dependencies.modules import Extensions, Settings, Misc, Web
+from dependencies.modules import Extensions, Misc, Web
 from aiohttp import web
 from pathlib import Path
 import socketio, jinja2, aiohttp_jinja2, asyncio, json
@@ -7,13 +7,11 @@ site = None
 STATIC_FOLDER = Path('dependencies/web/static').resolve()
 EXTENSIONS_FOLDER = Path('extensions').resolve()
 
-settings = Settings.Settings()
-
 sio = socketio.AsyncServer(async_mode='aiohttp', async_handlers=True, cors_allowed_origins='*')
 app = web.Application()
 sio.attach(app)
 
-extensions = Extensions.Extensions(sio, settings)
+extensions = Extensions.Extensions(sio)
 
 aiohttp_jinja2.setup(app, enable_async=True, loader=jinja2.FileSystemLoader(Path('dependencies/web/HTML')))
 
@@ -120,16 +118,18 @@ async def handleScriptTalk(data : dict) -> tuple[bool, str | None]:
         'scripts': [data['module']],
         'data': data['data']
     })
-    
+
 @routes.get('/')
 async def web_index(request : web.Request):
     context = {
-        'extensions': extensions.extensions, 'ExtensionsSettings': extensions.settings, 'events': [],
+        'extensions': extensions.extensions, 'ExtensionsSettings': extensions.settingsUI, 'events': [],
         'messages': [], 'ExtensionLogs': extensions.logs, 'regularPlatforms': ['Discord', 'Twitch'],
-        'serverPort': settings.currentPort,
-        'tickrate': settings.tickrate,
+        'serverPort': extensions.settings.currentPort,
+        'tickrate': extensions.settings.tickrate,
         'discords': extensions.discordInstances,
         'twitch': extensions.twitchInstances,
+        'twitchRegularGroups': extensions.regulars.getGroups('twitch'),
+        'discordRegularGroups': extensions.regulars.getGroups('discord'),
         'streamelements': extensions.streamElementsInstances,
     }
     return await aiohttp_jinja2.render_template_async('index.html', request, context)
@@ -172,7 +172,7 @@ async def web_extensions(request : web.Request):
         with open(target, 'r') as f:
             content = f.read()
         templ : jinja2.Template = jinja2.Template(content)
-        templ_rendered = templ.render(server_url=f'http://{Misc.getServerIP()}:{str(settings.currentPort)}')
+        templ_rendered = templ.render(server_url=f'http://{Misc.getServerIP()}:{str(extensions.settings.currentPort)}')
         return web.Response(text=templ_rendered, content_type='text/html')
     
     return web.FileResponse(target)
@@ -295,6 +295,17 @@ async def sio_toggleExtension(sid, data=''):
     data['success'] = True
     await sio.emit('ToggleExtension', data, room=sid)
 
+@sio.on('SaveTwitchInstance')
+async def sio_saveTwitchInstance(sid, data=''):
+    if not isinstance(data, dict):
+        await sio.emit('SaveTwitchInstance', {'success': False}, room=sid)
+        return
+    
+    success, errorMsg = await extensions.updateTwitch(data.get('id'), data.get('alias'), data.get('tmi'), data.get('channels'), data.get('regularGroups'))
+
+    if success: await sio.emit('SaveTwitchInstance', {'success': success, 'data': data}, room=sid)
+    else: await sio.emit('SaveTwitchInstance', {'success': success, 'message': errorMsg, 'data': data}, room=sid) 
+
 @sio.on('SaveSettings')
 async def sio_saveSettings(sid, data=''):
     if not isinstance(data, dict):
@@ -349,9 +360,9 @@ async def sio_addRegular(sid, data=''):
         await sio.emit('AddRegular', {'success': False, 'message': 'invalid data format (use a dict)'}, room=sid)
         return
     
-    success, resp = extensions.regulars.addRegular(**parsedData)
+    success, resp, createdGroup = extensions.regulars.addRegular(**parsedData)
 
-    if success: await sio.emit('AddRegular', {'success': True, 'data': parsedData}, room=sid)
+    if success: await sio.emit('AddRegular', {'success': True, 'data': parsedData, 'createdGroup': createdGroup}, room=sid)
     else: await sio.emit('AddRegular', {'success': False, 'message': resp, 'data': parsedData}, room=sid)
 
 @sio.on('DeleteRegular')
@@ -372,10 +383,47 @@ async def sio_deleteRegular(sid, data=''):
         await sio.emit('DeleteRegular', {'success': False, 'message': 'invalid data format (use a dict)'}, room=sid)
         return
     
-    success, resp = extensions.regulars.removeRegular(**parsedData)
+    success, resp, deletedGroup = extensions.regulars.removeRegular(**parsedData)
 
-    if success: await sio.emit('DeleteRegular', {'success': True, 'data': parsedData}, room=sid)
+    if success: await sio.emit('DeleteRegular', {'success': True, 'data': parsedData, 'deletedGroup': deletedGroup}, room=sid)
     else: await sio.emit('DeleteRegular', {'success': False, 'message': resp, 'data': parsedData}, room=sid)
+
+@sio.on('AddTwitchTMI')
+async def sio_AddTwitchTMI(sid, data=''):
+    if not isinstance(data, dict):
+        await sio.emit('AddTwitchTMI', {'success': False, 'message': 'invalid data format (use a dictionary)'}, room=sid)
+        return
+    
+    tmi = data.get('tmi', None)
+    alias = data.get('alias', None)
+
+    if not isinstance(tmi, str):
+        await sio.emit('AddTwitchTMI', {'success': False, 'message': 'passed data require the key tmi as a string'}, room=sid)
+        return
+    if not isinstance(alias, str):
+        await sio.emit('AddTwitchTMI', {'success': False, 'message': 'passed data require the key alias as a string'}, room=sid)
+        return
+    
+    success, payload = await extensions.addTwitchInstance(alias, tmi)
+
+    if not success:
+        await sio.emit('AddTwitchTMI', {'success': False, 'message': payload}, room=sid)
+        return
+
+    await sio.emit('AddTwitchTMI', {'success': True, 'alias': alias, 'twitchInstanceID': payload.id}, room=sid)
+
+@sio.on('GetTwitchInstanceConfigs')
+async def sio_GetTwitchInstanceChannels(sid, data=''):
+    if not isinstance(data, str):
+        await sio.emit('GetTwitchInstanceConfigs', {'success': False, 'message': 'Passed data have to be a string (of an existing twitch instance ID)'}, room=sid)
+        return
+    
+    foundTwitch = extensions.findTwitch(id_=data)
+    if foundTwitch == None:
+        await sio.emit('GetTwitchInstanceConfigs', {'success': False, 'message': 'Passed twitch instance ID does not exist'}, room=sid)
+        return
+    
+    await sio.emit('GetTwitchInstanceConfigs', {'success': True, 'channels': foundTwitch.allChannels, 'regularGroups': foundTwitch.regularGroups, 'alias': foundTwitch.alias, 'tmi': foundTwitch.tmi, 'id': foundTwitch.id}, room=sid)
 
 @sio.on('UpdateSettings')
 async def sio_updateSettings(sid, data=''):
@@ -491,15 +539,15 @@ async def run():
 
     extensions.loadServices()
 
-    with open('website.html', 'w') as f: f.write('<script>window.location = "http://localhost:' + str(settings.currentPort) + '"</script>')
+    with open('website.html', 'w') as f: f.write('<script>window.location = "http://localhost:' + str(extensions.settings.currentPort) + '"</script>')
     urlJsPath = Path('dependencies/data/url.js')
     urlJsPath.parent.mkdir(parents=True, exist_ok=True)
-    with open(urlJsPath, 'w') as f: f.write('var server_url = \"http://' + Misc.getServerIP() + ':' + str(settings.currentPort) + '\";')
+    with open(urlJsPath, 'w') as f: f.write('var server_url = \"http://' + Misc.getServerIP() + ':' + str(extensions.settings.currentPort) + '\";')
 
-    print('starting website: http://localhost:' + str(settings.currentPort) + ' (Saving website shortcut to website.html)')
+    print('starting website: http://localhost:' + str(extensions.settings.currentPort) + ' (Saving website shortcut to website.html)')
 
     await runner.setup()
-    site = web.TCPSite(runner=runner, host='0.0.0.0', port=settings.currentPort)
+    site = web.TCPSite(runner=runner, host='0.0.0.0', port=extensions.settings.currentPort)
     await site.start()
 
     while True:

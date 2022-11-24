@@ -1,11 +1,31 @@
-import asyncio, time, datetime, typing
+import asyncio, time, datetime, typing, copy, json
+from . import Misc
 
 if typing.TYPE_CHECKING:
-    from dependencies.modules.Extensions import Extensions
+    from . import Extensions
 
 class Twitch:
-    def __init__(self, alias : str, extensions : 'Extensions', tmi : str, botname : str, channels : list, regularGroups : list[str]):
-        self.id = hex(id(self))
+    async def parseTMI(tmi : str) -> tuple[str, str, None] | tuple[None, None, str]:
+        if tmi.startswith('oauth:'): tmi = tmi[6:]
+
+        if len(tmi) == 0: return None, None, 'tmi have to be a string with a length larger than 0'
+
+        resp, errorCode = await Misc.fetchUrl('https://id.twitch.tv/oauth2/validate', headers={'Authorization': f'Bearer {tmi}'})
+
+        if errorCode != 1: return None, None, 'unable to send HTTP request to validate TMI'
+        
+        try: parsedResp = json.loads(resp)
+        except Exception: return False, 'unable to parse HTTP response from TMI validation'
+        
+        if not isinstance(parsedResp, dict): return None, None, 'invalid format returned by HTTP response from TMI validation, should be json dictionary'
+
+        botname = parsedResp.get('login', None)
+        if botname == None: return None, None, 'HTTP response from TMI validation does not include a login'
+
+        return f'oauth:{tmi}', botname, None
+    
+    def __init__(self, alias : str, extensions : 'Extensions.Extensions', tmi : str, botname : str, channels : list, regularGroups : list[str], channelConfig : dict[str, dict[str, typing.Any]]):
+        self.__id = hex(id(self))
         self.alias = alias
         
         self.__runnerId = 0
@@ -19,17 +39,50 @@ class Twitch:
         self.__channels : list[str] = channels
 
         self.__regularGroups = regularGroups
+        self.__channelConfig = channelConfig
 
         self.__runTask : asyncio.Task = None
 
-        self.clientContext = TwitchContext(self)
+        self.__clientContext = TwitchContext(self)
 
         self.start()
-    
+
+    @property
+    def id(self): return self.__id
+
     @property
     def botname(self): return self.__botname
     
+    @property
+    def tmi(self): return self.__tmi
+    
+    @property
     def allChannels(self): return self.__channels.copy()
+    
+    @property
+    def regularGroups(self): return self.__regularGroups.copy()
+    
+    @property
+    def channelConfig(self): return copy.deepcopy(self.__channelConfig)
+    
+    @property
+    def clientContext(self): return self.__clientContext
+
+    @property
+    def running(self):
+        if self.__runTask is None: return False
+        return not self.__runTask.done()
+
+    async def setTMI(self, tmi : str):
+        if tmi == self.__tmi: return True, None
+        tmi, botname, erorMsg = await Twitch.parseTMI(tmi)
+        if not erorMsg is None: return False, erorMsg
+
+        self.__tmi = tmi
+        self.__botname = botname
+
+        if not self.__runTask.done(): self.start()
+        return True, None
 
     def defaultChannel(self):
         if len(self.__channels) > 0: return self.__channels[0]
@@ -48,6 +101,14 @@ class Twitch:
         self.__writer.write(f'PRIVMSG #{sendInChannel.lower()} :{message}\r\n'.encode('utf-8'))
         return True, None
     
+    def setRegularGroups(self, regularGroups : list[str]):
+        self.__regularGroups.clear()
+        for rg in regularGroups: self.addRegularGroup(rg)
+    
+    def addRegularGroup(self, regularGroup : str):
+        if not isinstance(regularGroup, str) or len(regularGroup) == 0 or regularGroup in self.__regularGroups: return
+        self.__regularGroups.append(regularGroup)
+
     def isRegular(self, channel : str, username : str):
         regularGroups = [i for i in self.__regularGroups]
         if channel != None: regularGroups.append(f'channel.{channel}')
@@ -55,14 +116,44 @@ class Twitch:
     
     def onrawMsg(self, rawMsg : str):
         self.__extensions.twitchMessage(TwitchMessage(self, rawMsg))
-    
+
     def start(self):
-        self.stop()
+        self.stopTwitch()
 
         loop = asyncio.get_event_loop()
         loop.create_task(self.listen(self.__runnerId))
+    
+    def setChannels(self, channels : list[str]):
+        parsedChannels = set([i.lower() for i in channels if isinstance(i, str) and len(i) > 0])
+        currentChannels = set(self.__channels)
 
-    def stop(self):
+        newChannels = parsedChannels - currentChannels
+        removedChannels = currentChannels - parsedChannels
+
+        for c in newChannels: self.addChannel(c)
+        for c in removedChannels: self.removeChannel(c)
+    
+    def addChannel(self, rawChannel : str):
+        if not isinstance(rawChannel, str) or len(rawChannel) == 0: return
+        channel = rawChannel.lower()
+        if channel in self.__channels: return
+        self.__channels.append(channel)
+
+        if self.__writer == None: return
+        
+        self.__writer.write(b'JOIN #' + channel.lower().encode('utf-8') + b'\r\n')
+    
+    def removeChannel(self, rawChannel : str):
+        if not isinstance(rawChannel, str) or len(rawChannel) == 0: return
+        channel = rawChannel.lower()
+        if not channel in self.__channels: return
+        self.__channels.remove(channel)
+
+        if self.__writer == None: return
+        
+        self.__writer.write(b'PART #' + channel.lower().encode('utf-8') + b'\r\n')
+
+    def stopTwitch(self):
         self.__runnerId += 1
     
     def __close(self):

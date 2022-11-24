@@ -1,5 +1,5 @@
 from .vendor.StructGuard import StructGuard
-from . import Discord, Twitch, StreamElements, Settings, Regulars, Web, ExtensionCrossover, SettingsUI, MinorExtensionArgs
+from . import Discord, Twitch, StreamElements, Settings, Regulars, Web, ExtensionCrossover, SettingsUI, MinorExtensionArgs, Misc
 import importlib, inspect, asyncio, threading, socketio, json, time
 from pathlib import Path
 
@@ -201,9 +201,9 @@ class ExtensionMethod():
         return inspect.iscoroutinefunction(func)
 
 class Extensions():
-    def __init__(self, websio : socketio.AsyncServer, settings : Settings.Settings):
+    def __init__(self, websio : socketio.AsyncServer):
         self.__websio = websio
-        self.__settings = settings
+        self.settings = Settings.Settings(self)
         self.regulars = Regulars.Regulars()
 
         self.twitchInstances : list[Twitch.Twitch] = []
@@ -223,7 +223,7 @@ class Extensions():
         self.__enabledExtensions = self.__loadEnabled(self.__enabledExtensionsPath)
 
         self.extensions : list[Extension] = []
-        self.settings : list[SettingsUI.SettingsUI] = []
+        self.settingsUI : list[SettingsUI.SettingsUI] = []
 
         self.__loadExtensions(self.__extensionsPath)
 
@@ -233,6 +233,11 @@ class Extensions():
         self.__loop = asyncio.get_event_loop()
 
         self.__loop.create_task(self.__ticker())
+
+    def loadServices(self):
+        self.twitchInstances = self.settings.loadTwitch()
+        self.discordInstances = self.settings.loadDiscord()
+        self.streamElementsInstances = self.settings.loadStreamElements()
 
     def findTwitch(self, *, alias : str = None, id_ : str = None):
         if (not isinstance(alias, str)) and (not isinstance(id_, str)): return
@@ -260,11 +265,6 @@ class Extensions():
     def defaultDiscord(self):
         if len(self.discordInstances) == 0: return None
         return self.discordInstances[0]
-    
-    def loadServices(self):
-        self.twitchInstances = self.__loadTwitchInstances()
-        self.discordInstances = self.__loadDiscordInstances()
-        self.streamElementsInstances = self.__loadStreamElementsInstances()
 
     def reloadExtensions(self):
         self.__unloadExtensions()
@@ -286,39 +286,60 @@ class Extensions():
         for ext in self.extensions:
             if ext.moduleName == moduleName: return ext
         return None
+    
+    async def updateTwitch(self, tID, tAlias, tTMI, tChannels, tRegualarGroups):
+        t = self.findTwitch(id_=tID)
+        if t is None: return False, 'Twitch ID not found'
+        await t.setTMI(tTMI)
+        t.alias = tAlias
+        t.setChannels(tChannels)
+        t.setRegularGroups(tRegualarGroups)
+        if not t.running: t.start()
+        self.settings.saveTwitch(self.twitchInstances)
+        return True, None
 
-    def addTwitchInstance(self, alias : str, tmi : str, botname : str, channels : list[str]):
-        twitchInstance = Twitch.Twitch(alias, self, tmi, botname, channels, [])
+    async def addTwitchInstance(self, alias : str, tmi : str) -> tuple[bool, str | Twitch.Twitch]:
+        if len(alias) == 0: return False, 'alias have to be a string with a length larger than 0'
+
+        tmi, botname, errorMsg = await Twitch.Twitch.parseTMI(tmi)
+        if tmi is None or botname is None: return False, errorMsg
+
+        twitchInstance = Twitch.Twitch(alias, self, tmi, botname, [], [], {})
         self.twitchInstances.append(twitchInstance)
-        return twitchInstance
+        self.settings.saveTwitch(self.twitchInstances)
+        return True, twitchInstance
 
     def removeTwitchInstance(self, twitchId : int):
         removeThis : Twitch.Twitch = self.__find(self.twitchInstances, twitchId)
         if removeThis != None:
             self.twitchInstances.remove(removeThis)
-            removeThis.stop()
+            removeThis.stopTwitch()
+            self.settings.saveTwitch(self.twitchInstances)
 
     def addDiscordInstance(self, alias : str, key : str):
-        discordInstance = Discord.Discord(alias, self, key)
+        discordInstance = Discord.Discord(alias, self, key, [], {})
         self.discordInstances.append(discordInstance)
+        self.settings.saveDiscord(self.discordInstances)
         return discordInstance
 
     def removeDiscordInstance(self, discordId : int):
         removeThis : Discord.Discord = self.__find(self.discordInstances, discordId)
         if removeThis != None:
             self.discordInstances.remove(removeThis)
-            removeThis.stop()
+            removeThis.stopDiscord()
+            self.settings.saveDiscord(self.discordInstances)
 
     def addStreamElementsInstance(self, alias : str, jwt : str, useSocketio : bool):
         streamElementsInstance = StreamElements.StreamElements(alias, self, jwt, useSocketio)
         self.streamElementsInstances.append(streamElementsInstance)
+        self.settings.saveStreamElements(self.streamElementsInstances)
         return streamElementsInstance
 
     def removeStreamElementsInstance(self, streamElementsId : int):
         removeThis : StreamElements.StreamElements = self.__find(self.streamElementsInstances, streamElementsId)
         if removeThis != None:
             self.streamElementsInstances.remove(removeThis)
-            removeThis.stop()
+            removeThis.stopStreamElements()
 
     def addExtension(self, extension : Extension):
         for i in self.extensions:
@@ -595,7 +616,7 @@ class Extensions():
         for i in self.__legacyCallbacks: self.__callbacks[i].clear()
         for i in self.extensions: i.reload()
         self.extensions.clear()
-        self.settings.clear()
+        self.settingsUI.clear()
 
     def __addExtension(self, path : Path):
         newExt = Extension(self, path)
@@ -606,7 +627,7 @@ class Extensions():
     def __addSetting(self, path : Path):
         try: settingsUI = SettingsUI.SettingsUI(path.parent)
         except SettingsUI.SettingsUIError as e: return False, e.args[0]
-        self.settings.append(settingsUI)
+        self.settingsUI.append(settingsUI)
     
     def updateSettings(self, data):
         sgResp = StructGuard.verifyDictStructure(data, {
@@ -618,13 +639,13 @@ class Extensions():
         }, rebuild=False)[0]
         if sgResp == StructGuard.INVALID: return False, 'Update settings data dict has invalid keys and values. Check documentation.'
 
-        try: setting = self.settings[data[data['index']]]
+        try: setting = self.settingsUI[data[data['index']]]
         except Exception: setting = None
 
         if (not setting is None) and setting['name'] != data['name']: setting = None
 
         if setting is None:
-            for i in self.settings:
+            for i in self.settingsUI:
                 if i.name == data['name']:
                     setting = i
                     break

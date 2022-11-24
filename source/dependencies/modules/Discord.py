@@ -4,25 +4,45 @@ if typing.TYPE_CHECKING:
     from dependencies.modules.Extensions import Extensions
 
 class Discord(discord.Client):
-    def __init__(self, alias : str, extensions : 'Extensions', token : str):
-        self.id = hex(id(self))
-        self.alias = alias
+    def __init__(self, alias : str, extensions : 'Extensions', token : str, regularGroups : list[str], guildConfig : dict[str, dict[str, typing.Any]]):
+        self.__id = hex(id(self))
+        self.__alias = alias
         
         self.__extensions = extensions
         self.__token = token
+        self.__regularGroups = regularGroups
+        self.__guildConfig = guildConfig
 
         intents = discord.Intents.default()
         intents.members = True
 
         super().__init__(intents=intents)
         
-        self.clientContext = DiscordClientContext(self)
+        self.__clientContext = DiscordClientContext(self)
 
         self.loop = asyncio.get_event_loop()
         self.startDiscord()
 
+    @property
+    def id(self): return self.__id
+
+    @property
+    def alias(self): return self.__alias
+
+    @property
+    def token(self): return self.__token
+
+    @property
+    def regularGroups(self): return self.__regularGroups
+
+    @property
+    def guildConfig(self): return self.__guildConfig
+
+    @property
+    def clientContext(self): return self.__clientContext
+
     def stopDiscord(self):
-        self.loop.run_until_complete(self.close())
+        self.loop.create_task(self.close())
     
     def startDiscord(self):
         self.loop.create_task(self.startup())
