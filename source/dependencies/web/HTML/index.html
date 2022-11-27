@@ -209,8 +209,8 @@
             <p>Keep the TMI secret!</p>
             <select id="SelectedTwitch">
                 <option selected hidden>Select bot</option>
-                {% for t in twitch %}
                 <option value="NEW">Create</option>
+                {% for t in twitch %}
                 <option value="{{t.id}}">{{t.alias}}</option>
                 {% endfor %}
             </select>
@@ -218,38 +218,38 @@
                 <div>
                     <div id="SaveTwitch" class="button">Save instance</div>
                 </div>
-                <h2>TMI</h3>
-                    <input type="password" id="GeneratedTMI">
-                    <p id="TMIAccountName">TMI account name: <span></span></p>
-                    <h2>Alias</h2>
-                    <input type="text" id="NewTwitchAlias">
-                    <h2>Configuration</h2>
-                    <select id="TwitchInstanceCategory">
-                        <option hidden selected></option>
-                        <option value="channels">Channels</option>
-                        <option value="regularGroups">Regular groups</option>
-                    </select>
-                    <div id="TwitchInstanceConfigs">
-                        <div id="TwitchInstanceChannels">
-                            <h3 class="smaller pushDown">Add new</h3>
-                            <input id="TwitchConfigItemInput" type="text">
-                            <div>
-                                <div id="TwitchAddConfigItem" class="button">Add new</div>
-                            </div>
-                            <h3>Channels</h3>
-                            <p>Click twice (second time once red) to delete</p>
-                            <div id="TwitchCurrentChannels"></div>
+                <h2>Alias</h2>
+                <input type="text" id="NewTwitchAlias">
+                <h2>TMI</h2>
+                <input type="password" id="GeneratedTMI">
+                <p id="TMIAccountName">TMI account name: <span></span></p>
+                <h2>Configuration</h2>
+                <select id="TwitchInstanceCategory">
+                    <option hidden selected></option>
+                    <option value="channels">Channels</option>
+                    <option value="regularGroups">Regular groups</option>
+                </select>
+                <div id="TwitchInstanceConfigs">
+                    <div id="TwitchInstanceChannels">
+                        <h3 class="smaller pushDown">Add new</h3>
+                        <input id="TwitchConfigItemInput" type="text">
+                        <div>
+                            <div id="TwitchAddConfigItem" class="button">Add new</div>
                         </div>
-                        <div id="TwitchInstanceRegularGroups">
-                            <h3>Channels</h3>
-                            <p>Click to include regular group (green = included)</p>
-                            <div id="TwitchCurrentRegularGroups">
-                                {% for trg in twitchRegularGroups %}
-                                <div class="configItem" data-regularGroupName="{{trg}}" data-enabled="0">{{trg}}</div>
-                                {% endfor %}
-                            </div>
+                        <h3>Channels</h3>
+                        <p>Click twice (second time once red) to delete</p>
+                        <div id="TwitchCurrentChannels"></div>
+                    </div>
+                    <div id="TwitchInstanceRegularGroups">
+                        <h3>Regular groups</h3>
+                        <p>Click to include regular group (green = included)</p>
+                        <div id="TwitchCurrentRegularGroups">
+                            {% for trg in twitchRegularGroups %}
+                            <div class="configItem" data-regularGroupName="{{trg}}">{{trg}}</div>
+                            {% endfor %}
                         </div>
                     </div>
+                </div>
             </div>
         </section>
     </article>
@@ -258,6 +258,23 @@
             <h1>StreamElements</h1>
         </header>
         <section class="data">
+            <select id="SelectedStreamElements">
+                <option selected hidden>Select bot</option>
+                <option value="NEW">Create</option>
+                {% for s in streamelements %}
+                <option value="{{s.id}}">{{s.alias}}</option>
+                {% endfor %}
+            </select>
+            <div id="StreamElementsInstanceData" class="hidden">
+                <div>
+                    <div id="SaveStreamElements" class="button">Save instance</div>
+                </div>
+                <h2>Alias</h2>
+                <input type="text" id="NewStreamElementsAlias">
+                <h2>JWT</h2>
+                <input type="password" id="GeneratedJWT">
+                <p id="JTWAccountName">Channel target: <span></span></p>
+            </div>
         </section>
     </article>
     <article id="discord">
@@ -265,6 +282,46 @@
             <h1>Discord</h1>
         </header>
         <section class="data">
+            <a href="https://discord.com/developers/applications" target="_blank" rel="noopener noreferrer" class="button">Get token</a>
+            <p>Keep the token secret (get one by creating an app on the Discord dashboard)!</p>
+            <select id="SelectedDiscord">
+                <option selected hidden>Select bot</option>
+                <option value="NEW">Create</option>
+                {% for d in discords %}
+                <option value="{{d.id}}">{{d.alias}}</option>
+                {% endfor %}
+            </select>
+            <div id="DiscordInstanceData" class="hidden">
+                <div>
+                    <div id="SaveDiscord" class="button">Save instance</div>
+                </div>
+                <h2>Alias</h2>
+                <input type="text" id="NewDiscordAlias">
+                <h2>Token</h2>
+                <input type="password" id="GeneratedToken">
+                <p id="TokenAccountName">Bot account: <span></span></p>
+                <h2>Intents</h2>
+                <p>Each intent have to be enabled on the Discord application dashboard!</p>
+                <div class="horizontalItemsFlex centerVerticalFlex pushDown">
+                    <input id="DiscordMembersIntent" class="CustomCheckbox" type="checkbox" />
+                    <span class="pushRight">Members</span>
+                </div>
+                <div class="horizontalItemsFlex centerVerticalFlex pushDown">
+                    <input id="DiscordPresencesIntent" class="CustomCheckbox" type="checkbox" />
+                    <span class="pushRight">Presences</span>
+                </div>
+                <div class="horizontalItemsFlex centerVerticalFlex pushDown">
+                    <input id="DiscordMessageContentIntent" class="CustomCheckbox" type="checkbox" />
+                    <span class="pushRight">Message content</span>
+                </div>
+                <h2>Regular groups</h2>
+                <p>Click to include regular group (green = included)</p>
+                <div id="DiscordCurrentRegularGroups">
+                    {% for drg in discordRegularGroups %}
+                    <div class="configItem" data-regularGroupName="{{drg}}">{{drg}}</div>
+                    {% endfor %}
+                </div>
+            </div>
         </section>
     </article>
     <article id="setup">

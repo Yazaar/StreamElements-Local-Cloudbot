@@ -287,8 +287,11 @@ class Extensions():
             if ext.moduleName == moduleName: return ext
         return None
     
-    async def updateTwitch(self, tID, tAlias, tTMI, tChannels, tRegualarGroups):
-        t = self.findTwitch(id_=tID)
+    async def updateTwitch(self, tID, tAlias, tTMI, tChannels, tRegualarGroups) -> tuple[bool, str | Twitch.Twitch]:
+        if tID == 'NEW':
+            tCreated, t = await self.__addTwitchInstance(tAlias, tTMI)
+            if not tCreated: return False, t
+        else: t = self.findTwitch(id_=tID)
         if t is None: return False, 'Twitch ID not found'
         await t.setTMI(tTMI)
         t.alias = tAlias
@@ -296,17 +299,53 @@ class Extensions():
         t.setRegularGroups(tRegualarGroups)
         if not t.running: t.start()
         self.settings.saveTwitch(self.twitchInstances)
-        return True, None
+        return True, t
+    
+    async def updateStreamElements(self, seID, seAlias, seJWT) -> tuple[bool, str | StreamElements.StreamElements]:
+        if seID == 'NEW':
+            seCreated, se = await self.__addStreamElementsInstance(seAlias, seJWT)
+            if not seCreated: return False, se
+        else: se = self.findStreamElements(id_=seID)
+        if se is None: return False, 'StreamElements ID not found'
+        await se.setJWT(seJWT)
+        se.alias = seAlias
+        if not se.connected: se.startStreamElements()
+        self.settings.saveStreamElements(self.streamElementsInstances)
+        return True, se
+    
+    async def updateDiscord(self, dID : str, dAlias : str, dToken : str, dRegularGroups : list[str], *, membersIntent=False, presencesIntent=False, messageContentIntent=False) -> tuple[bool, str | Discord.Discord]:
+        if dID == 'NEW':
+            dCreated, d = await self.__addDiscordInstance(dAlias, dToken, membersIntent=membersIntent, presencesIntent=presencesIntent, messageContentIntent=messageContentIntent)
+            if not dCreated: return False, d
+        else: d = self.findDiscord(id_=dID)
+        if d is None: return False, 'Discord ID not found'
+        await d.setToken(dToken)
+        d.alias = dAlias
+        d.setRegularGroups(dRegularGroups)
+        await d.setIntents(membersIntent=membersIntent, presencesIntent=presencesIntent, messageContentIntent=messageContentIntent)
+        self.settings.saveDiscord(self.discordInstances)
+        return True, d
 
-    async def addTwitchInstance(self, alias : str, tmi : str) -> tuple[bool, str | Twitch.Twitch]:
+    def __newID(self, idPrefix : str, finder):
+        idKey = 0
+        idSuffix = hex(int(time.time()))[1:]
+        while finder(id_=f'{idPrefix}{idKey}{idSuffix}') is not None: idKey += 1
+        return f'{idPrefix}{idKey}{idSuffix}'
+    
+    def newDiscordID(self): return self.__newID('dc:', self.findDiscord)
+
+    def newStreamElementsID(self): return self.__newID('se:', self.findStreamElements)
+
+    def newTwitchID(self): return self.__newID('tw:', self.findTwitch)
+
+    async def __addTwitchInstance(self, alias : str, tmi : str) -> tuple[bool, str | Twitch.Twitch]:
         if len(alias) == 0: return False, 'alias have to be a string with a length larger than 0'
 
         tmi, botname, errorMsg = await Twitch.Twitch.parseTMI(tmi)
         if tmi is None or botname is None: return False, errorMsg
 
-        twitchInstance = Twitch.Twitch(alias, self, tmi, botname, [], [], {})
+        twitchInstance = Twitch.Twitch(self.newTwitchID(), alias, self, tmi, botname, [], [], {})
         self.twitchInstances.append(twitchInstance)
-        self.settings.saveTwitch(self.twitchInstances)
         return True, twitchInstance
 
     def removeTwitchInstance(self, twitchId : int):
@@ -316,11 +355,15 @@ class Extensions():
             removeThis.stopTwitch()
             self.settings.saveTwitch(self.twitchInstances)
 
-    def addDiscordInstance(self, alias : str, key : str):
-        discordInstance = Discord.Discord(alias, self, key, [], {})
+    async def __addDiscordInstance(self, alias : str, token : str, *, membersIntent=False, presencesIntent=False, messageContentIntent=False):
+        if len(alias) == 0: return False, 'alias have to be a string with a length larger than 0'
+        validToken, errorMsgOrBotname = await Discord.Discord.parseToken(token)
+        if not validToken: return False, errorMsgOrBotname
+
+        discordInstance = Discord.Discord(self.newDiscordID(), alias, self, token, [], {}, membersIntent=membersIntent, presencesIntent=presencesIntent, messageContentIntent=messageContentIntent)
         self.discordInstances.append(discordInstance)
         self.settings.saveDiscord(self.discordInstances)
-        return discordInstance
+        return True, discordInstance
 
     def removeDiscordInstance(self, discordId : int):
         removeThis : Discord.Discord = self.__find(self.discordInstances, discordId)
@@ -329,11 +372,12 @@ class Extensions():
             removeThis.stopDiscord()
             self.settings.saveDiscord(self.discordInstances)
 
-    def addStreamElementsInstance(self, alias : str, jwt : str, useSocketio : bool):
-        streamElementsInstance = StreamElements.StreamElements(alias, self, jwt, useSocketio)
+    async def __addStreamElementsInstance(self, alias : str, jwt : str) -> tuple[bool, str] | tuple[bool, StreamElements.StreamElements]:
+        accountName, errorMsg = await StreamElements.StreamElements.parseJWT(jwt)
+        if accountName is None: return False, errorMsg
+        streamElementsInstance = StreamElements.StreamElements(self.newStreamElementsID(), alias, self, jwt)
         self.streamElementsInstances.append(streamElementsInstance)
-        self.settings.saveStreamElements(self.streamElementsInstances)
-        return streamElementsInstance
+        return True, streamElementsInstance
 
     def removeStreamElementsInstance(self, streamElementsId : int):
         removeThis : StreamElements.StreamElements = self.__find(self.streamElementsInstances, streamElementsId)
@@ -661,24 +705,6 @@ class Extensions():
             if f.is_dir(): self.__loadExtensions(f)
             elif f.name.endswith('_LSE.py'): self.__addExtension(f)
             elif f.name == 'SettingsUI.json': self.__addSetting(f)
-
-    def __loadTwitchInstances(self):
-        instances = []
-        for twitch in self.__settings.getTwitch():
-            instances.append(Twitch.Twitch(twitch['alias'], self, twitch['tmi'], twitch['botname'], twitch['channels'].copy(), twitch['regularGroups']))
-        return instances
-
-    def __loadDiscordInstances(self):
-        instances = []
-        for discord in self.__settings.getDiscord():
-            instances.append(Discord.Discord(discord['alias'], self, discord['token']))
-        return instances
-
-    def __loadStreamElementsInstances(self):
-        instances = []
-        for streamelements in self.__settings.getStreamElements():
-            instances.append(StreamElements.StreamElements(streamelements['alias'], self, streamelements['jwt'], streamelements['useSocketIO']))
-        return instances
 
     def __handleExtensionError(self, ext : Extension, exception : Exception, executionType : str):
         #if isinstance(rawModuleName, str): moduleName = rawModuleName[11:]

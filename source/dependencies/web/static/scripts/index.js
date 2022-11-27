@@ -21,8 +21,29 @@ let twitchInstanceCategory = document.getElementById('TwitchInstanceCategory')
 let twitchConfigItemInput = document.getElementById('TwitchConfigItemInput')
 let twitchConfigs = document.getElementById('TwitchInstanceConfigs')
 let twitchCurrentRegularGroups = document.getElementById('TwitchCurrentRegularGroups')
-
 let twitchCurrentChannels = document.getElementById('TwitchCurrentChannels')
+
+let saveStreamElementsBTN = document.getElementById('SaveStreamElements')
+let selectedStreamElements = document.getElementById('SelectedStreamElements')
+let newStreamElementsAlias = document.getElementById('NewStreamElementsAlias')
+let generatedJWT = document.getElementById('GeneratedJWT')
+let currentJWTAccountNameElement = document.querySelector('#JTWAccountName span')
+let streamElementsInstanceDataBlock = document.getElementById('StreamElementsInstanceData')
+let discordCurrentRegularGroups = document.getElementById('DiscordCurrentRegularGroups')
+let currentJWT = null
+let validateJWTTimeout = null
+
+let saveDiscordBTN = document.getElementById('SaveDiscord')
+let selectedDiscord = document.getElementById('SelectedDiscord')
+let discordInstanceDataBlock = document.getElementById('DiscordInstanceData')
+let newDiscordAlias = document.getElementById('NewDiscordAlias')
+let generatedToken = document.getElementById('GeneratedToken')
+let currentTokenBotNameElement = document.querySelector('#TokenAccountName span')
+let discordMembersIntent = document.getElementById('DiscordMembersIntent')
+let discordPresencesIntent = document.getElementById('DiscordPresencesIntent')
+let discordMessageContentIntent = document.getElementById('DiscordMessageContentIntent')
+let currentToken = null
+let validateTokenTimeout = null
 
 let manageRegularGroup = document.getElementById('ManageRegularGroup')
 
@@ -206,6 +227,12 @@ function showTwitchRegularGroup(regularGroup) {
 
 function showDiscordRegularGroup(regularGroup) {
     addToGroupList(discordRegularGroupList, regularGroup)
+
+    let d = document.createElement('div')
+    d.innerText = regularGroup
+    d.classList.add('configItem')
+    d.setAttribute('data-regulargroupname', regularGroup)
+    discordCurrentRegularGroups.appendChild(d)
 }
 
 function deleteTwitchRegularGroup(regularGroup) {
@@ -218,6 +245,10 @@ function deleteTwitchRegularGroup(regularGroup) {
 
 function deleteDiscordRegularGroup(regularGroup) {
     deleteFromGroupList(discordRegularGroupList, regularGroup)
+
+    let d = discordCurrentRegularGroups.querySelector('div[data-regulargroupname="' + regularGroup + '"]')
+    if (d === null) return
+    d.parentElement.removeChild(d)
 }
 
 function showTwitchInstance(twitch) {
@@ -230,11 +261,12 @@ function showTwitchInstance(twitch) {
 }
 
 function selectedTwitchInstance(twitchID) {
+    twitchInstanceDataBlock.classList.remove('hidden')
     twitchInstanceCategory.value = 'channels'
     twitchInstanceCategoryChanged()
     
     if (twitchID === 'NEW') {
-        displayTwitchInstance([], [])
+        displayTwitchInstance('', '', [], [])
         return;
     }
     s.emit('GetTwitchInstanceConfigs', twitchID)
@@ -264,7 +296,6 @@ function displayTwitchInstance(alias, tmi, channels, regularGroups) {
     currentTwitchInstanceAliasElement.value = alias
     for(let rg of twitchCurrentRegularGroups.children) {
         rg.classList.remove('selected')
-        rg.setAttribute('data-enabled', '0')
     }
     
     channels.forEach((c) => {
@@ -278,7 +309,6 @@ function displayTwitchInstance(alias, tmi, channels, regularGroups) {
     regularGroups.forEach((rg) => {
         let d = twitchCurrentRegularGroups.querySelector('div[data-regulargroupname="' + rg + '"]')
         d.classList.add('selected')
-        d.setAttribute('data-enabled', '1')
     });
 }
 
@@ -299,7 +329,6 @@ function bubbleToClass(container, clicked, classname) {
 }
 
 function twitchInstanceCategoryChanged() {
-    twitchInstanceDataBlock.classList.remove('hidden')
     twitchConfigs.classList.remove(...twitchConfigs.classList)
     twitchConfigs.classList.add(twitchInstanceCategory.value)
 }
@@ -318,6 +347,97 @@ function getSelectedRegularGroups(e) {
 
 function getChannels(e) {
     return convertNodeList(e.querySelectorAll('.configItem'), x => x.getAttribute('data-channel'))
+}
+
+function selectedStreamElementsInstance(streamElementsID) {
+    streamElementsInstanceDataBlock.classList.remove('hidden')
+    if (streamElementsID === 'NEW') {
+        displayStreamElementsInstance('', '')
+        return;
+    }
+    s.emit('GetStreamElementsInstanceConfigs', streamElementsID)
+}
+
+function validateJWT(jwt) {
+    fetch('https://api.streamelements.com/kappa/v2/users/current', {
+        headers: {
+            Authorization: 'Bearer ' + jwt
+        }
+    })
+    .then(fetchdata => fetchdata.json())
+    .then(jwtJSON => {
+        if (jwtJSON.username === undefined) {
+            currentJWTAccountNameElement.innerText = 'invalid :('
+            return
+        }
+        currentJWT = jwt
+        currentJWTAccountNameElement.innerText = jwtJSON.username
+    })
+}
+
+function newJWT(jwt) {
+    if (validateJWTTimeout !== null) clearTimeout(validateJWTTimeout)
+
+    currentJWT = null
+    if (jwt.length === 0) {
+        currentJWTAccountNameElement.innerText = ''
+        return
+    }
+    currentJWTAccountNameElement.innerText = 'loading...'
+    validateJWTTimeout = setTimeout(() => validateJWT(jwt), 2500)
+}
+
+function displayStreamElementsInstance(alias, jwt) {
+    newStreamElementsAlias.value = alias
+    generatedJWT.value = jwt
+    newJWT(jwt)
+}
+
+function selectedDiscordInstance(discordId) {
+    discordInstanceDataBlock.classList.remove('hidden')
+    if (discordId === 'NEW') {
+        displayDiscordInstance('', '', [])
+        return;
+    }
+    s.emit('GetDiscordInstanceConfigs', discordId)
+}
+
+function displayDiscordInstance(alias, token, regularGroups, membersIntent, presencesIntent, messageContentIntent) {
+    newDiscordAlias.value = alias
+    generatedToken.value = token
+    discordMembersIntent.checked = membersIntent
+    discordPresencesIntent.checked = presencesIntent
+    discordMessageContentIntent.checked = messageContentIntent
+    newToken(token)
+}
+
+function newToken(token) {
+    if (validateTokenTimeout !== null) clearTimeout(validateTokenTimeout)
+
+    currentToken = null
+    if (token.length === 0) {
+        currentTokenBotNameElement.innerText = ''
+        return
+    }
+    currentTokenBotNameElement.innerText = 'loading...'
+    validateTokenTimeout = setTimeout(() => validateToken(token), 2500)
+}
+
+function validateToken(token) {
+    fetch('https://discord.com/api/users/@me', {
+        headers: {
+            Authorization: 'Bot ' + token
+        }
+    })
+    .then(fetchdata => fetchdata.json())
+    .then(data => {
+        if (data.username === undefined) {
+            currentTokenBotNameElement.innerText = 'invalid :('
+            return
+        }
+        currentToken = token
+        currentTokenBotNameElement.innerText = data.username
+    })
 }
 
 setListeners();
@@ -496,7 +616,6 @@ saveTwitchInstanceBTN.addEventListener('click', function() {
     let instanceChannels = getChannels(twitchCurrentChannels)
     let instanceRegularGroups = getSelectedRegularGroups(twitchCurrentRegularGroups)
 
-    console.log(instanceID, instanceAlias, instanceTmi, instanceChannels, instanceRegularGroups)
     if (instanceTmi === null || instanceAlias.length === 0) return
 
     this.classList.add('disabled')
@@ -510,23 +629,134 @@ saveTwitchInstanceBTN.addEventListener('click', function() {
     })
 })
 
+selectedStreamElements.addEventListener('input', function() { selectedStreamElementsInstance(this.value) })
+
+generatedJWT.addEventListener('input', function() { newJWT(this.value) })
+
+saveStreamElementsBTN.addEventListener('click', function() {
+    if (this.classList.contains('disabled')) return
+
+    let instanceID = selectedStreamElements.value
+    let instanceAlias = newStreamElementsAlias.value
+    let instanceJWT = currentJWT
+
+    if (instanceJWT === null || instanceAlias.length === 0) return
+
+    this.classList.add('disabled')
+
+    s.emit('SaveStreamElementsInstance', {
+        id: instanceID,
+        alias: instanceAlias,
+        jwt: instanceJWT
+    })
+})
+
+selectedDiscord.addEventListener('input', function() { selectedDiscordInstance(this.value) })
+
+generatedToken.addEventListener('input', function() { newToken(this.value) })
+
+saveDiscordBTN.addEventListener('click', function() {
+    if (this.classList.contains('disabled')) return
+
+    let instanceID = selectedDiscord.value
+    let instanceAlias = newDiscordAlias.value
+    let instanceToken = currentToken
+    let membersIntent = discordMembersIntent.checked
+    let presencesIntent = discordPresencesIntent.checked
+    let messageContentIntent = discordMessageContentIntent.checked
+    let instanceRegularGroups = getSelectedRegularGroups(discordCurrentRegularGroups)
+    
+    if (instanceToken === null || instanceAlias.length === 0) return
+
+    this.classList.add('disabled')
+
+    s.emit('SaveDiscordInstance', {
+        id: instanceID,
+        alias: instanceAlias,
+        token: instanceToken,
+        regularGroups: instanceRegularGroups,
+        membersIntent: membersIntent,
+        presencesIntent: presencesIntent,
+        messageContentIntent: messageContentIntent
+    })
+})
+
+discordCurrentRegularGroups.addEventListener('click', function(e) {
+    let configItem = bubbleToClass(this, e.target, 'configItem')
+    if (configItem === null) return
+    configItem.classList.toggle('selected')
+})
+
+s.on('SaveDiscordInstance', function(data) {
+    saveDiscordBTN.classList.remove('disabled')
+    if (data.success) {
+        let e = selectedDiscord.querySelector('option[value="' + data.data.id + '"]')
+        if (e) {
+            e.innerText = data.data.alias
+        } else {
+            e = document.createElement('option')
+            e.value = data.data.id
+            e.innerText = data.data.alias
+            e.selected = true
+            selectedDiscord.appendChild(e)
+        }
+    }
+})
+
+s.on('SaveStreamElementsInstance', function(data) {
+    saveStreamElementsBTN.classList.remove('disabled')
+    if (data.success) {
+        let e = selectedStreamElements.querySelector('option[value="' + data.data.id + '"]')
+        if (e) {
+            e.innerText = data.data.alias
+        } else {
+            e = document.createElement('option')
+            e.value = data.data.id
+            e.innerText = data.data.alias
+            e.selected = true
+            selectedStreamElements.appendChild(e)
+        }
+    }
+})
+
 s.on('SaveTwitchInstance', function(data) {
     saveTwitchInstanceBTN.classList.remove('disabled')
     if (data.success) {
         let e = twitchBotsSelector.querySelector('option[value="' + data.data.id + '"]')
         if (e) {
             e.innerText = data.data.alias
+        } else {
+            e = document.createElement('option')
+            e.value = data.data.id
+            e.innerText = data.data.alias
+            e.selected = true
+            twitchBotsSelector.appendChild(e)
         }
     }
 })
 
 s.on('GetTwitchInstanceConfigs', function(data) {
     if (twitchBotsSelector.value !== data.id) {
-        displayTwitchInstance([], [])
+        displayTwitchInstance('', '', [], [])
         return
     }
-    console.log(data)
     displayTwitchInstance(data.alias, data.tmi, data.channels, data.regularGroups)
+})
+
+s.on('GetStreamElementsInstanceConfigs', (data) => {
+    if (selectedStreamElements.value !== data.id) {
+        displayStreamElementsInstance('', '')
+        return
+    }
+    displayStreamElementsInstance(data.alias, data.jwt)
+})
+
+s.on('GetDiscordInstanceConfigs', (data) => {
+    if (selectedDiscord.value !== data.id) {
+        displayDiscordInstance('', '', [], false, false, false)
+        return
+    }
+    displayDiscordInstance(data.alias, data.token, data.regularGroups, data.membersIntent, data.presencesIntent, data.messageContentIntent)
 })
 
 s.on('AddRegular', function(data) {
@@ -537,7 +767,7 @@ s.on('AddRegular', function(data) {
             case 'twitch':
                 showTwitchRegularGroup(data.data.groupName)
                 break
-                case 'discord':
+            case 'discord':
                 showDiscordRegularGroup(data.data.groupName)
                 break
         }

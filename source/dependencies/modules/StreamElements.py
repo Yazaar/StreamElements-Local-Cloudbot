@@ -1,88 +1,97 @@
 from .vendor.StructGuard import StructGuard
 from . import Misc
-import socketio, asyncio, json, time, websockets, typing, datetime
+import asyncio, json, time, typing, datetime, aiohttp
 
 if typing.TYPE_CHECKING:
     from dependencies.modules.Extensions import Extensions
 
 class StreamElements:
-    def __init__(self, alias : str, extensions : 'Extensions', jwt : str, useSocketio : bool):
-        self.__id = hex(id(self))
-        self.__alias = alias
+    async def parseJWT(jwt : str) -> tuple[str, None] | tuple[None, str]:
+        if len(jwt) == 0: return None, 'JWT have to be a string with a length larger than 0'
+
+        resp, errorCode = await Misc.fetchUrl('https://api.streamelements.com/kappa/v2/users/current', headers={'Authorization': f'Bearer {jwt}'})
+
+        if errorCode != 1: return None, 'unable to send HTTP request to validate JWT'
+        
+        try: parsedResp = json.loads(resp)
+        except Exception: return None, 'unable to parse HTTP response from JWT validation'
+        
+        if not isinstance(parsedResp, dict): return None, 'invalid format returned by HTTP response from JWT validation, should be json dictionary'
+
+        accountName = parsedResp.get('username', None)
+        if accountName == None: return None, 'HTTP response from TMI validation does not include a login'
+
+        return accountName, None
+    
+    def __init__(self, id_ : str, alias : str, extensions : 'Extensions', jwt : str):
+        self.__id = id_
+        self.alias = alias
         
         self.__extensions = extensions
 
         self.__jwt = jwt
+        self.__accountName : str = None
         self.__userId : str = None
         self.__clientId : str = None
         self.__eventHistory = []
 
-        self.__sio = socketio.AsyncClient()
-        self.__useSocketioMethod = useSocketio == True
-        self.__useSocketio = None
+        self.__currentTask = None
 
         self.__PingInterval = 20
         self.__PingTimeout = 10
-        self.__wsConn = None
         self.__taskId = 0
         self.__ws = None
-        
-        self.__sio.on('connect', self.__onConnect)
-        self.__sio.on('authenticated', self.__onAuthenticated)
-        self.__sio.on('event', self.__onEvent)
-        self.__sio.on('event:test', self.__onTestEvent)
-        self.__sio.on('disconnect', self.__onDisconnect)
 
         self.__loop = asyncio.get_event_loop()
-        self.__loop.create_task(self.connect())
+        self.startStreamElements()
 
     @property
     def id(self): return self.__id
-
-    @property
-    def alias(self): return self.__alias
     
     @property
     def jwt(self): return self.__jwt
 
     @property
-    def useSocketIO(self): return self.__useSocketioMethod
-    
-    @property
-    def connectedMethod(self): return self.__useSocketio
+    def accountName(self): return self.__accountName
 
     @property
     def eventHistory(self): return self.__eventHistory
 
     @property
+    def userId(self): return self.__userId
+
+    @property
+    def clientId(self): return self.__clientId
+
+    @property
     def connected(self):
-        if self.__useSocketio: return self.__sio.connected
-        else: return self.__wsConn != None
+        if self.__currentTask is None: return False
+        return not self.__currentTask.done()
+
+    async def setJWT(self, jwt : str) -> tuple[bool, str | None]:
+        accountName, errorMsg = await StreamElements.parseJWT(jwt)
+        if accountName is None: return False, errorMsg
+
+        self.__jwt = jwt
+        self.__accountName = accountName
+
+        if not self.connected: self.startStreamElements()
+        return True, None
+
+    def startStreamElements(self):
+        self.__loop.create_task(self.connect())
 
     def stopStreamElements(self):
         self.__loop.create_task(self.disconnect())
 
-    async def setMethod(self, useSocketIO : bool):
-        self.__useSocketioMethod = useSocketIO == True
-        await self.connect()
-
     async def connect(self):
         await self.disconnect()
-        self.__useSocketio = self.__useSocketioMethod
         loop = asyncio.get_event_loop()
-        if self.__useSocketio:
-            print('[StreamElements] Connecting SocketIO')
-            await self.__sio.connect('https://realtime.streamelements.com', transports=['websocket'])
-        else:
-            print('[StreamElements] Connecting WebSocket')
-            loop.create_task(self.__readWs(self.__taskId))
+        print(f'[StreamElements {self.alias}] Connecting StreamElements')
+        self.__currentTask = loop.create_task(self.__readWs(self.__taskId))
 
     async def disconnect(self):
-        if self.__useSocketio:
-            if self.__sio.connected:
-                await self.__sio.disconnect()
-        else:
-            self.__taskId += 1
+        self.__taskId += 1
     
     async def APIRequest(self, method : str, endpoint : str, *, body : str = None, headers : dict[str, str] = None, includeJWT : bool = False) -> tuple[bool, str | None]:
         if headers == None: headers = {}
@@ -161,22 +170,18 @@ class StreamElements:
         return True, None
 
     async def __emit(self, event, data):
-        if self.__useSocketio:
-            if self.__sio.connected:
-                await self.__sio.emit(event, data)
-        else:
-            if self.__ws != None and self.__ws.open:
-                await self.__ws.send('42' + json.dumps([event, data]))
+        if not self.__currentTask.done():
+            await self.__ws.send_str('42' + json.dumps([event, data]))
     
-    async def __onConnect(self, data=''):
-        print('[StreamElements] Connected! Authenticating...')
-
+    async def __onOpen(self, data=''):
         if isinstance(data, dict):
             if 'pingInterval' in data:
                 self.__PingInterval = int(data['pingInterval'] / 1000)
             if 'pingTimeout' in data:
                 self.__PingTimeout = int(data['pingTimeout'] / 1000)
-        
+    
+    async def __onConnect(self, data=''):
+        print(f'[StreamElements {self.alias}] Connected! Authenticating...')
         await self.__emit('authenticate', { 'method': 'jwt', 'token': self.__jwt })
 
     async def __onAuthenticated(self, data=''):
@@ -185,7 +190,7 @@ class StreamElements:
                 self.__userId = data['channelId']
             if 'clientId' in data:
                 self.__clientId = data['clientId']
-        print('[StreamElements] Authenticated')
+        print(f'[StreamElements {self.alias}] Authenticated')
 
     async def __onEvent(self, data=''):
         if not isinstance(data, dict): return
@@ -200,69 +205,74 @@ class StreamElements:
         self.__extensions.streamElementsTestEvent(event)
 
     async def __onDisconnect(self, data=''):
-        print('[StreamElements] Disconnected')
+        print(f'[StreamElements {self.alias}] Disconnected')
 
     async def __readWs(self, taskId):
-        while self.__wsConn != None:
+        while not self.__currentTask.done() != None:
             await asyncio.sleep(1)
         
         if self.__taskId != taskId: return
+
+        self.__currentTask = asyncio.current_task()
         
         timer = time.time() - 5
         sentPing = False
 
-        self.__wsConn = websockets.connect('wss://realtime.streamelements.com/socket.io/?transport=websocket&EIO=4')
-        self.__ws = await self.__wsConn.__aenter__()
-        
-        while True:
-            try: raw = await asyncio.wait_for(self.__ws.recv(), 2)
-            except asyncio.TimeoutError: raw = None
+        async with aiohttp.ClientSession() as session:
+            async with session.ws_connect('wss://realtime.streamelements.com/socket.io/?EIO=3&transport=websocket') as ws:
+                self.__ws = ws
+                while True:
+                    if taskId != self.__taskId: return
 
-            if taskId != self.__taskId:
-                await self.__wsConn.__aexit__()
-                self.__wsConn = None
-                self.__ws = None
-                return
+                    try: raw = await ws.receive(timeout=2)
+                    except TimeoutError: raw = None
+                    
+                    if raw is not None: raw = raw.data
+                    
+                    currentTime = time.time()
+                    timeDelta = currentTime - timer
 
-            currentTime = time.time()
-            timeDelta = currentTime - timer
+                    if timeDelta >= self.__PingInterval:
+                        #print('Sent: Ping')
+                        timer = currentTime
+                        await ws.send_str('2')
+                        sentPing = True
+                    elif sentPing and timeDelta > self.__PingTimeout:
+                        await self.__onDisconnect()
+                        return
+                    
+                    if raw is None: continue
+                    
+                    code = raw[:2]
+                    
+                    if code == '42':
+                        raw = json.loads(raw[2:])
+                        event = raw[0]
+                        data = raw[1]
+                    elif code == '3':
+                        #print('Received: Pong')
+                        sentPing = False
+                        timer = currentTime
+                        continue
+                    elif code == '40':
+                        event = 'connect'
+                    elif code == '0{':
+                        event = 'open'
+                        data = json.loads(raw[1:])
+                    else:
+                        #print('junk:', raw)
+                        continue
 
-            if timeDelta >= self.__PingInterval:
-                #print('Sent: Ping')
-                timer = currentTime
-                await self.__ws.send('2')
-                sentPing = True
-            elif sentPing and timeDelta > self.__PingTimeout:
-                await self.__onDisconnect()
-                await self.connect()
-                return
-
-            if raw == None: continue
-
-            if raw == '3':
-                #print('Received: Pong')
-                sentPing = False
-                timer = currentTime
-                continue
-            elif raw.startswith('0'):
-                event = 'connect'
-                data = json.loads(raw[1:])
-            elif raw.startswith('42'):
-                raw = json.loads(raw[2:])
-                event = raw[0]
-                data = raw[1]
-            else:
-                #print('junk:', raw)
-                continue
-
-            if event == 'connect':
-                await self.__onConnect(data)
-            elif event == 'authenticated':
-                await self.__onAuthenticated(data)
-            elif event == 'event':
-                await self.__onEvent(data)
-            elif event == 'event:test':
-                await self.__onTestEvent(data)
+                    if event == 'event':
+                        await self.__onEvent(data)
+                    elif event == 'event:test':
+                        await self.__onTestEvent(data)
+                    elif event == 'open':
+                        await self.__onOpen(data)
+                    elif event == 'connect':
+                        await self.__onConnect()
+                    elif event == 'authenticated':
+                        await self.__onAuthenticated(data)
 
 class StreamElementsClientContext():
     def __init__(self, streamElements : StreamElements):

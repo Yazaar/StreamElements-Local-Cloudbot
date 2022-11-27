@@ -298,13 +298,41 @@ async def sio_toggleExtension(sid, data=''):
 @sio.on('SaveTwitchInstance')
 async def sio_saveTwitchInstance(sid, data=''):
     if not isinstance(data, dict):
-        await sio.emit('SaveTwitchInstance', {'success': False}, room=sid)
+        await sio.emit('SaveTwitchInstance', {'success': False, 'message': 'data have to be a dictionary'}, room=sid)
+        return
+
+    success, errorMsgOrDiscord = await extensions.updateTwitch(data.get('id'), data.get('alias'), data.get('tmi'), data.get('channels'), data.get('regularGroups'))
+
+    if success:
+        data['id'] = errorMsgOrDiscord.id
+        await sio.emit('SaveTwitchInstance', {'success': success, 'data': data}, room=sid)
+    else: await sio.emit('SaveTwitchInstance', {'success': success, 'message': errorMsgOrDiscord, 'data': data}, room=sid) 
+
+@sio.on('SaveStreamElementsInstance')
+async def sio_saveTwitchInstance(sid, data=''):
+    if not isinstance(data, dict):
+        await sio.emit('SaveStreamElementsInstance', {'success': False}, room=sid)
         return
     
-    success, errorMsg = await extensions.updateTwitch(data.get('id'), data.get('alias'), data.get('tmi'), data.get('channels'), data.get('regularGroups'))
+    success, errorMsgOrSE = await extensions.updateStreamElements(data.get('id'), data.get('alias'), data.get('jwt'))
 
-    if success: await sio.emit('SaveTwitchInstance', {'success': success, 'data': data}, room=sid)
-    else: await sio.emit('SaveTwitchInstance', {'success': success, 'message': errorMsg, 'data': data}, room=sid) 
+    if success:
+        data['id'] = errorMsgOrSE.id
+        await sio.emit('SaveStreamElementsInstance', {'success': success, 'data': data}, room=sid)
+    else: await sio.emit('SaveStreamElementsInstance', {'success': success, 'message': errorMsgOrSE, 'data': data}, room=sid) 
+
+@sio.on('SaveDiscordInstance')
+async def sio_saveDiscordInstance(sid, data=''):
+    if not isinstance(data, dict):
+        await sio.emit('SaveDiscordInstance', {'success': False}, room=sid)
+        return
+    
+    success, errorMsgOrTwitch = await extensions.updateDiscord(data.get('id'), data.get('alias'), data.get('token'), data.get('regularGroups'), membersIntent=data.get('membersIntent'), presencesIntent=data.get('presencesIntent'), messageContentIntent=data.get('messageContentIntent'))
+
+    if success:
+        data['id'] = errorMsgOrTwitch.id
+        await sio.emit('SaveDiscordInstance', {'success': success, 'data': data}, room=sid)
+    else: await sio.emit('SaveDiscordInstance', {'success': success, 'message': errorMsgOrTwitch, 'data': data}, room=sid) 
 
 @sio.on('SaveSettings')
 async def sio_saveSettings(sid, data=''):
@@ -388,54 +416,48 @@ async def sio_deleteRegular(sid, data=''):
     if success: await sio.emit('DeleteRegular', {'success': True, 'data': parsedData, 'deletedGroup': deletedGroup}, room=sid)
     else: await sio.emit('DeleteRegular', {'success': False, 'message': resp, 'data': parsedData}, room=sid)
 
-@sio.on('AddTwitchTMI')
-async def sio_AddTwitchTMI(sid, data=''):
-    if not isinstance(data, dict):
-        await sio.emit('AddTwitchTMI', {'success': False, 'message': 'invalid data format (use a dictionary)'}, room=sid)
-        return
-    
-    tmi = data.get('tmi', None)
-    alias = data.get('alias', None)
-
-    if not isinstance(tmi, str):
-        await sio.emit('AddTwitchTMI', {'success': False, 'message': 'passed data require the key tmi as a string'}, room=sid)
-        return
-    if not isinstance(alias, str):
-        await sio.emit('AddTwitchTMI', {'success': False, 'message': 'passed data require the key alias as a string'}, room=sid)
-        return
-    
-    success, payload = await extensions.addTwitchInstance(alias, tmi)
-
-    if not success:
-        await sio.emit('AddTwitchTMI', {'success': False, 'message': payload}, room=sid)
-        return
-
-    await sio.emit('AddTwitchTMI', {'success': True, 'alias': alias, 'twitchInstanceID': payload.id}, room=sid)
-
 @sio.on('GetTwitchInstanceConfigs')
 async def sio_GetTwitchInstanceChannels(sid, data=''):
     if not isinstance(data, str):
-        await sio.emit('GetTwitchInstanceConfigs', {'success': False, 'message': 'Passed data have to be a string (of an existing twitch instance ID)'}, room=sid)
+        await sio.emit('GetTwitchInstanceConfigs', {'success': False, 'message': 'Passed data have to be a string (of an existing Twitch instance ID)'}, room=sid)
         return
     
     foundTwitch = extensions.findTwitch(id_=data)
-    if foundTwitch == None:
-        await sio.emit('GetTwitchInstanceConfigs', {'success': False, 'message': 'Passed twitch instance ID does not exist'}, room=sid)
+    if foundTwitch is None:
+        await sio.emit('GetTwitchInstanceConfigs', {'success': False, 'message': 'Passed Twitch instance ID does not exist'}, room=sid)
         return
     
     await sio.emit('GetTwitchInstanceConfigs', {'success': True, 'channels': foundTwitch.allChannels, 'regularGroups': foundTwitch.regularGroups, 'alias': foundTwitch.alias, 'tmi': foundTwitch.tmi, 'id': foundTwitch.id}, room=sid)
 
+@sio.on('GetStreamElementsInstanceConfigs')
+async def sio_GetTwitchInstanceChannels(sid, data=''):
+    if not isinstance(data, str):
+        await sio.emit('GetStreamElementsInstanceConfigs', {'success': False, 'message': 'Passed data have to be a string (of an existing StreamElements instance ID)'}, room=sid)
+        return
+    
+    foundStreamElements = extensions.findStreamElements(id_=data)
+    if foundStreamElements is None:
+        await sio.emit('GetStreamElementsInstanceConfigs', {'success': False, 'message': 'Passed StreamElements instance ID does not exist'}, room=sid)
+        return
+    
+    await sio.emit('GetStreamElementsInstanceConfigs', {'success': True, 'alias': foundStreamElements.alias, 'jwt': foundStreamElements.jwt, 'id': foundStreamElements.id}, room=sid)
+
+@sio.on('GetDiscordInstanceConfigs')
+async def sio_GetTwitchInstanceChannels(sid, data=''):
+    if not isinstance(data, str):
+        await sio.emit('GetDiscordInstanceConfigs', {'success': False, 'message': 'Passed data have to be a string (of an existing Discord instance ID)'}, room=sid)
+        return
+    
+    foundDiscord = extensions.findDiscord(id_=data)
+    if foundDiscord is None:
+        await sio.emit('GetDiscordInstanceConfigs', {'success': False, 'message': 'Passed Discord instance ID does not exist'}, room=sid)
+        return
+    
+    await sio.emit('GetDiscordInstanceConfigs', {'success': True, 'alias': foundDiscord.alias, 'token': foundDiscord.token, 'id': foundDiscord.id, 'regularGrouns': foundDiscord.regularGroups, 'membersIntent': foundDiscord.intents.members, 'presencesIntent': foundDiscord.intents.presences, 'messagesContentIntent': foundDiscord.intents.message_content}, room=sid)
+
 @sio.on('UpdateSettings')
 async def sio_updateSettings(sid, data=''):
     return
-
-#@sio.on('RestartTwitch')
-#async def sio_restartTwitch(sid, data=''):
-#    return
-
-#@sio.on('RestartSE')
-#async def sio_restartSE(sid, data=''):
-#    return
 
 @sio.on('ResetExtensions')
 async def sio_restartExtensions(sid, data=''):

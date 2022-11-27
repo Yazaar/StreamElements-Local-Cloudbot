@@ -383,6 +383,10 @@ h3.smaller {
     margin-top: .5rem;
 }
 
+.pushRight {
+    margin-left: .5rem;
+}
+
 .CustomCheckbox {
     appearance: none;
     -webkit-appearance: none;
@@ -413,6 +417,15 @@ h3.smaller {
     background: #00FF00;
     width: 75%;
     height: 75%;
+}
+
+.horizontalItemsFlex {
+    display: flex;
+    flex-direction: row;
+}
+
+.centerVerticalFlex {
+    align-items: center;
 }
 
 .ClosedSetting {

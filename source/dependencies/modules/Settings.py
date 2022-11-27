@@ -35,6 +35,7 @@ class Settings():
 
         self.__twitchStructure = [
             {
+                'id': str,
                 'tmi': str,
                 'botname': str,
                 'channels': [str],
@@ -50,17 +51,21 @@ class Settings():
 
         self.__streamelementsStructure = [
             {
+                'id': str,
                 'jwt': str,
-                'alias': str,
-                'useSocketIO': bool
+                'alias': str
             }
         ]
         
         self.__discordStructure = [
             {
+                'id': str,
                 'token': str,
                 'alias': str,
                 'regularGroups': [str],
+                'membersIntent': bool,
+                'presencesIntent': bool,
+                'messageContentIntent': bool,
                 'guild': {
                     str: {
                         'regularGroups': [str]
@@ -98,40 +103,47 @@ class Settings():
         twitchChanges, twitchData = StructGuard.verifyListStructure(self.__readFile(self.__twitchSettingsFile), self.__twitchStructure)
         if twitchChanges != StructGuard.NO_CHANGES: self.__saveSettings(twitchData, self.__twitchSettingsFile)
         twitchs : list[Twitch.Twitch] = []
-        for td in twitchData: twitchs.append(Twitch.Twitch(td['alias'], self.__extensions, td['tmi'], td['botname'], td['channels'], td['regularGroups'], td['channel']))
+        for td in twitchData: twitchs.append(Twitch.Twitch(td['id'], td['alias'], self.__extensions, td['tmi'], td['botname'], td['channels'], td['regularGroups'], td['channel']))
         return twitchs
     
     def loadDiscord(self):
         discordChanges, discordData = StructGuard.verifyListStructure(self.__readFile(self.__discordSettingsFile), self.__discordStructure)
         if discordChanges != StructGuard.NO_CHANGES: self.__saveSettings(discordData, self.__discordSettingsFile)
         discords : list[Discord.Discord] = []
-        for dd in discordData: discords.append(Discord.Discord(dd['alias'], self.__extensions, dd['token'], dd['regularGroups'], dd['guild']))
+        for dd in discordData: discords.append(Discord.Discord(dd['id'], dd['alias'], self.__extensions, dd['token'], dd['regularGroups'], dd['guild'], membersIntent=dd['membersIntent'], presencesIntent=dd['presencesIntent'], messageContentIntent=dd['messageContentIntent']))
         return discords
     
     def loadStreamElements(self):
         streamelementsChanges, streamElementsData = StructGuard.verifyListStructure(self.__readFile(self.__streamelementsSettingsFile), self.__streamelementsStructure)
         if streamelementsChanges != StructGuard.NO_CHANGES: self.__saveSettings(streamElementsData, self.__streamelementsSettingsFile)
         streamElements : list[StreamElements.StreamElements] = []
-        for sed in streamElementsData: streamElements.append(StreamElements.StreamElements(sed['alias'], self.__extensions, sed['jwt'], sed['useSocketIO']))
+        for sed in streamElementsData: streamElements.append(StreamElements.StreamElements(sed['id'], sed['alias'], self.__extensions, sed['jwt']))
         return streamElements
     
     def saveTwitch(self, twitchList : list[Twitch.Twitch]):
         td = []
-        for t in twitchList: td.append({
-            'tmi': t.tmi,
-            'botname': t.botname,
-            'channels': t.allChannels,
-            'alias': t.alias,
-            'regularGroups': t.regularGroups,
-            'channel': t.channelConfig
+        for t in twitchList:
+            td.append({
+                'id': t.id,
+                'tmi': t.tmi,
+                'botname': t.botname,
+                'channels': t.allChannels,
+                'alias': t.alias,
+                'regularGroups': t.regularGroups,
+                'channel': t.channelConfig
             })
         self.__saveSettings(td, self.__twitchSettingsFile)
     
     def saveDiscord(self, discordList : list[Discord.Discord]):
         dd = []
-        for d in discordList: dd.append({
+        for d in discordList:
+            dd.append({
+                'id': d.id,
                 'token': d.token,
                 'alias': d.alias,
+                'membersIntent': d.intents.members,
+                'presencesIntent': d.intents.presences,
+                'messageContentIntent': d.intents.message_content,
                 'regularGroups': d.regularGroups,
                 'guild': d.guildConfig
             })
@@ -139,10 +151,11 @@ class Settings():
     
     def saveStreamElements(self, streamElementsList : list[StreamElements.StreamElements]):
         sed = []
-        for se in streamElementsList: sed.append({
+        for se in streamElementsList:
+            sed.append({
+                'id': se.id,
                 'jwt': se.jwt,
                 'alias': se.alias,
-                'useSocketIO': se.useSocketIO
             })
         self.__saveSettings(sed, self.__streamelementsSettingsFile)
 

@@ -1,12 +1,27 @@
-import asyncio, typing, discord
+import asyncio, typing, discord, json
+from . import Misc
 
 if typing.TYPE_CHECKING:
     from dependencies.modules.Extensions import Extensions
 
-class Discord(discord.Client):
-    def __init__(self, alias : str, extensions : 'Extensions', token : str, regularGroups : list[str], guildConfig : dict[str, dict[str, typing.Any]]):
-        self.__id = hex(id(self))
-        self.__alias = alias
+class Discord():
+    async def parseToken(token : str) -> tuple[bool, str]:
+        resp, errorCode = await Misc.fetchUrl('https://discord.com/api/users/@me', headers={'authorization': f'Bot {token}'})
+
+        if errorCode != 1: return False, 'unable to send HTTP request to validate Token'
+
+        try: parsedResp = json.loads(resp)
+        except Exception: return False, 'unable to parse HTTP response from Token validation'
+
+        if not isinstance(parsedResp, dict): return False, 'invalid format returned by HTTP response from Token validation, should be json dictionary'
+
+        botname = parsedResp.get('username', None)
+        if botname is None: return False, 'HTTP response from Token validation does not include a username'
+        return True, botname
+    
+    def __init__(self, id_ : str, alias : str, extensions : 'Extensions', token : str, regularGroups : list[str], guildConfig : dict[str, dict[str, typing.Any]], *, membersIntent=False, presencesIntent=False, messageContentIntent=False):
+        self.__id = id_
+        self.alias = alias
         
         self.__extensions = extensions
         self.__token = token
@@ -14,26 +29,24 @@ class Discord(discord.Client):
         self.__guildConfig = guildConfig
 
         intents = discord.Intents.default()
-        intents.members = True
+        intents.members = membersIntent
+        intents.presences = presencesIntent
+        intents.message_content = messageContentIntent
 
-        super().__init__(intents=intents)
-        
+        self.__discordCom = DiscordCom(self, self.__extensions, membersIntent=membersIntent, presencesIntent=presencesIntent, messageContentIntent=messageContentIntent)
+
         self.__clientContext = DiscordClientContext(self)
 
-        self.loop = asyncio.get_event_loop()
         self.startDiscord()
 
     @property
     def id(self): return self.__id
 
     @property
-    def alias(self): return self.__alias
-
-    @property
     def token(self): return self.__token
 
     @property
-    def regularGroups(self): return self.__regularGroups
+    def regularGroups(self): return self.__regularGroups.copy()
 
     @property
     def guildConfig(self): return self.__guildConfig
@@ -41,70 +54,105 @@ class Discord(discord.Client):
     @property
     def clientContext(self): return self.__clientContext
 
+    @property
+    def intents(self): return self.__discordCom.intents
+
+    async def setIntents(self, *, membersIntent=False, presencesIntent=False, messageContentIntent=False):
+        if self.__discordCom.intents.members != membersIntent or self.__discordCom.intents.presences != presencesIntent or self.__discordCom.intents.message_content != messageContentIntent:
+            await self.__discordCom.close()
+            self.__discordCom = DiscordCom(self, self.__extensions, membersIntent=membersIntent, presencesIntent=presencesIntent, messageContentIntent=messageContentIntent)
+            self.startDiscord()
+
+    async def setToken(self, token : str):
+        if token == self.__token: return True, None
+        validToken, erroMsgOrBotname = await Discord.parseToken(token)
+        if not validToken: return False, erroMsgOrBotname
+        self.__token = token
+        self.startDiscord()
+        return True, None
+
+    def setRegularGroups(self, regularGroups : list[str]): self.__regularGroups = [i for i in regularGroups if isinstance(i, str) and len(i) > 0]
+
     def stopDiscord(self):
-        self.loop.create_task(self.close())
+        loop = asyncio.get_event_loop()
+        loop.create_task(self.__discordCom.close())
     
     def startDiscord(self):
-        self.loop.create_task(self.startup())
+        loop = asyncio.get_event_loop()
+        loop.create_task(self.startupDiscord())
     
-    async def startup(self):
-        try: await self.start(self.__token)
+    async def startupDiscord(self):
+        #try: await self.close()
+        #except Exception: pass
+        try: await self.__discordCom.start(self.__token)
         except discord.errors.LoginFailure: print(f'[Discord {self.alias}] Failed to connect')
+        except discord.errors.PrivilegedIntentsRequired: print(f'[Discord {self.alias}] Unable to start, one of the three optional intents not enabled in Discord application dashboard')
     
     async def getTextChannel(self, textChannel):
-        try: channel = await self.fetch_channel(textChannel)
+        try: channel = await self.__discordCom.fetch_channel(textChannel)
         except discord.errors.NotFound: return None, 'Invalid Channel ID'
         except discord.errors.Forbidden: return None, 'You do not have permission to fetch this channel'
         if not isinstance(channel, discord.TextChannel): return None, 'Channel not a text channel'
         return channel, None
 
+class DiscordCom(discord.Client):
+    def __init__(self, discordHandle : Discord, extensions : 'Extensions', *, membersIntent=False, presencesIntent=False, messageContentIntent=False) -> None:
+        self.__extensions = extensions
+        self.__discordHandle = discordHandle
+
+        intents = discord.Intents.default()
+        intents.members = membersIntent
+        intents.presences = presencesIntent
+        intents.message_content = messageContentIntent
+        super().__init__(intents=intents)
+    
     async def on_ready(self):
-        print(f'[Discord {self.alias}] Connected')
+        print(f'[Discord {self.__discordHandle.alias}] Connected')
     
     async def on_message(self, message : discord.Message):
-        self.__extensions.discordMessage(DiscordMessage(self.clientContext, message))
+        self.__extensions.discordMessage(DiscordMessage(self.__discordHandle.clientContext, message))
     
     async def on_raw_message_delete(self, payload : discord.RawMessageDeleteEvent):
-        self.__extensions.discordMessageDeleted(DiscordMessageDeleted(self.clientContext, payload))
+        self.__extensions.discordMessageDeleted(DiscordMessageDeleted(self.__discordHandle.clientContext, payload))
 
     async def on_raw_message_edit(self, payload : discord.RawMessageUpdateEvent):
-        self.__extensions.discordMessageEdited(DiscordMessageEdited(self.clientContext, payload))
+        self.__extensions.discordMessageEdited(DiscordMessageEdited(self.__discordHandle.clientContext, payload))
 
     async def on_raw_reaction_add(self, payload : discord.RawReactionActionEvent):
-        self.__extensions.discordMessageNewReaction(DiscordMessageNewReaction(self.clientContext, payload))
+        self.__extensions.discordMessageNewReaction(DiscordMessageNewReaction(self.__discordHandle.clientContext, payload))
 
     async def on_raw_reaction_remove(self, payload : discord.RawReactionActionEvent):
-        self.__extensions.discordMessageRemovedReaction(DiscordMessageRemovedReaction(self.clientContext, payload))
+        self.__extensions.discordMessageRemovedReaction(DiscordMessageRemovedReaction(self.__discordHandle.clientContext, payload))
 
     async def on_raw_reaction_clear(self, payload : discord.RawReactionClearEvent):
-        self.__extensions.discordMessageReactionsCleared(DiscordMessageReactionsCleared(self.clientContext, payload))
+        self.__extensions.discordMessageReactionsCleared(DiscordMessageReactionsCleared(self.__discordHandle.clientContext, payload))
 
     async def on_raw_reaction_clear_emoji(self, payload : discord.RawReactionClearEmojiEvent):
-        self.__extensions.discordMessageReactionEmojiCleared(DiscordMessageReactionEmojiCleared(self.clientContext, payload))
+        self.__extensions.discordMessageReactionEmojiCleared(DiscordMessageReactionEmojiCleared(self.__discordHandle.clientContext, payload))
 
     async def on_member_join(self, member : discord.Member):
-        self.__extensions.discordMemberJoined(DiscordMemberJoined(self.clientContext, member))
+        self.__extensions.discordMemberJoined(DiscordMemberJoined(self.__discordHandle.clientContext, member))
 
     async def on_member_remove(self, member : discord.Member):
-        self.__extensions.discordMemberRemoved(DiscordMemberRemoved(self.clientContext, member))
+        self.__extensions.discordMemberRemoved(DiscordMemberRemoved(self.__discordHandle.clientContext, member))
 
     async def on_member_update(self, before : discord.Member, after : discord.Member):
-        self.__extensions.discordMemberUpdated(DiscordMemberUpdated(self.clientContext, before, after))
+        self.__extensions.discordMemberUpdated(DiscordMemberUpdated(self.__discordHandle.clientContext, before, after))
 
     async def on_member_ban(self, guild : discord.Guild, user : typing.Union[discord.Member, discord.User]):
-        self.__extensions.discordMemberBanned(DiscordMemberBanned(self.clientContext, guild, user))
+        self.__extensions.discordMemberBanned(DiscordMemberBanned(self.__discordHandle.clientContext, guild, user))
 
     async def on_member_unban(self, guild : discord.Guild, user : typing.Union[discord.Member, discord.User]):
-        self.__extensions.discordMemberUnbanned(DiscordMemberUnbanned(self.clientContext, guild, user))
+        self.__extensions.discordMemberUnbanned(DiscordMemberUnbanned(self.__discordHandle.clientContext, guild, user))
 
     async def on_guild_join(self, guild : discord.Guild):
-        self.__extensions.discordGuildJoined(DiscordGuildJoined(self.clientContext, guild))
+        self.__extensions.discordGuildJoined(DiscordGuildJoined(self.__discordHandle.clientContext, guild))
 
     async def on_guild_remove(self, guild : discord.Guild):
-        self.__extensions.discordGuildRemoved(DiscordGuildRemoved(self.clientContext, guild))
+        self.__extensions.discordGuildRemoved(DiscordGuildRemoved(self.__discordHandle.clientContext, guild))
 
     async def on_voice_state_update(self, member : discord.Member, before : discord.VoiceState, after : discord.VoiceState):
-        self.__extensions.discordVoiceStateUpdate(DiscordVoiceStateUpdate(self.clientContext, member, before, after))
+        self.__extensions.discordVoiceStateUpdate(DiscordVoiceStateUpdate(self.__discordHandle.clientContext, member, before, after))
 
 class DiscordClientContext():
     def __init__(self, parent : Discord):

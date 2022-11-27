@@ -15,17 +15,17 @@ class Twitch:
         if errorCode != 1: return None, None, 'unable to send HTTP request to validate TMI'
         
         try: parsedResp = json.loads(resp)
-        except Exception: return False, 'unable to parse HTTP response from TMI validation'
+        except Exception: return None, None, 'unable to parse HTTP response from TMI validation'
         
         if not isinstance(parsedResp, dict): return None, None, 'invalid format returned by HTTP response from TMI validation, should be json dictionary'
 
         botname = parsedResp.get('login', None)
-        if botname == None: return None, None, 'HTTP response from TMI validation does not include a login'
+        if botname is None: return None, None, 'HTTP response from TMI validation does not include a login'
 
         return f'oauth:{tmi}', botname, None
     
-    def __init__(self, alias : str, extensions : 'Extensions.Extensions', tmi : str, botname : str, channels : list, regularGroups : list[str], channelConfig : dict[str, dict[str, typing.Any]]):
-        self.__id = hex(id(self))
+    def __init__(self, id_ : str, alias : str, extensions : 'Extensions.Extensions', tmi : str, botname : str, channels : list, regularGroups : list[str], channelConfig : dict[str, dict[str, typing.Any]]):
+        self.__id = id_
         self.alias = alias
         
         self.__runnerId = 0
