@@ -295,6 +295,42 @@ async def sio_toggleExtension(sid, data=''):
     data['success'] = True
     await sio.emit('ToggleExtension', data, room=sid)
 
+@sio.on('SetExtensionConnectionTwitch')
+async def sio_setExtensionConnectionTwitch(sid, data=''):
+    if not isinstance(data, dict):
+        await sio.emit('SetExtensionConnectionTwitch', {'success': False, 'message': 'Please pass a dictionary'}, room=sid)
+        return
+
+    success, errorMsg = extensions.setExtensionConnectionTwitch(data.get('extension'), data.get('twitchId'))
+
+    resp = {'success': success, 'data': data}
+    if not success: resp['message'] = errorMsg
+    await sio.emit('SetExtensionConnectionTwitch', resp)
+
+@sio.on('SetExtensionConnectionDiscord')
+async def sio_setExtensionConnectionDiscord(sid, data=''):
+    if not isinstance(data, dict):
+        await sio.emit('SetExtensionConnectionDiscord', {'success': False, 'message': 'Please pass a dictionary'}, room=sid)
+        return
+
+    success, errorMsg = extensions.setExtensionConnectionDiscord(data.get('extension'), data.get('discordId'))
+
+    resp = {'success': success, 'data': data}
+    if not success: resp['message'] = errorMsg
+    await sio.emit('SetExtensionConnectionDiscord', resp) 
+
+@sio.on('SetExtensionConnectionStreamElements')
+async def sio_setExtensionConnectionStreamElements(sid, data=''):
+    if not isinstance(data, dict):
+        await sio.emit('SetExtensionConnectionStreamElements', {'success': False, 'message': 'Please pass a dictionary'}, room=sid)
+        return
+
+    success, errorMsg = extensions.setExtensionConnectionStreamElements(data.get('extension'), data.get('streamelementsId'))
+
+    resp = {'success': success, 'data': data}
+    if not success: resp['message'] = errorMsg
+    await sio.emit('SetExtensionConnectionStreamElements', resp) 
+
 @sio.on('SaveTwitchInstance')
 async def sio_saveTwitchInstance(sid, data=''):
     if not isinstance(data, dict):

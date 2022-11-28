@@ -15,7 +15,14 @@ class Tick():
     def timeNsDiff(self): return self.__timeNsDiff
 
 class Toggle():
-    pass
+    def __init__(self, enabled : bool):
+        self.__enabled = enabled
+    
+    @property
+    def enabled(self): return self.__enabled
+
+    def legacy(self): return self.__enabled
 
 class Initialize():
-    pass
+    def __init__(self):
+        pass

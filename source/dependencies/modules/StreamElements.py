@@ -283,13 +283,19 @@ class StreamElementsClientContext():
     
     @property
     def clientId(self): return self.__streamElements.clientId
+    
+    @property
+    def streamElementsId(self): return self.__streamElements.id
 
 class StreamElementsGenericEvent():
     def __init__(self, client : StreamElementsClientContext, data : dict, testEvent: bool):
+        self.__clientContext = client
         self.UTCTimestamp = datetime.datetime.utcnow()
-        self.client = client
         self.raw = data
         self.testEvent = testEvent
     
+    @property
+    def streamElementsContext(self): return self.__clientContext
+
     def legacy(self):
         return self.raw

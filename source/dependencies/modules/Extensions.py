@@ -4,17 +4,29 @@ import importlib, inspect, asyncio, threading, socketio, json, time
 from pathlib import Path
 
 class Extension():
+    CONFIG_PATH_STRUCTURE = {
+        'enabled': bool,
+        'twitch': str,
+        'discord': str,
+        'streamelements': str
+    }
+
     def __init__(self, extensions, modulePath : Path):
         self.extensions : Extensions = extensions
         self.__asyncExtensionCrossover = None
         self.__legacyExtensionCrossover = None
 
         self.__modulePath = modulePath
-        self.enabled = False
+        self.__configPath = (self.__modulePath / f'../{self.__modulePath.name[:-3]}Config.json').resolve()
+        self.__enabled = False
 
         self.methods : dict[str, ExtensionMethod] = {}
         self.__importName : str = self.__modulePath.as_posix().replace('/', '.')[:-3]
-        self.moduleName : str = self.__importName[11:]
+        self.__moduleName : str = self.__importName[11:]
+
+        self.__twitchId : str | None = None
+        self.__discordId : str | None = None
+        self.__streamelementsId : str | None = None
 
         self.__module = None
 
@@ -22,7 +34,42 @@ class Extension():
         self.error : bool = False
         self.errorData : Exception = None
 
-        self.reload()
+        self.__loadConfig()
+        self.__loadModule()
+        self.__loadMethods()
+    
+    @property
+    def twitchId(self):
+        t = self.twitch
+        if t is None: return None
+        return t.id
+    
+    @property
+    def discordId(self):
+        d = self.discord
+        if d is None: return None
+        return d.id
+    
+    @property
+    def streamelementsId(self):
+        s = self.streamelements
+        if s is None: return None
+        return s.id
+    
+    @property
+    def twitch(self) -> Twitch.Twitch | None: return self.extensions.findTwitch(id_=self.__twitchId)
+    
+    @property
+    def discord(self) -> Discord.Discord | None: return self.extensions.findDiscord(id_=self.__discordId)
+    
+    @property
+    def streamelements(self) -> StreamElements.StreamElements | None: return self.extensions.findStreamElements(id_=self.__streamelementsId)
+    
+    @property
+    def enabled(self): return self.__enabled
+    
+    @property
+    def moduleName(self): return self.__moduleName
     
     @property
     def asyncExtensionCrossover(self):
@@ -33,6 +80,36 @@ class Extension():
     def legacyExtensionCrossover(self):
         if self.legacyExtensionCrossover == None: self.__legacyExtensionCrossover = ExtensionCrossover.LegacyExtensionCrossover(self.extensions)
         return self.__legacyExtensionCrossover
+
+    def setTwitchConnection(self, twitchId : str | None):
+        if self.__twitchId == twitchId: return
+        self.__twitchId = twitchId
+        self.__saveConfig()
+
+    def setDiscordConnection(self, discordId : str | None):
+        if self.__discordId == discordId: return
+        self.__discordId = discordId
+        self.__saveConfig()
+
+    def setStreamElementsConnection(self, streamelementsId : str | None):
+        if self.__streamelementsId == streamelementsId: return
+        self.__streamelementsId = streamelementsId
+        self.__saveConfig()
+
+    def toggle(self, state : bool | None = None):
+        if isinstance(state, bool): self.__enabled = state
+        else: self.__enabled = not self.__enabled
+        self.__saveConfig()
+
+    def reload(self):
+        if self.__module == None: self.__loadModule()
+        else: self.__module = importlib.reload(self.__module)
+        self.__loadMethods()
+
+    def getEndpoint(self, endpointStr : str):
+        endpoint = self.methods.get(endpointStr, None)
+        if endpoint == None: return None
+        return endpoint
 
     def __loadModule(self):
         try:
@@ -57,15 +134,30 @@ class Extension():
                 if extMethod.name != None:
                     self.methods[extMethod.name] = extMethod
 
-    def reload(self):
-        if self.__module == None: self.__loadModule()
-        else: self.__module = importlib.reload(self.__module)
-        self.__loadMethods()
+    def __saveConfig(self):
+        config = {
+            'enabled': self.__enabled,
+            'twitch': self.__twitchId or '',
+            'discord': self.__discordId or '',
+            'streamelements': self.__streamelementsId or ''
+        }
+        with open(self.__configPath, 'w') as f: json.dump(config, f)
+    
+    def __loadConfig(self):
+        if self.__configPath.is_file():
+            with open(self.__configPath, 'r') as f:
+                try: data = json.load(f)
+                except Exception: data = {}
+        else: data = {}
 
-    def getEndpoint(self, endpointStr : str):
-        endpoint = self.methods.get(endpointStr, None)
-        if endpoint == None: return None
-        return endpoint
+        state, data = StructGuard.verifyDictStructure(data, Extension.CONFIG_PATH_STRUCTURE)
+        
+        self.__enabled = data['enabled']
+        self.__twitchId = data['twitch'] or None
+        self.__discordId = data['discord'] or None
+        self.__streamelementsId = data['streamelements'] or None
+        
+        if state != StructGuard.NO_CHANGES: self.__saveConfig()
 
 class ExtensionMethod():
     ENDPOINTS = {
@@ -219,16 +311,10 @@ class Extensions():
 
         self.logs = []
 
-        self.__enabledExtensionsPath = Path('dependencies/data/enabled.json')
-        self.__enabledExtensions = self.__loadEnabled(self.__enabledExtensionsPath)
-
         self.extensions : list[Extension] = []
         self.settingsUI : list[SettingsUI.SettingsUI] = []
 
         self.__loadExtensions(self.__extensionsPath)
-
-        enabledChanged, self.__enabledExtensions = self.__verifyEnabled(self.__enabledExtensions, self.extensions)
-        if enabledChanged: self.__saveEnabled(self.__enabledExtensions, self.__enabledExtensionsPath)
 
         self.__loop = asyncio.get_event_loop()
 
@@ -273,19 +359,46 @@ class Extensions():
     def toggleExtension(self, moduleName : str, enabled : bool):
         matchExt = self.__extensionByName(moduleName)
         if matchExt == None: return False
-        isEnabled = moduleName in self.__enabledExtensions
-        if enabled:
-            if not isEnabled: self.__enabledExtensions.append(moduleName)
-        else:
-            if isEnabled: self.__enabledExtensions.remove(moduleName)
-        matchExt.enabled = enabled
-        self.__saveEnabled(self.__enabledExtensions, self.__enabledExtensionsPath)
+        matchExt.toggle(enabled)
         return True
 
     def __extensionByName(self, moduleName : str):
         for ext in self.extensions:
             if ext.moduleName == moduleName: return ext
         return None
+    
+    def setExtensionConnectionTwitch(self, extName : str, twitchId : str):
+        foundExt = self.__extensionByName(extName)
+        if foundExt is None: return False, 'unable to update extension\'s connected Discord, extension does not exist'
+        
+        if twitchId is not None:
+            foundTwitch = self.findTwitch(id_=twitchId)
+            if foundTwitch is None: return False, 'unable to update extension\'s connected Discord, Discord ID does not exist'
+        
+        foundExt.setTwitchConnection(twitchId)
+        return True, None
+
+    def setExtensionConnectionDiscord(self, extName : str, discordId : str | None):
+        foundExt = self.__extensionByName(extName)
+        if foundExt is None: return False, 'unable to update extension\'s connected Discord, extension does not exist'
+        
+        if discordId is not None:
+            foundDiscord = self.findDiscord(id_=discordId)
+            if foundDiscord is None: return False, 'unable to update extension\'s connected Discord, Discord ID does not exist'
+        
+        foundExt.setDiscordConnection(discordId)
+        return True, None
+
+    def setExtensionConnectionStreamElements(self, extName : str, streamelementsId : str):
+        foundExt = self.__extensionByName(extName)
+        if foundExt is None: return False, 'unable to update extension\'s connected Discord, extension does not exist'
+        
+        if streamelementsId is not None:
+            foundStreamElements = self.findStreamElements(id_=streamelementsId)
+            if foundStreamElements is None: return False, 'unable to update extension\'s connected Discord, Discord ID does not exist'
+        
+        foundExt.setStreamElementsConnection(streamelementsId)
+        return True, None
     
     async def updateTwitch(self, tID, tAlias, tTMI, tChannels, tRegualarGroups) -> tuple[bool, str | Twitch.Twitch]:
         if tID == 'NEW':
@@ -412,6 +525,24 @@ class Extensions():
         self.__loadMethods(matchingExtension)
         return True
     
+    def __triggerFilterTwitch(self, extensionMethod : ExtensionMethod, twitch : Twitch.Twitch):
+        if twitch is None: return False
+        if not extensionMethod.extension.enabled: return False
+        if extensionMethod.extension.twitch is None: return False
+        return extensionMethod.extension.twitch.id == twitch.id
+
+    def __triggerFilterDiscord(self, extensionMethod : ExtensionMethod, discord : Discord.Discord):
+        if discord is None: return False
+        if not extensionMethod.extension.enabled: return False
+        if extensionMethod.extension.discord is None: return False
+        return extensionMethod.extension.discord.id == discord.id
+
+    def __triggerFilterSE(self, extensionMethod : ExtensionMethod, streamElements : StreamElements.StreamElements):
+        if streamElements is None: return False
+        if not extensionMethod.extension.enabled: return False
+        if extensionMethod.extension.streamelements is None: return False
+        return extensionMethod.extension.streamelements.id == streamElements.id
+        
     def initialize(self, extension : Extension):
         ep = extension.getEndpoint('initialize')
         if ep == None: return
@@ -420,41 +551,57 @@ class Extensions():
 
     def twitchMessage(self, message : Twitch.TwitchMessage):
         print('[CORE] Twitch message')
-        self.__addLegacy(self.__legacyCallbacks.get('twitchMessage', []), (message.legacy(),))
+        twitch = self.findTwitch(id_=message.twitchContext.twitchId)
+
+        self.__addLegacy([i for i in self.__legacyCallbacks.get('twitchMessage', []) if self.__triggerFilterTwitch(i, twitch)], (message.legacy(),))
 
         for extMethod in self.__callbacks.get('twitchMessage', []):
-            self.__loop.create_task(self.__addTask(extMethod, (message,)))
+            if self.__triggerFilterTwitch(extMethod, twitch):
+                self.__loop.create_task(self.__addTask(extMethod, (message,)))
 
     def streamElementsEvent(self, event : StreamElements.StreamElementsGenericEvent):
         print('[CORE] StreamElements event')
-        self.__addLegacy(self.__legacyCallbacks.get('streamElementsEvent', []), (event.legacy(),))
+        streamElements = self.findStreamElements(id_=event.streamElementsContext.streamElementsId)
+        self.__addLegacy([i for i in self.__legacyCallbacks.get('streamElementsEvent', []) if self.__triggerFilterSE(i, streamElements)], (event.legacy(),))
 
         for extMethod in self.__callbacks.get('streamElementsEvent', []):
-            self.__loop.create_task(self.__addTask(extMethod, (event,)))
+            if self.__triggerFilterSE(extMethod, streamElements):
+                self.__loop.create_task(self.__addTask(extMethod, (event,)))
 
     def streamElementsTestEvent(self, event : StreamElements.StreamElementsGenericEvent):
         print('[CORE] StreamElements test event')
+        streamElements = self.findStreamElements(id_=event.streamElementsContext.streamElementsId)
+        self.__addLegacy([i for i in self.__legacyCallbacks.get('streamElementsTestEvent', []) if self.__triggerFilterSE(i, streamElements)], (event.legacy(),))
+
         for extMethod in self.__callbacks.get('streamElementsTestEvent', []):
-            self.__loop.create_task(self.__addTask(extMethod, (event,)))
+            if self.__triggerFilterSE(extMethod, streamElements):
+                self.__loop.create_task(self.__addTask(extMethod, (event,)))
 
     def webhook(self, moduleName : str, wh : Web.Webhook):
         print('[CORE] webhook')
         for extMethod in self.__callbacks.get('webhook', []):
             if extMethod.extension.moduleName == moduleName:
-                self.__loop.create_task(self.__addTask(extMethod, (wh, )))
+                if extMethod.extension.enabled: self.__loop.create_task(self.__addTask(extMethod, (wh, )))
                 return
         
         for extMethod in self.__legacyCallbacks.get('webhook', []):
             if extMethod.extension.moduleName == moduleName:
-                self.__addLegacy([extMethod], wh.legacy())
+                if extMethod.extension.enabled: self.__addLegacy([extMethod], wh.legacy())
                 return
 
     def toggle(self, script : str, toggleStatus : bool):
         print('[CORE] toggle')
+
+        toggleArg = MinorExtensionArgs.Toggle(toggleStatus)
+
         for extMethod in self.__callbacks.get('toggle', []):
             if extMethod.extension.moduleName == script:
-                self.__loop.create_task(self.__addTask(extMethod, (toggleStatus,)))
-                break
+                self.__loop.create_task(self.__addTask(extMethod, (toggleArg,)))
+                return
+        for extMethod in self.__legacyCallbacks.get('toggle', []):
+            if extMethod.extension.moduleName == script:
+                self.__addLegacy([extMethod], toggleArg.legacy())
+                return
 
     def crossTalk(self, data : Web.CrossTalk, scripts : list[str], events : list[str]) -> tuple[bool, str | None]:
         print('[CORE] cross talk')
@@ -463,19 +610,19 @@ class Extensions():
         if isinstance(scripts, list): scripts = scripts.copy()
         if isinstance(events, list): events = events.copy()
 
-        if not StructGuard.verifyListStructure(scripts, structs)[0]: return False, 'Invalid scripts, should be a list with string items'
-        if not StructGuard.verifyListStructure(events, structs)[0]: return False, 'Invalid events, should be a list with string items'
+        if StructGuard.verifyListStructure(scripts, structs, rebuild=False)[0] != StructGuard.NO_CHANGES: return False, 'Invalid scripts, should be a list with string items'
+        if StructGuard.verifyListStructure(events, structs, rebuild=False)[0] != StructGuard.NO_CHANGES: return False, 'Invalid events, should be a list with string items'
 
         for event in events: self.__loop.create_task(self.__websio.emit(event, data, broadcast=True))
 
         if len(scripts) == 0: return True, None
 
         for extMethod in self.__callbacks.get('crossTalk', []):
-            if extMethod.extension.moduleName in scripts: self.__loop.create_task(self.__addTask(extMethod, (data, )))
+            if extMethod.extension.enabled and extMethod.extension.moduleName in scripts: self.__loop.create_task(self.__addTask(extMethod, (data, )))
         
         legacyCallbacks = []
         for extMethod in self.__legacyCallbacks.get('crossTalk', []):
-            if extMethod.extension.moduleName in scripts: legacyCallbacks.append(extMethod)
+            if extMethod.extension.enabled and extMethod.extension.moduleName in scripts: legacyCallbacks.append(extMethod)
         
         if len(legacyCallbacks) != 0: self.__addLegacy(legacyCallbacks, data.legacy())
 
@@ -498,92 +645,108 @@ class Extensions():
 
     def discordMessage(self, data : Discord.DiscordMessage):
         print('[CORE] new Discord message')
+        discord = self.findDiscord(id_=data.discordContext.discordId)
         for extMethod in self.__callbacks.get('discordMessage', []):
-            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+            if self.__triggerFilterDiscord(extMethod, discord):
+                self.__loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMessageDeleted(self, data : Discord.DiscordMessageDeleted):
         print('[CORE] Discord message deleted')
+        discord = self.findDiscord(id_=data.discordContext.discordId)
         for extMethod in self.__callbacks.get('discordMessageDeleted', []):
-            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+            if self.__triggerFilterDiscord(extMethod, discord):
+                self.__loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMessageEdited(self, data : Discord.DiscordMessageEdited):
         print('[CORE] Discord message edited')
+        discord = self.findDiscord(id_=data.discordContext.discordId)
         for extMethod in self.__callbacks.get('discordMessageEdited', []):
-            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+            if self.__triggerFilterDiscord(extMethod, discord):
+                self.__loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMessageNewReaction(self, data : Discord.DiscordMessageNewReaction):
         print('[CORE] Discord reaction added')
+        discord = self.findDiscord(id_=data.discordContext.discordId)
         for extMethod in self.__callbacks.get('discordMessageNewReaction', []):
-            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+            if self.__triggerFilterDiscord(extMethod, discord):
+                self.__loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMessageRemovedReaction(self, data : Discord.DiscordMessageRemovedReaction):
         print('[CORE] Discord reaction removed')
+        discord = self.findDiscord(id_=data.discordContext.discordId)
         for extMethod in self.__callbacks.get('discordMessageRemovedReaction', []):
-            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+            if self.__triggerFilterDiscord(extMethod, discord):
+                self.__loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMessageReactionsCleared(self, data : Discord.DiscordMessageReactionsCleared):
         print('[CORE] Discord reactions cleared')
+        discord = self.findDiscord(id_=data.discordContext.discordId)
         for extMethod in self.__callbacks.get('discordMessageReactionsCleared', []):
-            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+            if self.__triggerFilterDiscord(extMethod, discord):
+                self.__loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMessageReactionEmojiCleared(self, data : Discord.DiscordMessageReactionEmojiCleared):
         print('[CORE] Discord reaction emoji cleared')
+        discord = self.findDiscord(id_=data.discordContext.discordId)
         for extMethod in self.__callbacks.get('discordMessageReactionEmojiCleared', []):
-            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+            if self.__triggerFilterDiscord(extMethod, discord):
+                self.__loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMemberJoined(self, data : Discord.DiscordMemberJoined):
         print('[CORE] Discord member joined')
+        discord = self.findDiscord(id_=data.discordContext.discordId)
         for extMethod in self.__callbacks.get('discordMemberJoined', []):
-            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+            if self.__triggerFilterDiscord(extMethod, discord):
+                self.__loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMemberRemoved(self, data : Discord.DiscordMemberRemoved):
         print('[CORE] Discord member removed')
+        discord = self.findDiscord(id_=data.discordContext.discordId)
         for extMethod in self.__callbacks.get('discordMemberRemoved', []):
-            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+            if self.__triggerFilterDiscord(extMethod, discord):
+                self.__loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMemberUpdated(self, data : Discord.DiscordMemberUpdated):
         print('[CORE] Discord member updated')
+        discord = self.findDiscord(id_=data.discordContext.discordId)
         for extMethod in self.__callbacks.get('discordMemberUpdated', []):
-            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+            if self.__triggerFilterDiscord(extMethod, discord):
+                self.__loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMemberBanned(self, data : Discord.DiscordMemberBanned):
         print('[CORE] Discord member banned')
+        discord = self.findDiscord(id_=data.discordContext.discordId)
         for extMethod in self.__callbacks.get('discordMemberBanned', []):
-            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+            if self.__triggerFilterDiscord(extMethod, discord):
+                self.__loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMemberUnbanned(self, data : Discord.DiscordMemberUnbanned):
         print('[CORE] Discord member unbanned')
+        discord = self.findDiscord(id_=data.discordContext.discordId)
         for extMethod in self.__callbacks.get('discordMemberUnbanned', []):
-            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+            if self.__triggerFilterDiscord(extMethod, discord):
+                self.__loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordGuildJoined(self, data : Discord.DiscordGuildJoined):
         print('[CORE] joined Discord guild')
+        discord = self.findDiscord(id_=data.discordContext.discordId)
         for extMethod in self.__callbacks.get('discordGuildJoined', []):
-            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+            if self.__triggerFilterDiscord(extMethod, discord):
+                self.__loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordGuildRemoved(self, data : Discord.DiscordGuildRemoved):
         print('[CORE] removed from Discord guild')
+        discord = self.findDiscord(id_=data.discordContext.discordId)
         for extMethod in self.__callbacks.get('discordGuildRemoved', []):
-            self.__loop.create_task(self.__addTask(extMethod, (data,)))
+            if self.__triggerFilterDiscord(extMethod, discord):
+                self.__loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordVoiceStateUpdate(self, data : Discord.DiscordVoiceStateUpdate):
         print('[CORE] Discord voice state changed')
+        discord = self.findDiscord(id_=data.discordContext.discordId)
         for extMethod in self.__callbacks.get('discordVoiceStateUpdate', []):
-            self.__loop.create_task(self.__addTask(extMethod, (data,)))
-
-    def __loadEnabled(self, enabledPath : Path) -> list[str]:
-        if not enabledPath.exists(): return []
-
-        with open(enabledPath, 'r') as f:
-            try: enabled = json.load(f)
-            except Exception: return []
-        
-        if not isinstance(enabled, list): return []
-
-        for index in reversed(range(len(enabled))):
-            if not isinstance(enabled[index], str): enabled.pop(index)
-
-        return enabled
+            if self.__triggerFilterDiscord(extMethod, discord):
+                self.__loop.create_task(self.__addTask(extMethod, (data,)))
     
     def __loadMethods(self, extension : Extension):
         self.__unloadMethods(extension)
@@ -608,47 +771,6 @@ class Extensions():
                     callbacks.pop(index)
                     break
     
-    def __verifyEnabled(self, enabled : list[str], extensions : list[Extension]) -> tuple[bool, list[str]]:
-        changes = False
-
-        if not isinstance(enabled, list):
-            return True, []
-
-        for index in reversed(range(len(enabled))):
-            item = enabled[index]
-            if not isinstance(item, str):
-                enabled.pop(index)
-                changes = True
-                continue
-
-            extExists = False
-            for ext in extensions:
-                if item == ext.moduleName:
-                    extExists = True
-                    break
-            if not extExists or enabled.count(item) > 1:
-                enabled.pop(index)
-                changes = True
-
-        for ext in extensions:
-            isEnabled = ext.moduleName in enabled
-            if ext.enabled and not isEnabled:
-                enabled.append(ext.moduleName)
-                changes = True
-            elif isEnabled and not ext.enabled:
-                enabled.remove(ext.moduleName)
-                changes = True
-
-        return changes, enabled
-
-    def __saveEnabled(self, enabled : list[str], enabledPath : Path):
-        enabledPath.parent.mkdir(parents=True, exist_ok=True)
-        with open(enabledPath, 'w') as f:
-            json.dump(enabled, f)
-
-    def __extensionEnabled(self, moduleName : str):
-        return moduleName in self.__enabledExtensions
-
     def __find(objects : list, objectId : int):
         for obj in objects:
             if obj.id == objectId:
@@ -664,7 +786,6 @@ class Extensions():
 
     def __addExtension(self, path : Path):
         newExt = Extension(self, path)
-        newExt.enabled = self.__extensionEnabled(newExt.moduleName)
         if newExt.error: self.__handleExtensionError(newExt, newExt.errorData, 'import')
         self.addExtension(newExt)
     

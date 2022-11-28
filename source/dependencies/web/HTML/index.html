@@ -44,16 +44,48 @@
         </header>
         <section class="data">
             {% for extension in extensions %}
-            <section class="ExtensionItem">
+            <div class="ExtensionItem">
                 {% if extension.enabled %}
                 <input class="CustomCheckbox ToggleExtension" type="checkbox" checked
                     data-module="{{extension.moduleName}}" />
                 {% else %}
                 <input class="CustomCheckbox ToggleExtension" type="checkbox" data-module="{{extension.moduleName}}" />
                 {% endif %}
-                <p>{{extension.moduleName}}</p>
-            </section>
+                <p class="ExtensionName">{{extension.moduleName}}</p>
+                <p class="ExtensionConnection TwitchConnection" data-twitchId="{{extension.twitch.id}}">{{extension.twitch.alias}}</p>
+                <p class="ExtensionConnection DiscordConnection" data-discordId="{{extension.discord.id}}">{{extension.discord.alias}}</p>
+                <p class="ExtensionConnection StreamElementsConnection" data-streamelementsId="{{extension.streamelements.id}}">{{extension.streamelements.alias}}</p>
+            </div>
             {% endfor %}
+            <div id="ExtensionConnections" class="hidden">
+                <div class="ExtensionConnectionItem">
+                    <h2>Twitch</h2>
+                    <select id="ExtensionConnectionTwitch">
+                        <option value="DISABLED">No connection</option>
+                        {% for t in twitch %}
+                        <option value="{{t.id}}">{{t.alias}}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="ExtensionConnectionItem">
+                    <h2>Discord</h2>
+                    <select id="ExtensionConnectionDiscord">
+                        <option value="DISABLED">No connection</option>
+                        {% for d in discords %}
+                        <option value="{{d.id}}">{{d.alias}}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="ExtensionConnectionItem">
+                    <h2>StreamElements</h2>
+                    <select id="ExtensionConnectionStreamElements">
+                        <option value="DISABLED">No connection</option>
+                        {% for s in streamelements %}
+                        <option value="{{s.id}}">{{s.alias}}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
         </section>
     </article>
     <article id="settings">

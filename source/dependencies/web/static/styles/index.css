@@ -291,16 +291,56 @@ article header .ResetClearBtn:hover {
     background: rgba(0, 0, 0, .25);
 }
 
-section.ExtensionItem{
+.ExtensionItem {
     display: flex;
     align-items: center;
     margin: .25rem 0;
 }
 
-section.ExtensionItem p {
+.ExtensionItem p.ExtensionName {
     display: inline-block;
     font-size: 1.3rem;
     margin-left: .5rem;
+    cursor: pointer;
+}
+
+.ExtensionItem p.ExtensionName:hover {
+    background: rgba(0, 0, 0, .25);
+}
+
+.ExtensionItem p.ExtensionName.selected {
+    text-decoration: underline;
+}
+
+.ExtensionItem .ExtensionConnection {
+    font-size: 0.9rem;
+    padding: .1rem .5rem;
+    border-radius: 99999rem;
+    margin-left: .5rem;
+}
+
+.ExtensionItem .ExtensionConnection:empty {
+    display: none;
+}
+
+.ExtensionConnection.TwitchConnection {
+    background: #800080;
+}
+
+.ExtensionConnection.DiscordConnection {
+    background: #2f2f91;
+}
+
+.ExtensionConnection.StreamElementsConnection {
+    background: #af2a2a;
+}
+
+#ExtensionConnections {
+    display: flex;
+}
+
+.ExtensionConnectionItem {
+    margin: 0 .3rem;
 }
 
 .hideEmptyList:not([list]) {
@@ -359,7 +399,7 @@ section.ExtensionItem p {
 }
 
 .hidden {
-    display: none;
+    display: none !important;
 }
 
 .button {

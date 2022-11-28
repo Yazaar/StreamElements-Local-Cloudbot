@@ -159,7 +159,8 @@ class DiscordClientContext():
         self.__parent = parent
         pass
 
-    def id(self): return self.__parent.id
+    @property
+    def discordId(self): return self.__parent.id
 
     @property
     def activity(self): return self.__parent.activity
@@ -227,7 +228,7 @@ class DiscordMessage():
             self.error = True
             return
 
-        self.client = client
+        self.__discordContext = client
         self.context = msg
         
         self.error = False
@@ -248,6 +249,9 @@ class DiscordMessage():
         self.lowerMessage = self.message.lower()
 
         self.lowerWords = self.lowerMessage.split(' ')
+
+    @property
+    def discordContext(self): return self.__discordContext
 
     def __copy(self, msg):
         self.client = msg.client
@@ -285,75 +289,117 @@ class DiscordMessage():
 
 class DiscordMessageDeleted():
     def __init__(self, client : DiscordClientContext, payload : discord.RawMessageDeleteEvent):
-        self.client = client
+        self.__discordContext = client
         self.payload = payload
+    
+    @property
+    def discordContext(self): return self.__discordContext
 
 class DiscordMessageEdited():
     def __init__(self, client : DiscordClientContext, payload : discord.RawMessageUpdateEvent):
-        self.client = client
+        self.__discordContext = client
         self.payload = payload
+    
+    @property
+    def discordContext(self): return self.__discordContext
 
 class DiscordMessageNewReaction():
     def __init__(self, client : DiscordClientContext, payload : discord.RawReactionActionEvent):
-        self.client = client
+        self.__discordContext = client
         self.payload = payload
+    
+    @property
+    def discordContext(self): return self.__discordContext
 
 class DiscordMessageRemovedReaction():
     def __init__(self, client : DiscordClientContext, payload : discord.RawReactionActionEvent):
-        self.client = client
+        self.__discordContext = client
         self.payload = payload
+    
+    @property
+    def discordContext(self): return self.__discordContext
 
 class DiscordMessageReactionsCleared():
     def __init__(self, client : DiscordClientContext, payload : discord.RawReactionClearEvent):
-        self.client = client
+        self.__discordContext = client
         self.payload = payload
+    
+    @property
+    def discordContext(self): return self.__discordContext
 
 class DiscordMessageReactionEmojiCleared():
     def __init__(self, client : DiscordClientContext, payload : discord.RawReactionClearEmojiEvent):
-        self.client = client
+        self.__discordContext = client
         self.payload = payload
+    
+    @property
+    def discordContext(self): return self.__discordContext
 
 class DiscordMemberJoined():
     def __init__(self, client : DiscordClientContext, member : discord.Member):
-        self.client = client
+        self.__discordContext = client
         self.member = member
+    
+    @property
+    def discordContext(self): return self.__discordContext
 
 class DiscordMemberRemoved():
     def __init__(self, client : DiscordClientContext, member : discord.Member):
-        self.client = client
+        self.__discordContext = client
         self.member = member
+    
+    @property
+    def discordContext(self): return self.__discordContext
 
 class DiscordMemberUpdated():
     def __init__(self, client : DiscordClientContext, before : discord.Member, after : discord.Member):
-        self.client = client
+        self.__discordContext = client
         self.before = before
         self.after = after
+    
+    @property
+    def discordContext(self): return self.__discordContext
 
 class DiscordMemberBanned():
     def __init__(self, client : DiscordClientContext, guild : discord.Guild, user : typing.Union[discord.Member, discord.User]):
-        self.client = client
+        self.__discordContext = client
         self.guild = guild
         self.user = user
+    
+    @property
+    def discordContext(self): return self.__discordContext
 
 class DiscordMemberUnbanned():
     def __init__(self, client : DiscordClientContext, guild : discord.Guild, user : typing.Union[discord.Member, discord.User]):
-        self.client = client
+        self.__discordContext = client
         self.guild = guild
         self.user = user
+    
+    @property
+    def discordContext(self): return self.__discordContext
 
 class DiscordGuildJoined():
     def __init__(self, client : DiscordClientContext, guild : discord.Guild):
-        self.client = client
+        self.__discordContext = client
         self.guild = guild
+    
+    @property
+    def discordContext(self): return self.__discordContext
 
 class DiscordGuildRemoved():
     def __init__(self, client : DiscordClientContext, guild : discord.Guild):
-        self.client = client
+        self.__discordContext = client
         self.guild = guild
+    
+    @property
+    def discordContext(self): return self.__discordContext
 
 class DiscordVoiceStateUpdate():
     def __init__(self, client : DiscordClientContext, member : discord.Member, before : discord.VoiceState, after : discord.VoiceState):
-        self.client = client
+        self.__discordContext = client
         self.member = member
         self.before = before
         self.after = after
+    
+    @property
+    def discordContext(self): return self.__discordContext

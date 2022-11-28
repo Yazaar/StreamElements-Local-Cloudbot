@@ -282,6 +282,9 @@ class TwitchMessage():
     @property
     def name(self): return self.username
 
+    @property
+    def twitchContext(self): return self.__context.clientContext
+
     def __parseRawMsg(self, rawMsg : str):
         dictRes = {}
         if (rawMsg[0] != '@'): return dictRes
@@ -359,6 +362,9 @@ class TwitchMessage():
 class TwitchContext():
     def __init__(self, twitch : Twitch):
         self.__parent = twitch
+    
+    @property
+    def twitchId(self): return self.__parent.id
     
     def isRegular(self, channel : str, username : str):
         return self.__parent.isRegular(channel, username)

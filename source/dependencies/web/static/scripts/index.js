@@ -2,6 +2,11 @@ let s = io.connect(window.location.origin)
 
 let ResetExtensionBtnActive = false
 let ResetExtensionBtn = document.querySelector('#ResetExtensions')
+let extensionConnectionsBlock = document.getElementById('ExtensionConnections')
+let extensionConnectionTwitch = document.getElementById('ExtensionConnectionTwitch')
+let extensionConnectionDiscord = document.getElementById('ExtensionConnectionDiscord')
+let extensionConnectionStreamElements = document.getElementById('ExtensionConnectionStreamElements')
+
 
 let selectedPlatform = null
 let currentTMI = null
@@ -249,15 +254,6 @@ function deleteDiscordRegularGroup(regularGroup) {
     let d = discordCurrentRegularGroups.querySelector('div[data-regulargroupname="' + regularGroup + '"]')
     if (d === null) return
     d.parentElement.removeChild(d)
-}
-
-function showTwitchInstance(twitch) {
-    let opt = document.createElement('option')
-    opt.selected = true
-    opt.value = twitch.id
-    opt.text = twitch.alias
-    twitchBotsSelector.appendChild(opt)
-    selectedTwitchInstance(twitch.id)
 }
 
 function selectedTwitchInstance(twitchID) {
@@ -540,6 +536,88 @@ for (let i of document.querySelectorAll('.ToggleExtension')) {
     })
 }
 
+document.querySelector('#extensions .data').addEventListener('click', function(e) {
+    let clickedExtName = bubbleToClass(this, e.target, 'ExtensionName')
+    if (clickedExtName === null) return
+    let allExtNames = this.querySelectorAll('.ExtensionName')
+    for (let i of allExtNames) { i.classList.remove('selected') }
+    clickedExtName.classList.add('selected')
+    extensionConnectionsBlock.classList.remove('hidden')
+
+    let twitchId = clickedExtName.parentElement.querySelector('.TwitchConnection').getAttribute('data-twitchId')
+    let discordId = clickedExtName.parentElement.querySelector('.DiscordConnection').getAttribute('data-discordId')
+    let streamelementsId = clickedExtName.parentElement.querySelector('.StreamElementsConnection').getAttribute('data-streamelementsId')
+
+    let sTwitch = extensionConnectionTwitch.querySelector('option[value="' + twitchId + '"]')
+    let sDiscord = extensionConnectionDiscord.querySelector('option[value="' + discordId + '"]')
+    let sStreamelements = extensionConnectionStreamElements.querySelector('option[value="' + streamelementsId + '"]')
+
+    if (sTwitch === null) extensionConnectionTwitch.value = 'DISABLED'
+    else sTwitch.selected = true
+    if (sDiscord === null) extensionConnectionDiscord.value = 'DISABLED'
+    else sDiscord.selected = true
+    if (sStreamelements === null) extensionConnectionStreamElements.value = 'DISABLED'
+    else sStreamelements.selected = true
+})
+
+extensionConnectionTwitch.addEventListener('input', function() {
+    let selectedExt = document.querySelector('#extensions .ExtensionName.selected')
+    
+    let twitchId = this.value
+    let twitchAlias = this.options[this.selectedIndex].innerText
+    let extName = selectedExt.innerText
+
+    if (twitchId === 'DISABLED') {
+        twitchId = null
+        twitchAlias = ''
+    }
+
+    let tc = selectedExt.parentElement.querySelector('.TwitchConnection')
+    tc.innerText = twitchAlias
+    tc.setAttribute('data-twitchId', twitchId)
+
+    s.emit('SetExtensionConnectionTwitch', {extension: extName, twitchId: twitchId})
+})
+
+extensionConnectionDiscord.addEventListener('input', function() {
+    let selectedExt = document.querySelector('#extensions .ExtensionName.selected')
+
+    let discordId = this.value
+    let discordAlias = this.options[this.selectedIndex].innerText
+    let extName = selectedExt.innerText
+    
+    if (discordId === 'DISABLED') {
+        discordId = null
+        discordAlias = ''
+    }
+
+    let dc = selectedExt.parentElement.querySelector('.DiscordConnection')
+    dc.innerText = discordAlias
+    dc.setAttribute('data-discordId', discordId)
+
+    s.emit('SetExtensionConnectionDiscord', {extension: extName, discordId: discordId})
+})
+
+extensionConnectionStreamElements.addEventListener('input', function() {
+    let selectedExt = document.querySelector('#extensions .ExtensionName.selected')
+
+    let streamelementsId = this.value
+    let streamelementsAlias = this.options[this.selectedIndex].innerText
+    let extName = selectedExt.innerText
+
+    if (streamelementsId === 'DISABLED') {
+        streamelementsId = null
+        streamelementsAlias = ''
+    }
+
+    let sc = selectedExt.parentElement.querySelector('.StreamElementsConnection')
+    sc.innerText = streamelementsAlias
+    sc.setAttribute('data-streamelementsId', streamelementsId)
+
+    s.emit('SetExtensionConnectionStreamElements', {extension: extName, streamelementsId: streamelementsId})
+})
+
+
 document.getElementById('ClearEvents').addEventListener('click', () => {
     document.querySelector('article#events section.data').innerHTML = ''
     s.emit('ClearEvents')
@@ -691,6 +769,7 @@ s.on('SaveDiscordInstance', function(data) {
     saveDiscordBTN.classList.remove('disabled')
     if (data.success) {
         let e = selectedDiscord.querySelector('option[value="' + data.data.id + '"]')
+        let e2 = extensionConnectionDiscord.querySelector('option[value="' + data.data.id + '"]')
         if (e) {
             e.innerText = data.data.alias
         } else {
@@ -700,6 +779,14 @@ s.on('SaveDiscordInstance', function(data) {
             e.selected = true
             selectedDiscord.appendChild(e)
         }
+        if (e2) {
+            e2.innerText = data.data.alias
+        } else {
+            e2 = document.createElement('option')
+            e2.value = data.data.id
+            e2.innerText = data.data.alias
+            extensionConnectionDiscord.appendChild(e2)
+        }
     }
 })
 
@@ -707,6 +794,7 @@ s.on('SaveStreamElementsInstance', function(data) {
     saveStreamElementsBTN.classList.remove('disabled')
     if (data.success) {
         let e = selectedStreamElements.querySelector('option[value="' + data.data.id + '"]')
+        let e2 = extensionConnectionStreamElements.querySelector('option[value="' + data.data.id + '"]')
         if (e) {
             e.innerText = data.data.alias
         } else {
@@ -716,6 +804,14 @@ s.on('SaveStreamElementsInstance', function(data) {
             e.selected = true
             selectedStreamElements.appendChild(e)
         }
+        if (e2) {
+            e2.innerText = data.data.alias
+        } else {
+            e2 = document.createElement('option')
+            e2.value = data.data.id
+            e2.innerText = data.data.alias
+            extensionConnectionStreamElements.appendChild(e2)
+        }
     }
 })
 
@@ -723,6 +819,7 @@ s.on('SaveTwitchInstance', function(data) {
     saveTwitchInstanceBTN.classList.remove('disabled')
     if (data.success) {
         let e = twitchBotsSelector.querySelector('option[value="' + data.data.id + '"]')
+        let e2 = extensionConnectionTwitch.querySelector('option[value="' + data.data.id + '"]')
         if (e) {
             e.innerText = data.data.alias
         } else {
@@ -731,6 +828,14 @@ s.on('SaveTwitchInstance', function(data) {
             e.innerText = data.data.alias
             e.selected = true
             twitchBotsSelector.appendChild(e)
+        }
+        if (e2) {
+            e2.innerText = data.data.alias
+        } else {
+            e2 = document.createElement('option')
+            e2.value = data.data.id
+            e2.innerText = data.data.alias
+            extensionConnectionTwitch.appendChild(e2)
         }
     }
 })
