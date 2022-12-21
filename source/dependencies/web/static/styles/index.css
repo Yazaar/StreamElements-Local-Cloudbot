@@ -192,28 +192,65 @@ article#settings section.data div section {
     border-bottom: rgba(0, 0, 0, .25) solid .15rem;
 }
 
-article#regulars section.data {
-    overflow: hidden;
-}
-
 #RegularWrapper {
-    display: inline-flex;
+    display: flex;
     flex-direction: column;
+    align-items: start;
 }
 
-input#RegularInput {
+input {
     color: #000000;
 }
 
-#AddDeleteRegular {
+#AddRegular, #DeleteSelectedRegular {
     border: .1rem solid #000000;
     display: inline-block;
     text-align: center;
     cursor: pointer;
+    margin-top: .5rem;
 }
 
-#AddDeleteRegular:hover{
+h2 {
+    margin-top: .5rem;
+    font-size: 1.2rem;
+}
+
+#AddRegular:hover, #DeleteSelectedRegular:hover {
     background: rgba(0, 0, 0, .25);
+}
+
+#CurrentRegulars > .user {
+    display: inline-block;
+    margin: .25rem .5rem;
+    background: rgba(0, 0, 0, .5);
+    padding: .25rem .5rem;
+    border-radius: .5rem;
+    cursor: pointer;
+    transition: transform 250ms ease-in-out;
+}
+
+#CurrentRegulars > .user.hidden {
+    display: none;
+}
+
+#CurrentRegulars > .user.clicked {
+    background: rgba(182, 179, 5, 0.5);
+}
+
+#CurrentRegulars > .user.clicked.deletable {
+    background: rgba(255, 0, 0, 0.5);
+}
+
+#CurrentRegulars > .user:hover {
+    transform: scale(1.1);
+}
+
+#CurrentRegulars > .user > .alias {
+    font-size: 1.1rem;
+}
+
+#CurrentRegulars > .user > .platformID {
+    font-size: .75rem;
 }
 
 article#setup.WaitingForSave .saveSetupButton {
@@ -254,19 +291,144 @@ article header .ResetClearBtn:hover {
     background: rgba(0, 0, 0, .25);
 }
 
-section.ExtensionItem{
+.ExtensionItem {
     display: flex;
     align-items: center;
     margin: .25rem 0;
 }
 
-section.ExtensionItem p {
+.ExtensionItem p.ExtensionName {
     display: inline-block;
     font-size: 1.3rem;
+    margin-left: .5rem;
+    cursor: pointer;
+}
+
+.ExtensionItem p.ExtensionName:hover {
+    background: rgba(0, 0, 0, .25);
+}
+
+.ExtensionItem p.ExtensionName.selected {
+    text-decoration: underline;
+}
+
+.ExtensionItem .ExtensionConnection {
+    font-size: 0.9rem;
+    padding: .1rem .5rem;
+    border-radius: 99999rem;
+    margin-left: .5rem;
+}
+
+.ExtensionItem .ExtensionConnection:empty {
+    display: none;
+}
+
+.ExtensionConnection.TwitchConnection {
+    background: #800080;
+}
+
+.ExtensionConnection.DiscordConnection {
+    background: #2f2f91;
+}
+
+.ExtensionConnection.StreamElementsConnection {
+    background: #af2a2a;
+}
+
+#ExtensionConnections {
+    display: flex;
+}
+
+.ExtensionConnectionItem {
+    margin: 0 .3rem;
+}
+
+.hideEmptyList:not([list]) {
+    display: none;
+}
+
+#TwitchInstanceConfigs > #TwitchInstanceChannels,
+#TwitchInstanceConfigs > #TwitchInstanceRegularGroups {
+    display: none;
+}
+
+#TwitchInstanceConfigs.channels > #TwitchInstanceChannels {
+    display: block;
+}
+
+#TwitchInstanceConfigs.regularGroups > #TwitchInstanceRegularGroups {
+    display: block;
+}
+
+.configItem {
+    display: inline-block;
+    margin: .5rem;
+    padding: .5rem;
+    background: rgba(0, 0, 0, .25);
+    border-radius: .5rem;
+    cursor: pointer;
+    transition: background 100ms ease-in-out;
+}
+
+.configItem.clicked {
+    background: rgba(182, 179, 5, 0.5);
+}
+
+.configItem.clicked.deletable {
+    background: rgba(255, 0, 0, 0.5);
+}
+
+.configItem.clicked:hover {
+    background: rgba(133, 130, 5, 0.5);
+}
+
+.configItem.clicked.deletable:hover {
+    background: rgba(165, 0, 0, 0.5);
+}
+
+.configItem:hover {
+    background: rgba(0, 0, 0, .4);
+}
+
+.configItem.selected {
+    background: rgba(0, 170, 0, 0.5);
+}
+
+.configItem.selected:hover {
+    background: rgba(0, 170, 0, 0.9);
+}
+
+.hidden {
+    display: none !important;
+}
+
+.button {
+    display: inline-block;
+    padding: .2rem .5rem;
+    border: #FFFFFF .1rem solid;
+    margin: .5rem 0;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.button:not(.disabled):hover { background: rgba(0, 0, 0, .25); }
+.button:not(.disabled):active { background: rgba(0, 0, 0, .5); }
+.button.disabled { background: rgba(255, 0, 0, .5); }
+
+h3.smaller {
+    font-size: .9rem;
+}
+
+.pushDown {
+    margin-top: .5rem;
+}
+
+.pushRight {
     margin-left: .5rem;
 }
 
 .CustomCheckbox {
+    appearance: none;
     -webkit-appearance: none;
     width: 1.5rem;
     height: 1.5rem;
@@ -297,6 +459,15 @@ section.ExtensionItem p {
     height: 75%;
 }
 
+.horizontalItemsFlex {
+    display: flex;
+    flex-direction: row;
+}
+
+.centerVerticalFlex {
+    align-items: center;
+}
+
 .ClosedSetting {
     display: none;
 }
@@ -304,6 +475,10 @@ section.ExtensionItem p {
 .message {
     margin: .25rem 0;
     padding: 0;
+}
+
+.rangeNumber {
+    display: inline-block;
 }
 
 .CompactButton {
@@ -329,16 +504,15 @@ footer {
 
 footer h2 {
     text-align: center;
-    font-size: 2rem;
+    font-size: 1.5rem;
 }
 
-footer h3 {
+footer p {
     text-align: center;
-    font-size: 1.5rem;
     margin-top: .5rem;
 }
 
-@media screen and (max-width:37rem){
+@media screen and (max-width:38.5rem){
     article {
         width: 100%;
     }

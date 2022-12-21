@@ -1,144 +1,20 @@
-import json, ipaddress, socket
-from pathlib import Path
+import asyncio, aiohttp, ipaddress, socket
+import aiohttp.client_exceptions
 from sys import argv
+from pathlib import Path
 
-class Users:
-    def __init__(self):
-        self.regulars = self.loadRegulars()
-    
-    def addRegular(self, raw_name):
-        name = raw_name.lower()
-        if name in self.regulars:
-            return False
-        
-        self.regulars.append(name)
-        self.saveRegulars()
-        return True
-    
-    def removeRegular(self, raw_name):
-        name = raw_name.lower()
-        if not name in self.regulars:
-            return False
-        
-        self.regulars.remove(name)
-        self.saveRegulars()
-        return True
-    
-    def loadRegulars(self):
-        regularsFile = Path('dependencies/data/regulars.json')
-        if not regularsFile.is_file(): return []
+def validPort(port : int): return port > -1 and port < 65354
 
-        with open(regularsFile, 'r') as f:
-            try: regulars = json.load(f)
-            except Exception: regulars = []
-        
-        if isinstance(regulars, list): return regulars
-        else: return []
-    
-    def saveRegulars(self):
-        regularsFile = Path('dependencies/data/regulars.json')
-        regularsFile.parent.mkdir(parents=True, exist_ok=True)
-        with open(regularsFile, 'w') as f:
-            json.dump(self.regulars, f)
-
-    
-    def isRegular(self, user):
-        for i in self.regulars:
-            if i == user:
-                return True
-        return False
-
-def validateSetting(key, value):
-    structure = {
-        'server_port': int,
-        'executions_per_second': (int, float),
-        'jwt_token': str,
-        'tmi': str,
-        'twitch_channel': str,
-        'tmi_twitch_username': str,
-        'use_node': bool,
-        'SEListener': int
-        }
-    
-    if not key in structure or not isinstance(value, structure[key]):
-        return False
-    
-    return True
-
-def validateSettings(settings):
-    structure = {
-        'server_port': int,
-        'executions_per_second': (int, float),
-        'jwt_token': str,
-        'tmi': str,
-        'twitch_channel': str,
-        'tmi_twitch_username': str,
-        'SEListener': int
-        }
-    
-    defaults = {
-        'server_port': 80,
-        'executions_per_second': 60,
-        'jwt_token': '',
-        'tmi': '',
-        'twitch_channel': '',
-        'tmi_twitch_username': '',
-        'SEListener': 2
-        }
-
-    changedKeys = False
-
-    settingsKeys = list(settings.keys())
-    for key in settingsKeys:
-        if not key in structure:
-            del settings[key]
-            changedKeys = True
-
-    for key in structure:
-        if not key in settings or not isinstance(settings[key], structure[key]):
-            settings[key] = defaults[key]
-            changedKeys = True
-    
-    return changedKeys
-
-def saveSettings(settings):
-
-    validateSettings(settings)
-
-    filePath = Path('dependencies/data/settings.json')
-    filePath.parent.mkdir(parents=True, exist_ok=True)
-    with open(filePath, 'w') as f:
-        json.dump(settings, f)
-
-def loadSettings():
-    filePath = Path('dependencies/data/settings.json')
-
-    if not filePath.is_file():
-        settings = {}
-    else:
-        with open(filePath, 'r') as f:
-            try:
-                settings = json.load(f)
-            except Exception:
-                settings = {}
-    
-    keyChanges = validateSettings(settings)
-
-    if keyChanges:
-        saveSettings(settings)
-    return settings
-
-def portOverload():
+def portOverride(defaultPort : int) -> tuple[bool, int]:
     argvLength = len(argv)
     for i in range(argvLength):
         if argv[i] == '--port' and i != argvLength - 1:
             try:
                 port = int(argv[i + 1])
-                if port > -1 and port < 65354:
-                    return True, port
+                if validPort(port): return True, port
             except Exception:
                 pass
-    return False, -1
+    return False, defaultPort
 
 def localIP(environ, currentIP=None):
     if 'HTTP_X_FORWARDED_FOR' in environ and currentIP != None:
@@ -154,47 +30,39 @@ def localIP(environ, currentIP=None):
 def getServerIP():
     return socket.gethostbyname(socket.gethostname())
 
-def getMimetype(filename):
-    mimetypes = {
-        '.aac': 'audio/aac',
-        '.avi': 'video/x-msvideo',
-        '.bin': 'application/octet-stream',
-        '.bmp': 'image/bmp',
-        '.css': 'text/css',
-        '.csv': 'text/csv',
-        '.gif': 'image/gif',
-        '.htm': 'text/html',
-        '.html': 'text/html',
-        '.ico': 'image/vnd.microsoft.icon',
-        '.jpeg': 'image/jpeg',
-        '.jpg': 'image/jpeg',
-        '.js': 'text/javascript',
-        '.json': 'application/json',
-        '.jsonld': 'application/ld+json',
-        '.mjs': 'text/javascript',
-        '.mp3': 'audio/mpeg',
-        '.mpeg': 'video/mpeg',
-        '.ogv': 'video/ogg',
-        '.opus': 'audio/opus',
-        '.png': 'image/png',
-        '.pdf': 'application/pdf',
-        '.php': 'application/x-httpd-php',
-        '.svg': 'image/svg+xml',
-        '.tif': 'image/tiff',
-        '.tiff': 'image/tiff',
-        '.ts': 'video/mp2t',
-        '.txt': 'text/plain',
-        '.wav': 'audio/wav',
-        '.weba': 'audio/webm',
-        '.webm': 'video/webm',
-        '.webp': 'image/webp',
-        '.xhtml': 'application/xhtml+xml',
-        '.xml': 'application/xml'
-    }
+async def fetchUrl(url, *, method='get', headers=None, body=None) -> tuple[str | None, int]:
+    kwargs = {}
+    if isinstance(headers, dict):
+        parsedHeaders = {}
+        for key in headers:
+            if isinstance(headers[key], str):
+                parsedHeaders[key] = headers[key]
+        if len(parsedHeaders.items()) > 0:
+            kwargs['headers'] = parsedHeaders
+    
+    if isinstance(body, str):
+        kwargs['data'] = body
+    
+    try:
+        async with aiohttp.ClientSession() as sesson:
+            async with sesson.request(method, url, **kwargs) as response:
+                text = await response.text()
+    except aiohttp.ClientConnectorError:
+        return None, -1
+    except aiohttp.InvalidURL:
+        return None, -2
+    except Exception:
+        return None, -2
+    await asyncio.sleep(0.1)
+    # asyncio.sleep(0.1) prevents RuntimeError from being raised if loop is closing too soon
+    # aiohttp seem have a problem with asyncio.new_event_loop(), probably used by asyncio.run(), since using asyncio.get_event_loop() to get a new loop is depricated
+    # Not a problem if asyncio.get_event_loop() + loop.run_until_complete(main()) is used explicitly, except that a DepricatedWarning print is visible (python 3.10)
+    return text, 1
 
-    extension = '.' + filename.rsplit('.')[-1]
-    
-    if not extension in mimetypes:
-        return None
-    
-    return mimetypes[extension]
+def isSubfolder(folder : Path, subfolder : Path):
+    if (not isinstance(folder, Path)) or (not isinstance(subfolder, Path)): return False
+
+    try:
+        subfolder.resolve().relative_to(folder.resolve())
+        return True
+    except ValueError: return False

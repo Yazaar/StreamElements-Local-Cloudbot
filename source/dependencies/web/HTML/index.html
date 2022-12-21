@@ -1,14 +1,26 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>StreamElements Local Cloudbot</title>
-    <link rel= "stylesheet" type= "text/css" href= "{{ url_for('static',filename='styles/index.css') }}">
+    <link rel="stylesheet" type="text/css" href="/static/styles/index.css">
     <link href="https://fonts.googleapis.com/css?family=Roboto:400,700&display=swap" rel="stylesheet">
 </head>
+
 <body>
+    <datalist id="DiscordRegularGroupList">
+        {% for drg in discordRegularGroups %}
+        <option value="{{drg}}">{{drg}}</option>
+        {% endfor %}
+    </datalist>
+    <datalist id="TwitchRegularGroupList">
+        {% for trg in twitchRegularGroups %}
+        <option value="{{trg}}">{{trg}}</option>
+        {% endfor %}
+    </datalist>
     <header id="MainHeader">
         <h1>StreamElements<br>Local Cloudbot</h1>
         <nav>
@@ -18,6 +30,9 @@
             <a href="#logs">Logs</a>
             <a href="#messages">Messages</a>
             <a href="#regulars">Regulars</a>
+            <a href="#twitch">Twitch</a>
+            <a href="#streamelements">StreamElements</a>
+            <a href="#discord">Discord</a>
             <a href="#setup">Setup</a>
         </nav>
     </header>
@@ -29,15 +44,48 @@
         </header>
         <section class="data">
             {% for extension in extensions %}
-            <section class="ExtensionItem">
-                {% if extension['active'] %}
-                <input class="CustomCheckbox ToggleExtension" type="checkbox" checked data-module="{{extension['module']}}"/>
+            <div class="ExtensionItem">
+                {% if extension.enabled %}
+                <input class="CustomCheckbox ToggleExtension" type="checkbox" checked
+                    data-module="{{extension.moduleName}}" />
                 {% else %}
-                <input class="CustomCheckbox ToggleExtension" type="checkbox" data-module="{{extension['module']}}"/>
+                <input class="CustomCheckbox ToggleExtension" type="checkbox" data-module="{{extension.moduleName}}" />
                 {% endif %}
-                <p>{{extension['module']}}</p>
-            </section>
+                <p class="ExtensionName">{{extension.moduleName}}</p>
+                <p class="ExtensionConnection TwitchConnection" data-twitchId="{{extension.twitch.id}}">{{extension.twitch.alias}}</p>
+                <p class="ExtensionConnection DiscordConnection" data-discordId="{{extension.discord.id}}">{{extension.discord.alias}}</p>
+                <p class="ExtensionConnection StreamElementsConnection" data-streamelementsId="{{extension.streamelements.id}}">{{extension.streamelements.alias}}</p>
+            </div>
             {% endfor %}
+            <div id="ExtensionConnections" class="hidden">
+                <div class="ExtensionConnectionItem">
+                    <h2>Twitch</h2>
+                    <select id="ExtensionConnectionTwitch">
+                        <option value="DISABLED">No connection</option>
+                        {% for t in twitch %}
+                        <option value="{{t.id}}">{{t.alias}}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="ExtensionConnectionItem">
+                    <h2>Discord</h2>
+                    <select id="ExtensionConnectionDiscord">
+                        <option value="DISABLED">No connection</option>
+                        {% for d in discords %}
+                        <option value="{{d.id}}">{{d.alias}}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="ExtensionConnectionItem">
+                    <h2>StreamElements</h2>
+                    <select id="ExtensionConnectionStreamElements">
+                        <option value="DISABLED">No connection</option>
+                        {% for s in streamelements %}
+                        <option value="{{s.id}}">{{s.alias}}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
         </section>
     </article>
     <article id="settings">
@@ -48,34 +96,42 @@
             {% for setting in ExtensionsSettings %}
             <div>
                 <div class="OpenCloseButton" data-target="#setting{{loop.index-1}}">{{setting['name']}}</div>
-                <section class="ClosedSetting" id="setting{{loop.index-1}}" data-index="{{loop.index-1}}" data-name="{{setting['name']}}" data-path="{{setting['path']}}">
-                    {% for subsetting in setting['settings'] %}
+                <section class="ClosedSetting" id="setting{{loop.index-1}}" data-index="{{loop.index-1}}"
+                    data-name="{{setting.name}}">
+                    {% for subsetting in setting.config %}
                     <section>
                         <h3>{{subsetting}}</h3>
-                        <div class="CompactButton SetDefaultSetting" data-default="{{setting['settings'][subsetting]['value']}}">Set Default</div>
+                        <div class="CompactButton SetDefaultSetting"
+                            data-default="{{setting.config[subsetting]['value']}}">Set Default</div>
                         <p>{{setting['tip']}}</p>
-                        {% if setting['settings'][subsetting]['type']|lower == 'dropdown' %}
+                        {% if setting.config[subsetting]['type']|lower == 'dropdown' %}
                         <select name="{{subsetting}}" data-settingname="{{subsetting}}">
-                            {% for choice in setting['settings'][subsetting]['choices'] %}
-                            {% if setting['settings'][subsetting]['current_value'] == choice %}
-                            <option value="{{choice}}" selected>{{choice}} yes</option>
+                            {% for choice in setting.config[subsetting]['choices'] %}
+                            {% if setting.current[subsetting] == choice %}
+                            <option value="{{choice}}" selected>{{choice}}</option>
                             {% else %}
                             <option value="{{choice}}">{{choice}}</option>
                             {% endif %}
                             {% endfor %}
                         </select>
-                        {% elif setting['settings'][subsetting]['type']|lower == 'checkbox' %}
-                        {% if setting['settings'][subsetting]['current_value'] == True %}
+                        {% elif setting.config[subsetting]['type']|lower == 'checkbox' %}
+                        {% if setting.current[subsetting] == True %}
                         <input class="CustomCheckbox" type="checkbox" checked data-settingname="{{subsetting}}" />
                         {% else %}
                         <input class="CustomCheckbox" type="checkbox" data-settingname="{{subsetting}}" />
                         {% endif %}
                         {% else %}
-                        <input type="{{setting['settings'][subsetting]['type']}}" value="{{setting['settings'][subsetting]['current_value']}}" data-settingname="{{subsetting}}" />
+                        <input type="{{setting.config[subsetting]['type']}}" value="{{setting.current[subsetting]}}"
+                            data-settingname="{{subsetting}}" min="{{setting.config[subsetting]['min']}}"
+                            max="{{setting.config[subsetting]['max']}}" step="{{setting.config[subsetting]['step']}}" />
+                        {% if setting.config[subsetting]['type']|lower == 'range' %}
+                        <p data-settingTarget="{{subsetting}}" class="rangeNumber"></p>
+                        {% endif %}
                         {% endif %}
                     </section>
                     {% endfor %}
-                    <div class="save_settings CompactButton" data-index="{{loop.index-1}}" data-name="{{setting['name']}}">Save Settings</div>
+                    <div class="save_settings CompactButton" data-index="{{loop.index-1}}" data-name="{{setting.name}}">
+                        Save Settings</div>
                 </section>
             </div>
             {% endfor %}
@@ -153,13 +209,150 @@
         </header>
         <section class="data">
             <div id="RegularWrapper">
-                <div id="AddDeleteRegular">Specify user</div>
-                <input type="text" id="RegularInput" list="RegularList">
-                <datalist id="RegularList">
-                    {% for regular in regulars %}
-                    <option class="RegularUser{{regular|lower}}" value="{{regular|lower}}"></option>
+                <h2>Platform & group</h2>
+                <select id="RegularPlatforms">
+                    <option selected hidden>Select platform</option>
+                    {% for regularPlatform in regularPlatforms %}
+                    <option value="{{regularPlatform}}">{{regularPlatform}}</option>
                     {% endfor %}
-                </datalist>
+                </select>
+                <input type="text" id="RegularGroupInput" class="hideEmptyList" placeholder="groupname">
+                <div id="ManageRegularGroup" class="hidden">
+                    <h2>New regular</h2>
+                    <input type="text" id="RegularInput" placeholder="regular alias">
+                    <div>
+                        <input type="text" id="RegularIdInput" placeholder="regular id">
+                    </div>
+                    <div id="AddRegular">Add regular</div>
+                    <h2>Regulars in group</h2>
+                    <p>Click twice (second time once red) to delete</p>
+                    <input type="text" id="SearchRegularAlias" placeholder="filter by alias">
+                    <div id="CurrentRegulars"></div>
+                </div>
+            </div>
+        </section>
+    </article>
+    <article id="twitch">
+        <header>
+            <h1>Twitch</h1>
+        </header>
+        <section class="data">
+            <a href="https://twitchapps.com/tmi/" target="_blank" rel="noopener noreferrer" class="button">Get TMI</a>
+            <p>Keep the TMI secret!</p>
+            <select id="SelectedTwitch">
+                <option selected hidden>Select bot</option>
+                <option value="NEW">Create</option>
+                {% for t in twitch %}
+                <option value="{{t.id}}">{{t.alias}}</option>
+                {% endfor %}
+            </select>
+            <div id="TwitchInstanceData" class="hidden">
+                <div>
+                    <div id="SaveTwitch" class="button">Save instance</div>
+                </div>
+                <h2>Alias</h2>
+                <input type="text" id="NewTwitchAlias">
+                <h2>TMI</h2>
+                <input type="password" id="GeneratedTMI">
+                <p id="TMIAccountName">TMI account name: <span></span></p>
+                <h2>Configuration</h2>
+                <select id="TwitchInstanceCategory">
+                    <option hidden selected></option>
+                    <option value="channels">Channels</option>
+                    <option value="regularGroups">Regular groups</option>
+                </select>
+                <div id="TwitchInstanceConfigs">
+                    <div id="TwitchInstanceChannels">
+                        <h3 class="smaller pushDown">Add new</h3>
+                        <input id="TwitchConfigItemInput" type="text">
+                        <div>
+                            <div id="TwitchAddConfigItem" class="button">Add new</div>
+                        </div>
+                        <h3>Channels</h3>
+                        <p>Click twice (second time once red) to delete</p>
+                        <div id="TwitchCurrentChannels"></div>
+                    </div>
+                    <div id="TwitchInstanceRegularGroups">
+                        <h3>Regular groups</h3>
+                        <p>Click to include regular group (green = included)</p>
+                        <div id="TwitchCurrentRegularGroups">
+                            {% for trg in twitchRegularGroups %}
+                            <div class="configItem" data-regularGroupName="{{trg}}">{{trg}}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </article>
+    <article id="streamelements">
+        <header>
+            <h1>StreamElements</h1>
+        </header>
+        <section class="data">
+            <select id="SelectedStreamElements">
+                <option selected hidden>Select bot</option>
+                <option value="NEW">Create</option>
+                {% for s in streamelements %}
+                <option value="{{s.id}}">{{s.alias}}</option>
+                {% endfor %}
+            </select>
+            <div id="StreamElementsInstanceData" class="hidden">
+                <div>
+                    <div id="SaveStreamElements" class="button">Save instance</div>
+                </div>
+                <h2>Alias</h2>
+                <input type="text" id="NewStreamElementsAlias">
+                <h2>JWT</h2>
+                <input type="password" id="GeneratedJWT">
+                <p id="JTWAccountName">Channel target: <span></span></p>
+            </div>
+        </section>
+    </article>
+    <article id="discord">
+        <header>
+            <h1>Discord</h1>
+        </header>
+        <section class="data">
+            <a href="https://discord.com/developers/applications" target="_blank" rel="noopener noreferrer" class="button">Get token</a>
+            <p>Keep the token secret (get one by creating an app on the Discord dashboard)!</p>
+            <select id="SelectedDiscord">
+                <option selected hidden>Select bot</option>
+                <option value="NEW">Create</option>
+                {% for d in discords %}
+                <option value="{{d.id}}">{{d.alias}}</option>
+                {% endfor %}
+            </select>
+            <div id="DiscordInstanceData" class="hidden">
+                <div>
+                    <div id="SaveDiscord" class="button">Save instance</div>
+                </div>
+                <h2>Alias</h2>
+                <input type="text" id="NewDiscordAlias">
+                <h2>Token</h2>
+                <input type="password" id="GeneratedToken">
+                <p id="TokenAccountName">Bot account: <span></span></p>
+                <h2>Intents</h2>
+                <p>Each intent have to be enabled on the Discord application dashboard!</p>
+                <div class="horizontalItemsFlex centerVerticalFlex pushDown">
+                    <input id="DiscordMembersIntent" class="CustomCheckbox" type="checkbox" />
+                    <span class="pushRight">Members</span>
+                </div>
+                <div class="horizontalItemsFlex centerVerticalFlex pushDown">
+                    <input id="DiscordPresencesIntent" class="CustomCheckbox" type="checkbox" />
+                    <span class="pushRight">Presences</span>
+                </div>
+                <div class="horizontalItemsFlex centerVerticalFlex pushDown">
+                    <input id="DiscordMessageContentIntent" class="CustomCheckbox" type="checkbox" />
+                    <span class="pushRight">Message content</span>
+                </div>
+                <h2>Regular groups</h2>
+                <p>Click to include regular group (green = included)</p>
+                <div id="DiscordCurrentRegularGroups">
+                    {% for drg in discordRegularGroups %}
+                    <div class="configItem" data-regularGroupName="{{drg}}">{{drg}}</div>
+                    {% endfor %}
+                </div>
             </div>
         </section>
     </article>
@@ -170,55 +363,21 @@
         <section class="data">
             <section>
                 <p>Server port</p>
-                <input type="number" id="server_port-input" value="{{settings['server_port']}}" /><div class="CompactButton saveSetupButton">SAVE</div>
+                <input type="number" id="server_port-input" value="{{serverPort}}" />
+                <div class="CompactButton saveSetupButton">SAVE</div>
             </section>
             <section>
                 <p>Script executions per second</p>
-                <input type="number" id="exec_per_second-input" value="{{settings['executions_per_second']}}" /><div class="CompactButton saveSetupButton">SAVE</div>
-            </section>
-            <section>
-                <p>TMI (generate <a target="_blank" rel="noopener noreferrer" href="https://twitchapps.com/tmi/">HERE</a>)</p>
-                <input type="password" id="tmi-input" value="{{settings['tmi']}}" /><div class="CompactButton saveSetupButton">SAVE</div>
-            </section>
-            <section>
-                <p>The username which connected to TMI</p>
-                <input type="text" id="tmi_username-input" value="{{settings['tmi_twitch_username']}}" /><div class="CompactButton saveSetupButton">SAVE</div>
-            </section>
-            <section>
-                <p>The twitch channel to listen on</p>
-                <input type="text" id="twitch_channel-input" value="{{settings['twitch_channel']}}" /><div class="CompactButton saveSetupButton">SAVE</div>
-            </section>
-            <section>
-                <p>Restart Twitch chat (if changed settings)</p>
-                <div class="CompactButton" id="RestartTwitch">Restart</div>
-            </section>
-            <section>
-                <p>JWT Token (found on the StreamElements profile)</p>
-                <input type="password" id="jwt-input" value="{{settings['jwt_token']}}" /><div class="CompactButton saveSetupButton">SAVE</div>
-            </section>
-            <section>
-                <p>StreamElements might disconnect using the Socket IO<br>Would recommend using Websocket.<br>(compatibility issues with newer versions)</p>
-                <select id="SEListenerMethod">
-                    {% if settings['SEListener'] == 1 %}
-                    <option value="1" selected>Socket IO</option>
-                    <option value="2">Websocket</option>
-                    {% else %}
-                    <option value="1">Socket IO</option>
-                    <option value="2" selected>Websocket</option>
-                    {% endif %}
-                </select>
-            </section>
-            <section>
-                <p>Restart StreamElements (if changed settings)</p>
-                <div class="CompactButton" id="RestartSE">Restart</div>
+                <input type="number" id="exec_per_second-input" value="{{tickrate}}" />
+                <div class="CompactButton saveSetupButton">SAVE</div>
             </section>
         </section>
     </article>
     <footer>
-        <h2><a target="_blank" rel="noopener noreferrer" href="https://streamelements.com/yazaar/tip" >Support me (donate)</a></h2>
-        <h3>Unofficial creation by Yazaar</h3>
+        <h2>Unofficial creation by <a href="https://github.com/Yazaar">Yazaar</a></h2>
     </footer>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.1.3/socket.io.min.js"></script>
-    <script src="{{ url_for('static',filename='scripts/index.js') }}?v=1"></script>
+    <script src="/static/scripts/index.js"></script>
 </body>
+
 </html>

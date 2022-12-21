@@ -1,0 +1,8 @@
+from dependencies.modules.Twitch import TwitchMessage
+from dependencies.modules.StreamElements import StreamElementsGenericEvent
+from dependencies.modules.Discord import DiscordMessage, DiscordMessageDeleted, DiscordMessageEdited, DiscordMessageNewReaction, DiscordMessageRemovedReaction, DiscordMessageReactionsCleared, DiscordMessageReactionEmojiCleared, DiscordMemberJoined, DiscordMemberRemoved, DiscordMemberUpdated, DiscordMemberBanned, DiscordMemberUnbanned, DiscordGuildJoined, DiscordGuildRemoved, DiscordVoiceStateUpdate
+from dependencies.modules.Web import Webhook, CrossTalk
+from dependencies.modules.ExtensionCrossover import AsyncExtensionCrossover, LegacyExtensionCrossover
+from dependencies.modules.ClientTools import CooldownManager
+from dependencies.modules.SettingsUI import Settings
+from dependencies.modules.MinorExtensionArgs import Initialize, Tick, Toggle

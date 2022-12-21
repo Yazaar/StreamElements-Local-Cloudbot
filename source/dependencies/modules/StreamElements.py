@@ -1,53 +1,139 @@
-import socketio, threading, time, websocket, ssl, json, requests, asyncio
+from .vendor.StructGuard import StructGuard
+from . import Misc
+import asyncio, json, time, typing, datetime, aiohttp
+
+if typing.TYPE_CHECKING:
+    from dependencies.modules.Extensions import Extensions
 
 class StreamElements:
-    def __init__(self, sio, appContext):
-        self.__sio = sio
-        self.__appContext = appContext
+    async def parseJWT(jwt : str) -> tuple[str, None] | tuple[None, str]:
+        if len(jwt) == 0: return None, 'JWT have to be a string with a length larger than 0'
 
-        self.__method = 2
-        self.__connectedMethod = None
+        resp, errorCode = await Misc.fetchUrl('https://api.streamelements.com/kappa/v2/users/current', headers={'Authorization': f'Bearer {jwt}'})
 
-        self.__events = []
-        self.__testEvents = []
-        self.eventHistory = []
-        self.__jwt = ''
-        self.__connectedJwt = ''
-        self.__validJwt = ''
-        self.__userId = ''
-        self.__cooldown = None
-        self.__threadId = 0
+        if errorCode != 1: return None, 'unable to send HTTP request to validate JWT'
+        
+        try: parsedResp = json.loads(resp)
+        except Exception: return None, 'unable to parse HTTP response from JWT validation'
+        
+        if not isinstance(parsedResp, dict): return None, 'invalid format returned by HTTP response from JWT validation, should be json dictionary'
 
-        self.__SESIO = socketio.Client()
+        accountName = parsedResp.get('username', None)
+        if accountName == None: return None, 'HTTP response from TMI validation does not include a login'
 
-        self.__SESIO.on('connect', self.__onConnect)
-        self.__SESIO.on('authenticated', self.__onAuthenticated)
-        self.__SESIO.on('event', self.__onEvent)
-        self.__SESIO.on('event:test', self.__onTestEvent)
-        self.__SESIO.on('disconnect', self.__onDisconnect)
+        return accountName, None
+    
+    def __init__(self, id_ : str, alias : str, extensions : 'Extensions', jwt : str):
+        self.__id = id_
+        self.alias = alias
+        
+        self.__extensions = extensions
 
+        self.__jwt = jwt
+        self.__accountName : str = None
+        self.__userId : str = None
+        self.__clientId : str = None
+        self.__eventHistory = []
+
+        self.__currentTask = None
+
+        self.__PingInterval = 20
+        self.__PingTimeout = 10
+        self.__taskId = 0
         self.__ws = None
-        self.__wsRunning = False
-        self.__wsBuffer = []
-        self.__wsPingInterval = 20
-        self.__wsPingTimeout = 10
-        self.__wsTimer = time.time()
-        self.__sentPing = False
 
-        threading.Thread(target=self.__BGTask).start()
+        self.__loop = asyncio.get_event_loop()
+        self.startStreamElements()
 
-    def canSendMessages(self):
-        return self.__validJwt != '' and self.__userId != ''
+    @property
+    def id(self): return self.__id
+    
+    @property
+    def jwt(self): return self.__jwt
 
-    def sendMessage(self, message):
-        if not self.canSendMessages(): return False
-        if not isinstance(message, str): return False
-        x = requests.post('https://api.streamelements.com/kappa/v2/bot/' + self.__userId + '/say', headers={'Content-Type':'application/json', 'Authorization': 'Bearer ' + self.__validJwt}, json={'message': message})
-        return True
+    @property
+    def accountName(self): return self.__accountName
 
-    def validateApiStruct(content):
+    @property
+    def eventHistory(self): return self.__eventHistory
+
+    @property
+    def userId(self): return self.__userId
+
+    @property
+    def clientId(self): return self.__clientId
+
+    @property
+    def connected(self):
+        if self.__currentTask is None: return False
+        return not self.__currentTask.done()
+
+    async def setJWT(self, jwt : str) -> tuple[bool, str | None]:
+        accountName, errorMsg = await StreamElements.parseJWT(jwt)
+        if accountName is None: return False, errorMsg
+
+        self.__jwt = jwt
+        self.__accountName = accountName
+
+        if not self.connected: self.startStreamElements()
+        return True, None
+
+    def startStreamElements(self):
+        self.__loop.create_task(self.connect())
+
+    def stopStreamElements(self):
+        self.__loop.create_task(self.disconnect())
+
+    async def connect(self):
+        await self.disconnect()
+        loop = asyncio.get_event_loop()
+        print(f'[StreamElements {self.alias}] Connecting StreamElements')
+        self.__currentTask = loop.create_task(self.__readWs(self.__taskId))
+
+    async def disconnect(self):
+        self.__taskId += 1
+    
+    async def APIRequest(self, method : str, endpoint : str, *, body : str = None, headers : dict[str, str] = None, includeJWT : bool = False) -> tuple[bool, str | None]:
+        if headers == None: headers = {}
+        elif isinstance(headers, dict): headers = headers.copy()
+
+        if not isinstance(endpoint, str): return False, 'The argument endpoint has to be a string'
+        
+        validMethods = ['get', 'post', 'put', 'delete']
+        if not method.lower() in validMethods: return False, 'The method has to be one of the following: ' + ' '.join(validMethods)
+
+        if not StructGuard.verifyDictStructure(headers, {str: str})[0]: return False, 'The headers has to be a dict with string keys and string values'
+        
+        kwargs = {'method': method, 'headers': headers}
+        
+        if body != None:
+            if not isinstance(kwargs['body'], str):
+                try: kwargs['body'] = json.dumps(body)
+                except Exception: False, 'invalid body, has to be json or string'
+            else: kwargs['body'] = body
+
+        if includeJWT:
+            kwargs['headers']['Authorization'] = 'Bearer ' + self.__jwt
+
+        resp, errorCode = await Misc.fetchUrl('https://api.streamelements.com/'+ endpoint.replace(':channel', self.__userId), **kwargs)
+
+        return errorCode == 1, resp
+
+    async def sendMessage(self, message : str) -> tuple[bool, str | None]:
+        if not isinstance(message, str): return False, 'message has to be a string'
+
+        resp, errorcode = await Misc.fetchUrl('https://api.streamelements.com/kappa/v2/bot/' + self.__userId + '/say', method='post',
+            headers={
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + self.__jwt
+            }, body=json.dumps({'message': message})
+        )
+
+        return errorcode == 1, resp
+
+    def validateApiStruct(content) -> tuple[bool, str | None]:
         if not isinstance(content, dict):
-            return False, 'Please forward JSON: requests.post(url, json=JSON_DATA) / socket.emit(event, json)'
+            return False, 'Please forward JSON: post_request(url, json=JSON_DATA) / socket.emit(event, JSON_DATA)'
         if not 'endpoint' in content:
             return False, 'JSON require the key \"endpoint\"'
         if not 'options' in content:
@@ -83,207 +169,133 @@ class StreamElements:
 
         return True, None
 
-    def APIRequest(self, content):
-        success, msg = StreamElements.validateApiStruct(content)
-        if not success:
-            return False, msg
-
-        if content['options']['include_jwt'] == True:
-            headers = {'Authorization': 'Bearer ' + self.__validJwt}
-        else:
-            headers = {}
-
-        if 'headers' in content['options']:
-            for header in content['options']['headers']:
-                headers[header] = content['options']['headers'][header]
-
-        if 'json' in content['options']:
-            return True, requests.request(content['options']['type'], 'https://api.streamelements.com/'+ content['endpoint'].replace(':channel', self.__userId), headers=headers, json=content['options']['json']).text
-        else:
-            return True, requests.request(content['options']['type'], 'https://api.streamelements.com/'+ content['endpoint'].replace(':channel', self.__userId), headers=headers).text
-
-    def getEvent(self):
-        if len(self.__events) == 0:
-            return None
-        return self.__events.pop(0)
-
-    def getTestEvent(self):
-        if len(self.__testEvents) == 0:
-            return None
-        return self.__testEvents.pop(0)
-
-    def setData(self, jwt=None, method=None):
-        if isinstance(jwt, str): self.__jwt = jwt
-
-        if method in [1, 2]: self.__method = method
-
-    def sendSocketMessage(self, event, message):
-        if self.__connectedMethod == 1:
-            self.__SESIO.emit(event, message)
-        else:
-            if isinstance(self.__ws, websocket.WebSocket) and self.__ws.connected:
-                self.__ws.send('42' + json.dumps([event, message]))
-
-    def awaitStart(self, timeout):
-        timeoutAt = time.time() + timeout
-        while True:
-            
-            if self.__validJwt != '':
-                return True
-            if time.time() > timeoutAt:
-                return False
-
-    def start(self):
-        currentTime = time.time()
-
-        if self.__jwt == self.__connectedJwt and self.__connectedMethod == self.__method: return 0, self.__cooldown
-
-        if self.__cooldown != None and self.__cooldown > currentTime: return -1, self.__cooldown
-
-        self.__connectedJwt = self.__jwt
-
-        try: self.__SESIO.disconnect()
-        except Exception: pass
-
-        self.__threadId += 1
-
-        if not self.__connectedJwt in ['', '*']:
-            print('[StreamElements] Connecting...')
-            self.__cooldown = currentTime + 30
-
-            if self.__method == 1:
-                self.__connectedMethod = 1
-                self.__SESIO.connect('https://realtime.streamelements.com', transports=['websocket'])
-            else: #if self.__method == 2:
-                self.__connectedMethod = 2
-                threading.Thread(target=self.__altDriver, args=(self.__threadId,), daemon=True).start()
-            return 1, self.__cooldown
-        return 0, self.__cooldown
+    async def __emit(self, event, data):
+        if not self.__currentTask.done():
+            await self.__ws.send_str('42' + json.dumps([event, data]))
     
-    def __closeAltDriver(self):
-        if isinstance(self.__ws, websocket.WebSocket):
-            try: self.__ws.close()
-            except Exception: pass
+    async def __onOpen(self, data=''):
+        if isinstance(data, dict):
+            if 'pingInterval' in data:
+                self.__PingInterval = int(data['pingInterval'] / 1000)
+            if 'pingTimeout' in data:
+                self.__PingTimeout = int(data['pingTimeout'] / 1000)
+    
+    async def __onConnect(self, data=''):
+        print(f'[StreamElements {self.alias}] Connected! Authenticating...')
+        await self.__emit('authenticate', { 'method': 'jwt', 'token': self.__jwt })
 
-            self.__wsBuffer.clear()
-            self.__ws = None
+    async def __onAuthenticated(self, data=''):
+        if isinstance(data, dict):
+            if 'channelId' in data:
+                self.__userId = data['channelId']
+            if 'clientId' in data:
+                self.__clientId = data['clientId']
+        print(f'[StreamElements {self.alias}] Authenticated')
 
-    def __altDriverReader(self, ws):
-        while True:
-            try: data = ws.recv()
-            except Exception: data = None
+    async def __onEvent(self, data=''):
+        if not isinstance(data, dict): return
+        event = StreamElementsGenericEvent(self, data, False)
+        self.__extensions.streamElementsEvent(event)
+        self.__eventHistory.append(event)
+        if len(self.__eventHistory) > 100: self.__eventHistory.pop(0)
 
-            if data in ['', None]: return
+    async def __onTestEvent(self, data=''):
+        if not isinstance(data, dict): return
+        event = StreamElementsGenericEvent(self, data, True)
+        self.__extensions.streamElementsTestEvent(event)
 
-            self.__wsBuffer.append(data)
+    async def __onDisconnect(self, data=''):
+        print(f'[StreamElements {self.alias}] Disconnected')
 
-    def __altDriver(self, threadId):
-        while self.__wsRunning:
-            time.sleep(1)
-            if threadId != self.__threadId: return
-        while True:
-            if threadId != self.__threadId:
-                self.__closeAltDriver()
-                self.__wsRunning = False
-                return
+    async def __readWs(self, taskId):
+        while not self.__currentTask.done() != None:
+            await asyncio.sleep(1)
+        
+        if self.__taskId != taskId: return
 
-            self.__wsRunning = True
-            self.__ws = websocket.WebSocket(sslopt={"cert_reqs": ssl.CERT_NONE})
-            self.__ws.connect("wss://realtime.streamelements.com/socket.io/?transport=websocket&EIO=4")
+        self.__currentTask = asyncio.current_task()
+        
+        timer = time.time() - 5
+        sentPing = False
 
-            self.__wsTimer = time.time()
-            self.__sentPing = False
+        async with aiohttp.ClientSession() as session:
+            async with session.ws_connect('wss://realtime.streamelements.com/socket.io/?EIO=3&transport=websocket') as ws:
+                self.__ws = ws
+                while True:
+                    if taskId != self.__taskId: return
 
-            threading.Thread(target=self.__altDriverReader, args=(self.__ws,), daemon=True).start()
+                    try: raw = await ws.receive(timeout=2)
+                    except TimeoutError: raw = None
+                    
+                    if raw is not None: raw = raw.data
+                    
+                    currentTime = time.time()
+                    timeDelta = currentTime - timer
 
-            while True:
-                if threadId != self.__threadId:
-                    self.__onDisconnect()
-                    self.__closeAltDriver()
-                    self.__wsRunning = False
-                    return
-
-                if not self.__ws.connected:
-                    self.__onDisconnect()
-                    self.__closeAltDriver()
-                    break
-
-                if time.time() - self.__wsTimer >= self.__wsPingInterval:
-                    #print('Sent: ping')
-                    self.__wsTimer = time.time()
-                    self.__ws.send('2')
-                    self.__sentPing = True
-
-                if self.__sentPing and time.time() - self.__wsTimer > self.__wsPingTimeout:
-                    self.__onDisconnect()
-                    self.__closeAltDriver()
-                    break
-
-                time.sleep(0.2)
-
-                for _ in range(len(self.__wsBuffer)):
-                    raw = self.__wsBuffer.pop(0)
-                    if raw == '3':
-                        #print('Received: pong')
-                        self.__sentPing = False
-                        self.__wsTimer = time.time()
-                        continue
-                    elif raw.startswith('0'):
-                        event = 'connect'
-                        data = json.loads(raw[1:])
-                    elif raw.startswith('42'):
+                    if timeDelta >= self.__PingInterval:
+                        #print('Sent: Ping')
+                        timer = currentTime
+                        await ws.send_str('2')
+                        sentPing = True
+                    elif sentPing and timeDelta > self.__PingTimeout:
+                        await self.__onDisconnect()
+                        return
+                    
+                    if raw is None: continue
+                    
+                    code = raw[:2]
+                    
+                    if code == '42':
                         raw = json.loads(raw[2:])
                         event = raw[0]
                         data = raw[1]
+                    elif code == '3':
+                        #print('Received: Pong')
+                        sentPing = False
+                        timer = currentTime
+                        continue
+                    elif code == '40':
+                        event = 'connect'
+                    elif code == '0{':
+                        event = 'open'
+                        data = json.loads(raw[1:])
                     else:
                         #print('junk:', raw)
                         continue
 
-                    if event == 'connect':
-                        self.__onConnect(data)
-                    elif event == 'authenticated':
-                        self.__onAuthenticated(data)
-                    elif event == 'event':
-                        self.__onEvent(data)
+                    if event == 'event':
+                        await self.__onEvent(data)
                     elif event == 'event:test':
-                        self.__onTestEvent(data)
+                        await self.__onTestEvent(data)
+                    elif event == 'open':
+                        await self.__onOpen(data)
+                    elif event == 'connect':
+                        await self.__onConnect()
+                    elif event == 'authenticated':
+                        await self.__onAuthenticated(data)
 
-    def __onConnect(self, data=''):
-        print('[StreamElements] Connected! Authenticating...')
-        self.sendSocketMessage('authenticate', { 'method': 'jwt', 'token': self.__connectedJwt })
-
-    def __onAuthenticated(self, data=''):
-        if isinstance(data, dict) and 'channelId' in data:
-            self.__userId = data['channelId']
-        self.__validJwt = self.__connectedJwt
-        print('[StreamElements] Authenticated')
-
-    def __onEvent(self, data=''):
-        self.__events.append(data)
-        self.eventHistory.append(data)
-        with self.__appContext:
-            self.__sio.emit('StreamElementsEvent', data)
-        if len(self.eventHistory) > 100: self.eventHistory.pop(0)
-
-    def __onTestEvent(self, data=''):
-        self.__testEvents.append(data)
-        with self.__appContext:
-            self.__sio.emit('StreamElementsTestEvent', data)
-
-    def __onDisconnect(self, data=''):
-        print('[StreamElements] Disconnected')
+class StreamElementsClientContext():
+    def __init__(self, streamElements : StreamElements):
+        self.__streamElements = streamElements
     
-    def __BGTask(self):
-        mt = threading.main_thread()
-        while True:
-            time.sleep(1)
-            if not mt.isAlive():
-                try: self.__SESIO.disconnect()
-                except Exception: pass
-                
-                self.__threadId += 1
-                try:
-                    self.__closeAltDriver()
-                except Exception: pass
-                
-                return
+    @property
+    def userId(self): return self.__streamElements.userId
+    
+    @property
+    def clientId(self): return self.__streamElements.clientId
+    
+    @property
+    def streamElementsId(self): return self.__streamElements.id
+
+class StreamElementsGenericEvent():
+    def __init__(self, client : StreamElementsClientContext, data : dict, testEvent: bool):
+        self.__clientContext = client
+        self.UTCTimestamp = datetime.datetime.utcnow()
+        self.raw = data
+        self.testEvent = testEvent
+    
+    @property
+    def streamElementsContext(self): return self.__clientContext
+
+    def legacy(self):
+        return self.raw
