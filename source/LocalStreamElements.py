@@ -86,8 +86,6 @@ async def main():
 
     await update()
 
-    return
-
     try: from dependencies.modules import Core
     except ImportError:
         input('Unable to launch due to missing dependencies, automatically exiting once you hit enter\n')
