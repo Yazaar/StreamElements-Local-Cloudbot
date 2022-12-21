@@ -82,7 +82,7 @@
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/web/static/styles/index.css"
         },
         "LocalStreamElements.py": {
-            "hash": "0cd6600224e0aa93a07a82d838c8353f",
+            "hash": "cdc63416d07ae2da85b8cd476ed7764e",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/LocalStreamElements.py"
         },
         "requirements.txt": {

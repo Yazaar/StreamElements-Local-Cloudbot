@@ -150,7 +150,8 @@ async def update():
     patchCount = len(patches)
     if patchCount == 0: return
 
-    print(f'{patchCount} files require an update, would you like to continue (y/n)?')
+    patchNotes = newestVersion['log']
+    print(f'PATCH NOTES\n{patchNotes}\n\n{patchCount} files require an update, would you like to continue (y/n)?')
     if not WaitForYN('>> '): return
 
     patchChanges = False
