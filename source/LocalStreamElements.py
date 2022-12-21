@@ -1,5 +1,5 @@
 from pathlib import Path
-import os, asyncio, aiohttp, json, sys, hashlib
+import os, asyncio, aiohttp, json, sys, hashlib, time
 
 def autoUpdate():
     for i in sys.argv:
@@ -67,7 +67,8 @@ def makeLatestVersionsFile():
         if fp.is_file():
             files[fp.as_posix()] = hashFile(fp)
     
-    print(json.dumps({'log': '', 'files': files}))
+    with open(f'LatestVersion-{time.time_ns()}.json', 'w') as f:
+        json.dump({'log': '', 'files': files}, f)
 
 async def patchFile(filepath : Path, url : str):
     data, _ = await fetchUrl(url, readBytes=True)
@@ -109,8 +110,6 @@ def saveCurrentVersions(data):
     with open(versionFile, 'w') as f: json.dump(data, f)
 
 async def downloadNewestVersions() -> dict | None:
-    return {'log': 'changes', 'files': {'chicken.py': {'hash': 'oaOOooo', 'url': 'https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/web/HTML/index.html'}}}
-
     text, errorCode = await fetchUrl('https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/LatestVersion.json')
     if errorCode < 0:
         print('[Error] Unable to check for updates. No internet connection? (trying to launch anyways)')
@@ -133,7 +132,9 @@ def WaitForYN(msg : str):
 
 async def update():
     newestVersion = await downloadNewestVersions()
-    if newestVersion is None: return
+    if newestVersion is None:
+        print('Unable to load update log, unable to check for updates')
+        return
 
     currentVersions = getCurrentVersions()
     if forceUpdate(): currentVersions.clear()
