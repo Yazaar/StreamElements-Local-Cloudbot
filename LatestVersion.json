@@ -69,9 +69,9 @@
             "hash": "c3e4b0d51d414e0603df387f37fe1d20",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/vendor/StructGuard/StructGuard.py"
         },
-        "dependencies/web/html/index.html": {
+        "dependencies/web/HTML/index.html": {
             "hash": "719b042aa73958865ccd9b849b491894",
-            "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/web/html/index.html"
+            "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/web/HTML/index.html"
         },
         "dependencies/web/static/scripts/index.js": {
             "hash": "7275a1e2cd4ef261d50aad0797b80e2f",
@@ -82,7 +82,7 @@
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/web/static/styles/index.css"
         },
         "LocalStreamElements.py": {
-            "hash": "71e97e880bc183d035788b95666b9e88",
+            "hash": "0cd6600224e0aa93a07a82d838c8353f",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/LocalStreamElements.py"
         },
         "requirements.txt": {

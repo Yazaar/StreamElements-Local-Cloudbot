@@ -50,7 +50,7 @@ def makeLatestVersionsFile():
     matchDirs = [
         'dependencies/modules',
         'dependencies/modules/vendor/StructGuard',
-        'dependencies/web/html',
+        'dependencies/web/HTML',
         'dependencies/web/static/scripts',
         'dependencies/web/static/styles'
     ]
