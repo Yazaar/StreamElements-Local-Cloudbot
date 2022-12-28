@@ -124,7 +124,7 @@ async def web_index(request : web.Request):
     context = {
         'extensions': extensions.extensions, 'ExtensionsSettings': extensions.settingsUI, 'events': [],
         'messages': [], 'ExtensionLogs': extensions.logs, 'regularPlatforms': ['Discord', 'Twitch'],
-        'serverPort': extensions.settings.currentPort,
+        'serverPort': extensions.settings.port,
         'tickrate': extensions.settings.tickrate,
         'discords': extensions.discordInstances,
         'twitch': extensions.twitchInstances,
@@ -493,7 +493,12 @@ async def sio_GetTwitchInstanceChannels(sid, data=''):
 
 @sio.on('UpdateSettings')
 async def sio_updateSettings(sid, data=''):
-    return
+    if 'server_port' in data:
+        extensions.settings.setPort(data['server_port'])
+    if 'executions_per_second' in data:
+        if extensions.settings.setTickrate(data['executions_per_second']):
+            extensions.calculateTickrate()
+    await sio.emit('UpdateSettings', room=sid)
 
 @sio.on('ResetExtensions')
 async def sio_restartExtensions(sid, data=''):

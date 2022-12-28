@@ -26,6 +26,8 @@ class StreamElements:
     def __init__(self, id_ : str, alias : str, extensions : 'Extensions', jwt : str):
         self.__id = id_
         self.alias = alias
+
+        self.__context = StreamElementsClientContext(self)
         
         self.__extensions = extensions
 
@@ -194,14 +196,14 @@ class StreamElements:
 
     async def __onEvent(self, data=''):
         if not isinstance(data, dict): return
-        event = StreamElementsGenericEvent(self, data, False)
+        event = StreamElementsGenericEvent(self.__context, data, False)
         self.__extensions.streamElementsEvent(event)
         self.__eventHistory.append(event)
         if len(self.__eventHistory) > 100: self.__eventHistory.pop(0)
 
     async def __onTestEvent(self, data=''):
         if not isinstance(data, dict): return
-        event = StreamElementsGenericEvent(self, data, True)
+        event = StreamElementsGenericEvent(self.__context, data, True)
         self.__extensions.streamElementsTestEvent(event)
 
     async def __onDisconnect(self, data=''):

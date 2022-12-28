@@ -160,13 +160,16 @@ class Settings():
         self.__saveSettings(sed, self.__streamelementsSettingsFile)
 
     def setPort(self, port : int):
-        if not Misc.validPort(port): return
+        if not Misc.validPort(port) or self.__port == port: return False
         self.__port = port
         self.__saveSettings({'port': self.__port, 'tickrate': self.__tickrate}, self.__generalSettingsFile)
+        return True
 
     def setTickrate(self, tickrate : int):
+        if self.__tickrate == tickrate: return False
         self.__tickrate = tickrate
         self.__saveSettings({'port': self.__port, 'tickrate': self.__tickrate}, self.__generalSettingsFile)
+        return True
 
     def __loadSettings(self):
         generalSettings = self.__readFile(self.__generalSettingsFile)

@@ -1,12 +1,12 @@
 {
-    "log": "- Big update/rewrite\n    - Discord support\n    - Async flow support\n    - Multi instance of Twitch, StreamElements, Discord support",
+    "log": "2022.12.28:\n- Less verbose\n- Settings update fix\n- StreamElements bugfix\n\n2022.12.21:\n- Big update/rewrite\n    - Discord support\n    - Async flow support\n    - Multi instance of Twitch, StreamElements, Discord support",
     "files": {
         "dependencies/modules/ClientTools.py": {
             "hash": "cbf6bf69246c286c949c26b63a8ad42a",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/ClientTools.py"
         },
         "dependencies/modules/Core.py": {
-            "hash": "eaea2896ae6622ff25462e5d600754ff",
+            "hash": "1038987dfb95d8b008465aafa58a0c97",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/Core.py"
         },
         "dependencies/modules/Discord.py": {
@@ -18,7 +18,7 @@
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/ExtensionCrossover.py"
         },
         "dependencies/modules/Extensions.py": {
-            "hash": "79fc959fa3a98975906a9127f2e014e5",
+            "hash": "72e94595c69687887b8d07f3b6f3fbd3",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/Extensions.py"
         },
         "dependencies/modules/MinorExtensionArgs.py": {
@@ -34,7 +34,7 @@
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/Regulars.py"
         },
         "dependencies/modules/Settings.py": {
-            "hash": "e0f68ed13b01ddc86c2875cf9ddd0c4a",
+            "hash": "d641ff470bee4c1fb8c96ea30d24be4e",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/Settings.py"
         },
         "dependencies/modules/SettingsUI.py": {
@@ -42,7 +42,7 @@
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/SettingsUI.py"
         },
         "dependencies/modules/StreamElements.py": {
-            "hash": "92b97ccad84386abd17e1dd4e721230d",
+            "hash": "509c9f92fb648429f4215a656f0d51d8",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/StreamElements.py"
         },
         "dependencies/modules/Templates.py": {
