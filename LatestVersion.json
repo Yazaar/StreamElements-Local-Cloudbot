@@ -42,7 +42,7 @@
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/SettingsUI.py"
         },
         "dependencies/modules/StreamElements.py": {
-            "hash": "509c9f92fb648429f4215a656f0d51d8",
+            "hash": "997a9707b7a544fe07e7aed03cdaf59b",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/StreamElements.py"
         },
         "dependencies/modules/Templates.py": {

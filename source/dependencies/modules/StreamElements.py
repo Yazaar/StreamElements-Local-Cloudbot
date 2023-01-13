@@ -220,61 +220,63 @@ class StreamElements:
         timer = time.time() - 5
         sentPing = False
 
-        async with aiohttp.ClientSession() as session:
-            async with session.ws_connect('wss://realtime.streamelements.com/socket.io/?EIO=3&transport=websocket') as ws:
-                self.__ws = ws
-                while True:
-                    if taskId != self.__taskId: return
+        while True:
+            async with aiohttp.ClientSession() as session:
+                async with session.ws_connect('wss://realtime.streamelements.com/socket.io/?EIO=3&transport=websocket') as ws:
+                    self.__ws = ws
+                    while True:
+                        if taskId != self.__taskId: return
+                        if ws.closed: break
 
-                    try: raw = await ws.receive(timeout=2)
-                    except TimeoutError: raw = None
-                    
-                    if raw is not None: raw = raw.data
-                    
-                    currentTime = time.time()
-                    timeDelta = currentTime - timer
+                        try: raw = await ws.receive(timeout=2)
+                        except TimeoutError: raw = None
+                        
+                        if raw is not None: raw = raw.data
+                        
+                        currentTime = time.time()
+                        timeDelta = currentTime - timer
 
-                    if timeDelta >= self.__PingInterval:
-                        #print('Sent: Ping')
-                        timer = currentTime
-                        await ws.send_str('2')
-                        sentPing = True
-                    elif sentPing and timeDelta > self.__PingTimeout:
-                        await self.__onDisconnect()
-                        return
-                    
-                    if raw is None: continue
-                    
-                    code = raw[:2]
-                    
-                    if code == '42':
-                        raw = json.loads(raw[2:])
-                        event = raw[0]
-                        data = raw[1]
-                    elif code == '3':
-                        #print('Received: Pong')
-                        sentPing = False
-                        timer = currentTime
-                        continue
-                    elif code == '40':
-                        event = 'connect'
-                    elif code == '0{':
-                        event = 'open'
-                        data = json.loads(raw[1:])
-                    else:
-                        #print('junk:', raw)
-                        continue
+                        if timeDelta >= self.__PingInterval:
+                            #print('Sent: Ping')
+                            timer = currentTime
+                            await ws.send_str('2')
+                            sentPing = True
+                        elif sentPing and timeDelta > self.__PingTimeout:
+                            await self.__onDisconnect()
+                            return
+                        
+                        if raw is None: continue
+                        
+                        code = raw[:2]
+                        
+                        if code == '42':
+                            raw = json.loads(raw[2:])
+                            event = raw[0]
+                            data = raw[1]
+                        elif code == '3':
+                            #print('Received: Pong')
+                            sentPing = False
+                            timer = currentTime
+                            continue
+                        elif code == '40':
+                            event = 'connect'
+                        elif code == '0{':
+                            event = 'open'
+                            data = json.loads(raw[1:])
+                        else:
+                            #print('junk:', raw)
+                            continue
 
-                    if event == 'event':
-                        await self.__onEvent(data)
-                    elif event == 'event:test':
-                        await self.__onTestEvent(data)
-                    elif event == 'open':
-                        await self.__onOpen(data)
-                    elif event == 'connect':
-                        await self.__onConnect()
-                    elif event == 'authenticated':
-                        await self.__onAuthenticated(data)
+                        if event == 'event':
+                            await self.__onEvent(data)
+                        elif event == 'event:test':
+                            await self.__onTestEvent(data)
+                        elif event == 'open':
+                            await self.__onOpen(data)
+                        elif event == 'connect':
+                            await self.__onConnect()
+                        elif event == 'authenticated':
+                            await self.__onAuthenticated(data)
 
 class StreamElementsClientContext():
     def __init__(self, streamElements : StreamElements):
