@@ -1,5 +1,5 @@
 {
-    "log": "2022.12.28:\n- Less verbose\n- Settings update fix\n- StreamElements bugfix\n\n2022.12.21:\n- Big update/rewrite\n    - Discord support\n    - Async flow support\n    - Multi instance of Twitch, StreamElements, Discord support",
+    "log": "2023-01-13:\n- Bugfix for running as a service without available console\n\n2022.12.28:\n- Less verbose\n- Settings update fix\n- StreamElements bugfix\n\n2022.12.21:\n- Big update/rewrite\n    - Discord support\n    - Async flow support\n    - Multi instance of Twitch, StreamElements, Discord support",
     "files": {
         "dependencies/modules/ClientTools.py": {
             "hash": "cbf6bf69246c286c949c26b63a8ad42a",
@@ -18,7 +18,7 @@
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/ExtensionCrossover.py"
         },
         "dependencies/modules/Extensions.py": {
-            "hash": "72e94595c69687887b8d07f3b6f3fbd3",
+            "hash": "93c74fab7bd8fe4d6defd133e36e7383",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/Extensions.py"
         },
         "dependencies/modules/MinorExtensionArgs.py": {
@@ -82,7 +82,7 @@
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/web/static/styles/index.css"
         },
         "LocalStreamElements.py": {
-            "hash": "cdc63416d07ae2da85b8cd476ed7764e",
+            "hash": "40f02697f3a5fa5c18a5a40c66335384",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/LocalStreamElements.py"
         },
         "requirements.txt": {

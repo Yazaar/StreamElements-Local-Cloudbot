@@ -20,6 +20,10 @@ def doMakeLatestVersionsFile():
 
 UPDATE_STATE = autoUpdate()
 
+def safeInput(msg : str):
+    try: return input(msg)
+    except Exception: return None
+
 async def fetchUrl(url, readBytes=False):
     try:
         async with aiohttp.ClientSession() as sesson:
@@ -88,7 +92,7 @@ async def main():
 
     try: from dependencies.modules import Core
     except ImportError:
-        input('Unable to launch due to missing dependencies, automatically exiting once you hit enter\n')
+        safeInput('Unable to launch due to missing dependencies, automatically exiting once you hit enter\n')
         return
     
     await Core.run()
@@ -124,7 +128,9 @@ def WaitForYN(msg : str):
         return True
     
     while True:
-        temp = input(msg).lower()
+        temp = safeInput(msg)
+        if temp == None: return False
+        temp = temp.lower()
         if temp == 'y': return True
         elif temp == 'n': return False
 
