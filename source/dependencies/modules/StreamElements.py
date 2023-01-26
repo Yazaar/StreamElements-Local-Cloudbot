@@ -84,15 +84,15 @@ class StreamElements:
         self.__loop.create_task(self.connect())
 
     def stopStreamElements(self):
-        self.__loop.create_task(self.disconnect())
+        self.disconnect()
 
     async def connect(self):
-        await self.disconnect()
+        self.disconnect()
         loop = asyncio.get_event_loop()
         print(f'[StreamElements {self.alias}] Connecting StreamElements')
         self.__currentTask = loop.create_task(self.__readWs(self.__taskId))
 
-    async def disconnect(self):
+    def disconnect(self):
         self.__taskId += 1
     
     async def APIRequest(self, method : str, endpoint : str, *, body : str = None, headers : dict[str, str] = None, includeJWT : bool = False) -> tuple[bool, str | None]:

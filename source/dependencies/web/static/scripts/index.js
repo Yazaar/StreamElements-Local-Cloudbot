@@ -16,6 +16,7 @@ let newRegularAliasTextField = document.getElementById('RegularInput')
 let newRegularIDTextField = document.getElementById('RegularIdInput')
 let newRegularGroupNameField = document.getElementById('RegularGroupInput')
 
+let deleteTwitchInstanceBTN = document.getElementById('DeleteTwitch')
 let saveTwitchInstanceBTN = document.getElementById('SaveTwitch')
 let currentTwitchInstanceAliasElement = document.getElementById('NewTwitchAlias')
 let currentTMIElement = document.getElementById('GeneratedTMI')
@@ -28,6 +29,7 @@ let twitchConfigs = document.getElementById('TwitchInstanceConfigs')
 let twitchCurrentRegularGroups = document.getElementById('TwitchCurrentRegularGroups')
 let twitchCurrentChannels = document.getElementById('TwitchCurrentChannels')
 
+let deleteStreamElementsBTN = document.getElementById('DeleteStreamElements')
 let saveStreamElementsBTN = document.getElementById('SaveStreamElements')
 let selectedStreamElements = document.getElementById('SelectedStreamElements')
 let newStreamElementsAlias = document.getElementById('NewStreamElementsAlias')
@@ -38,6 +40,7 @@ let discordCurrentRegularGroups = document.getElementById('DiscordCurrentRegular
 let currentJWT = null
 let validateJWTTimeout = null
 
+let deleteDiscordBTN = document.getElementById('DeleteDiscord')
 let saveDiscordBTN = document.getElementById('SaveDiscord')
 let selectedDiscord = document.getElementById('SelectedDiscord')
 let discordInstanceDataBlock = document.getElementById('DiscordInstanceData')
@@ -57,8 +60,6 @@ let discordRegularGroupList = document.getElementById('DiscordRegularGroupList')
 
 let regularList = document.getElementById('CurrentRegulars')
 let searchTimeout = null
-
-function voidFunc() {}
 
 function createLog(title, message) {
     let new_element = document.createElement('div')
@@ -155,7 +156,6 @@ function filterAlias(alias) {
 
 function finaliseDelete(triggerElement, onDeleteCallback) {
     onDeleteCallback(triggerElement)
-    triggerElement.parentElement.removeChild(triggerElement)
 }
 
 function disposeDelete(triggerElement) {
@@ -181,10 +181,15 @@ function triggerDelete(triggerElement, onDeleteCallback) {
     setTimeout(activateDelete, 1000, triggerElement)
 }
 
+function simpleDelete(e) {
+    e.parentElement.removeChild(e)
+}
+
 function onRegularDelete(regularElement) {
     let regularID = regularElement.querySelector('.platformID')
     let groupname = newRegularGroupNameField.value
-    
+    simpleDelete(regularElement)
+
     if (regularID === null) return
     
     s.emit('DeleteRegular', {platform: selectedPlatform, userId: regularID.innerText, groupName: groupname})
@@ -277,7 +282,7 @@ function twitchConfigAddChannel(channel) {
     d.classList.add('configItem')
     d.setAttribute('data-channel', channelL)
     twitchCurrentChannels.appendChild(d)
-    d.addEventListener('click', function() { triggerDelete(d, voidFunc) })
+    d.addEventListener('click', function() { triggerDelete(d, simpleDelete) })
     return true
 }
 
@@ -693,17 +698,25 @@ saveTwitchInstanceBTN.addEventListener('click', function() {
     let instanceTmi = currentTMI
     let instanceChannels = getChannels(twitchCurrentChannels)
     let instanceRegularGroups = getSelectedRegularGroups(twitchCurrentRegularGroups)
-
+    
     if (instanceTmi === null || instanceAlias.length === 0) return
-
+    
     this.classList.add('disabled')
-
+    
     s.emit('SaveTwitchInstance', {
         id: instanceID,
         alias: instanceAlias,
         tmi: instanceTmi,
         channels: instanceChannels,
         regularGroups: instanceRegularGroups
+    })
+})
+
+deleteTwitchInstanceBTN.addEventListener('click', function() {
+    let instanceID = twitchBotsSelector.value
+    if (instanceID.length == 0 || instanceID == 'NEW') return
+    triggerDelete(this, function() {
+        s.emit('DeleteTwitchInstance', instanceID)
     })
 })
 
@@ -726,6 +739,14 @@ saveStreamElementsBTN.addEventListener('click', function() {
         id: instanceID,
         alias: instanceAlias,
         jwt: instanceJWT
+    })
+})
+
+deleteStreamElementsBTN.addEventListener('click', function() {
+    let instanceID = selectedStreamElements.value
+    if (instanceID.length == 0 || instanceID == 'NEW') return
+    triggerDelete(this, function() {
+        s.emit('DeleteStreamElementsInstance', instanceID)
     })
 })
 
@@ -756,6 +777,14 @@ saveDiscordBTN.addEventListener('click', function() {
         membersIntent: membersIntent,
         presencesIntent: presencesIntent,
         messageContentIntent: messageContentIntent
+    })
+})
+
+deleteDiscordBTN.addEventListener('click', function() {
+    let instanceID = selectedDiscord.value
+    if (instanceID.length == 0 || instanceID == 'NEW') return
+    triggerDelete(this, function() {
+        s.emit('DeleteDiscordInstance', instanceID)
     })
 })
 
@@ -790,6 +819,15 @@ s.on('SaveDiscordInstance', function(data) {
     }
 })
 
+s.on('DeleteDiscordInstance', function(data) {
+    if (data.success) {
+        let e = selectedDiscord.querySelector('option[value="' + data.id + '"]')
+        let e2 = extensionConnectionDiscord.querySelector('option[value="' + data.id + '"]')
+        if (e) e.parentElement.removeChild(e)
+        if (e2) e2.parentElement.removeChild(e2)
+    }
+})
+
 s.on('SaveStreamElementsInstance', function(data) {
     saveStreamElementsBTN.classList.remove('disabled')
     if (data.success) {
@@ -815,6 +853,16 @@ s.on('SaveStreamElementsInstance', function(data) {
     }
 })
 
+s.on('DeleteStreamElementsInstance', function(data) {
+    saveStreamElementsBTN.classList.remove('disabled')
+    if (data.success) {
+        let e = selectedStreamElements.querySelector('option[value="' + data.id + '"]')
+        let e2 = extensionConnectionStreamElements.querySelector('option[value="' + data.id + '"]')
+        if (e) e.parentElement.removeChild(e)
+        if (e2) e2.parentElement.removeChild(e2)
+    }
+})
+
 s.on('SaveTwitchInstance', function(data) {
     saveTwitchInstanceBTN.classList.remove('disabled')
     if (data.success) {
@@ -837,6 +885,16 @@ s.on('SaveTwitchInstance', function(data) {
             e2.innerText = data.data.alias
             extensionConnectionTwitch.appendChild(e2)
         }
+    }
+})
+
+s.on('DeleteTwitchInstance', function(data) {
+    saveTwitchInstanceBTN.classList.remove('disabled')
+    if (data.success) {
+        let e = twitchBotsSelector.querySelector('option[value="' + data.id + '"]')
+        let e2 = extensionConnectionTwitch.querySelector('option[value="' + data.id + '"]')
+        if (e) e.parentElement.removeChild(e)
+        if (e2) e2.parentElement.removeChild(e2)
     }
 })
 

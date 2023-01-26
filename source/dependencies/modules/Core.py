@@ -344,6 +344,16 @@ async def sio_saveTwitchInstance(sid, data=''):
         await sio.emit('SaveTwitchInstance', {'success': success, 'data': data}, room=sid)
     else: await sio.emit('SaveTwitchInstance', {'success': success, 'message': errorMsgOrDiscord, 'data': data}, room=sid) 
 
+@sio.on('DeleteTwitchInstance')
+async def sio_deleteTwitchInstance(sid, data=''):
+    if not isinstance(data, str) or len(data) == 0:
+        await sio.emit('DeleteTwitchInstance', {'success': False, 'message': 'Have to pass the Discord instance ID as a string'}, room=sid)
+        return
+    
+    success = extensions.removeTwitchInstance(data)
+    if success: await sio.emit('DeleteTwitchInstance', {'success': success, 'id': data}, room=sid)
+    else: await sio.emit('DeleteTwitchInstance', {'success': success, 'message': 'The Twitch instance ID does not exist', 'id': data}, room=sid) 
+
 @sio.on('SaveStreamElementsInstance')
 async def sio_saveTwitchInstance(sid, data=''):
     if not isinstance(data, dict):
@@ -357,18 +367,38 @@ async def sio_saveTwitchInstance(sid, data=''):
         await sio.emit('SaveStreamElementsInstance', {'success': success, 'data': data}, room=sid)
     else: await sio.emit('SaveStreamElementsInstance', {'success': success, 'message': errorMsgOrSE, 'data': data}, room=sid) 
 
+@sio.on('DeleteStreamElementsInstance')
+async def sio_deleteDiscordInstance(sid, data=''):
+    if not isinstance(data, str) or len(data) == 0:
+        await sio.emit('DeleteStreamElementsInstance', {'success': False, 'message': 'Have to pass the Discord instance ID as a string'}, room=sid)
+        return
+    
+    success = extensions.removeStreamElementsInstance(data)
+    if success: await sio.emit('DeleteStreamElementsInstance', {'success': success, 'id': data}, room=sid)
+    else: await sio.emit('DeleteStreamElementsInstance', {'success': success, 'message': 'The StreamElements instance ID does not exist', 'id': data}, room=sid) 
+
 @sio.on('SaveDiscordInstance')
 async def sio_saveDiscordInstance(sid, data=''):
     if not isinstance(data, dict):
         await sio.emit('SaveDiscordInstance', {'success': False}, room=sid)
         return
     
-    success, errorMsgOrTwitch = await extensions.updateDiscord(data.get('id'), data.get('alias'), data.get('token'), data.get('regularGroups'), membersIntent=data.get('membersIntent'), presencesIntent=data.get('presencesIntent'), messageContentIntent=data.get('messageContentIntent'))
+    success, errorMsgOrDiscord = await extensions.updateDiscord(data.get('id'), data.get('alias'), data.get('token'), data.get('regularGroups'), membersIntent=data.get('membersIntent'), presencesIntent=data.get('presencesIntent'), messageContentIntent=data.get('messageContentIntent'))
 
     if success:
-        data['id'] = errorMsgOrTwitch.id
+        data['id'] = errorMsgOrDiscord.id
         await sio.emit('SaveDiscordInstance', {'success': success, 'data': data}, room=sid)
-    else: await sio.emit('SaveDiscordInstance', {'success': success, 'message': errorMsgOrTwitch, 'data': data}, room=sid) 
+    else: await sio.emit('SaveDiscordInstance', {'success': success, 'message': errorMsgOrDiscord, 'data': data}, room=sid) 
+
+@sio.on('DeleteDiscordInstance')
+async def sio_deleteDiscordInstance(sid, data=''):
+    if not isinstance(data, str) or len(data) == 0:
+        await sio.emit('DeleteDiscordInstance', {'success': False, 'message': 'Have to pass the Discord instance ID as a string'}, room=sid)
+        return
+    
+    success = extensions.removeDiscordInstance(data)
+    if success: await sio.emit('DeleteDiscordInstance', {'success': success, 'id': data}, room=sid)
+    else: await sio.emit('DeleteDiscordInstance', {'success': success, 'message': 'The Discord instance ID does not exist', 'id': data}, room=sid) 
 
 @sio.on('SaveSettings')
 async def sio_saveSettings(sid, data=''):

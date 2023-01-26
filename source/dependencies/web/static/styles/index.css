@@ -411,8 +411,24 @@ article header .ResetClearBtn:hover {
     cursor: pointer;
 }
 
-.button:not(.disabled):hover { background: rgba(0, 0, 0, .25); }
-.button:not(.disabled):active { background: rgba(0, 0, 0, .5); }
+.button.clicked {
+    background: rgba(182, 179, 5, 0.5);
+}
+
+.button.clicked.deletable {
+    background: rgba(255, 0, 0, 0.5);
+}
+
+.button.clicked:hover {
+    background: rgba(133, 130, 5, 0.5);
+}
+
+.button.clicked.deletable:hover {
+    background: rgba(165, 0, 0, 0.5);
+}
+
+.button:not(.disabled, .clicked):hover { background: rgba(0, 0, 0, .25); }
+.button:not(.disabled, .clicked):active { background: rgba(0, 0, 0, .5); }
 .button.disabled { background: rgba(255, 0, 0, .5); }
 
 h3.smaller {

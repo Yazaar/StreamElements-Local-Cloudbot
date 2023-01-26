@@ -1,12 +1,12 @@
 {
-    "log": "2023-01-13:\n- Bugfix for running as a service without available console\n\n2022.12.28:\n- Less verbose\n- Settings update fix\n- StreamElements bugfix\n\n2022.12.21:\n- Big update/rewrite\n    - Discord support\n    - Async flow support\n    - Multi instance of Twitch, StreamElements, Discord support",
+    "log": "2023-01-26:\n- Delete button for connected accounts in UI\n\n2023-01-13:\n- Bugfix for running as a service without available console\n\n2022.12.28:\n- Less verbose\n- Settings update fix\n- StreamElements bugfix\n\n2022.12.21:\n- Big update/rewrite\n    - Discord support\n    - Async flow support\n    - Multi instance of Twitch, StreamElements, Discord support",
     "files": {
         "dependencies/modules/ClientTools.py": {
             "hash": "cbf6bf69246c286c949c26b63a8ad42a",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/ClientTools.py"
         },
         "dependencies/modules/Core.py": {
-            "hash": "1038987dfb95d8b008465aafa58a0c97",
+            "hash": "7bf6a8254e4853ff51029ce914860ddd",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/Core.py"
         },
         "dependencies/modules/Discord.py": {
@@ -18,7 +18,7 @@
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/ExtensionCrossover.py"
         },
         "dependencies/modules/Extensions.py": {
-            "hash": "93c74fab7bd8fe4d6defd133e36e7383",
+            "hash": "529cc7b9c1047f54a50ae804fdf3cb86",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/Extensions.py"
         },
         "dependencies/modules/MinorExtensionArgs.py": {
@@ -42,7 +42,7 @@
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/SettingsUI.py"
         },
         "dependencies/modules/StreamElements.py": {
-            "hash": "997a9707b7a544fe07e7aed03cdaf59b",
+            "hash": "997a3a790615ce5966e598a029a8230c",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/StreamElements.py"
         },
         "dependencies/modules/Templates.py": {
@@ -70,15 +70,15 @@
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/vendor/StructGuard/StructGuard.py"
         },
         "dependencies/web/HTML/index.html": {
-            "hash": "719b042aa73958865ccd9b849b491894",
+            "hash": "f292fc31ac84bae7d915bd7d3bb09957",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/web/HTML/index.html"
         },
         "dependencies/web/static/scripts/index.js": {
-            "hash": "7275a1e2cd4ef261d50aad0797b80e2f",
+            "hash": "93caed2b9609411d7bdce6d5cc9268b4",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/web/static/scripts/index.js"
         },
         "dependencies/web/static/styles/index.css": {
-            "hash": "86b481d41c04a52d2b55ee7d2a5f9d09",
+            "hash": "0bc6c659a88da803594b2fb417ffd19a",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/web/static/styles/index.css"
         },
         "LocalStreamElements.py": {

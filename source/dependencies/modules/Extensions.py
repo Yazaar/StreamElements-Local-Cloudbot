@@ -466,11 +466,12 @@ class Extensions():
         return True, twitchInstance
 
     def removeTwitchInstance(self, twitchId : int):
-        removeThis : Twitch.Twitch = self.__find(self.twitchInstances, twitchId)
-        if removeThis != None:
-            self.twitchInstances.remove(removeThis)
-            removeThis.stopTwitch()
-            self.settings.saveTwitch(self.twitchInstances)
+        removeThis : Twitch.Twitch = Extensions.__find(self.twitchInstances, twitchId)
+        if removeThis is None: return False
+        self.twitchInstances.remove(removeThis)
+        removeThis.stopTwitch()
+        self.settings.saveTwitch(self.twitchInstances)
+        return True
 
     async def __addDiscordInstance(self, alias : str, token : str, *, membersIntent=False, presencesIntent=False, messageContentIntent=False):
         if len(alias) == 0: return False, 'alias have to be a string with a length larger than 0'
@@ -483,11 +484,12 @@ class Extensions():
         return True, discordInstance
 
     def removeDiscordInstance(self, discordId : int):
-        removeThis : Discord.Discord = self.__find(self.discordInstances, discordId)
-        if removeThis != None:
-            self.discordInstances.remove(removeThis)
-            removeThis.stopDiscord()
-            self.settings.saveDiscord(self.discordInstances)
+        removeThis : Discord.Discord = Extensions.__find(self.discordInstances, discordId)
+        if removeThis is None: return False
+        self.discordInstances.remove(removeThis)
+        removeThis.stopDiscord()
+        self.settings.saveDiscord(self.discordInstances)
+        return True
 
     async def __addStreamElementsInstance(self, alias : str, jwt : str) -> tuple[bool, str] | tuple[bool, StreamElements.StreamElements]:
         accountName, errorMsg = await StreamElements.StreamElements.parseJWT(jwt)
@@ -497,10 +499,12 @@ class Extensions():
         return True, streamElementsInstance
 
     def removeStreamElementsInstance(self, streamElementsId : int):
-        removeThis : StreamElements.StreamElements = self.__find(self.streamElementsInstances, streamElementsId)
-        if removeThis != None:
-            self.streamElementsInstances.remove(removeThis)
-            removeThis.stopStreamElements()
+        removeThis : StreamElements.StreamElements = Extensions.__find(self.streamElementsInstances, streamElementsId)
+        if removeThis is None: return False
+        self.streamElementsInstances.remove(removeThis)
+        removeThis.stopStreamElements()
+        self.settings.saveStreamElements(self.streamElementsInstances)
+        return True
 
     def addExtension(self, extension : Extension):
         for i in self.extensions:
