@@ -217,7 +217,7 @@ class StreamElements:
 
         self.__currentTask = asyncio.current_task()
         
-        timer = time.time() - 5
+        lastSend = time.time()
         sentPing = False
 
         while True:
@@ -234,18 +234,19 @@ class StreamElements:
                         if raw is not None: raw = raw.data
                         
                         currentTime = time.time()
-                        timeDelta = currentTime - timer
+                        timeDelta = currentTime - lastSend
 
                         if timeDelta >= self.__PingInterval:
                             #print('Sent: Ping')
-                            timer = currentTime
+                            lastSend = currentTime
                             await ws.send_str('2')
                             sentPing = True
                         elif sentPing and timeDelta > self.__PingTimeout:
                             await self.__onDisconnect()
-                            return
+                            break
                         
                         if raw is None: continue
+                        if not isinstance(raw, str): break
                         
                         code = raw[:2]
                         
@@ -256,7 +257,6 @@ class StreamElements:
                         elif code == '3':
                             #print('Received: Pong')
                             sentPing = False
-                            timer = currentTime
                             continue
                         elif code == '40':
                             event = 'connect'
