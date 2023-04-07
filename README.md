@@ -11,5 +11,6 @@
 <h1>Future plans:</h1>
 <ul>
   <li>Object oriented style for python extensions (bye global syntax)</li>
+  <li>Slash commands for Discord</li>
 </ul>
 <h3>Help the development by submitting ideas and issues through <a href="https://github.com/Yazaar/StreamElements-Local-Cloudbot/issues">github issues</a> (or <a href="https://docs.google.com/forms/d/e/1FAIpQLSel31nfkr8DGn4FCKxDJq4LMhD8kdtH9XyxsB4rz5YfzU91fQ/viewform?usp=sf_link">google forms</a>)</h3>
