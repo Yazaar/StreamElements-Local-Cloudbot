@@ -7,4 +7,6 @@ source/dependencies/data
 source/website.html
 source/test.py
 
+source/extensions
+
 LSE.code-workspace
