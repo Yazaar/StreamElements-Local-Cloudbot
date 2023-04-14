@@ -1,5 +1,5 @@
 import asyncio, typing, discord, json
-from . import Misc
+from . import Misc, Errors
 
 if typing.TYPE_CHECKING:
     from dependencies.modules.Extensions import Extensions
@@ -89,11 +89,17 @@ class Discord():
         except discord.errors.PrivilegedIntentsRequired: print(f'[Discord {self.alias}] Unable to start, one of the three optional intents not enabled in Discord application dashboard')
     
     async def getTextChannel(self, textChannel):
+        '''
+        ** Exceptions **
+        - Errors.Discord.InvalidTextChannel: ID does not exist (as a text channel)
+        - Errors.Discord.IllegalAccess: Not allowed to access
+        '''
+
         try: channel = await self.__discordCom.fetch_channel(textChannel)
-        except discord.errors.NotFound: return None, 'Invalid Channel ID'
-        except discord.errors.Forbidden: return None, 'You do not have permission to fetch this channel'
-        if not isinstance(channel, discord.TextChannel): return None, 'Channel not a text channel'
-        return channel, None
+        except discord.errors.NotFound: raise Errors.Discord.InvalidTextChannel('Invalid Channel ID')
+        except discord.errors.Forbidden: raise Errors.Discord.IllegalAccess('You do not have permission to fetch this channel')
+        if not isinstance(channel, discord.TextChannel): raise Errors.Discord.InvalidTextChannel('Channel not a text channel')
+        return channel
 
 class DiscordCom(discord.Client):
     def __init__(self, discordHandle : Discord, extensions : 'Extensions', *, membersIntent=False, presencesIntent=False, messageContentIntent=False) -> None:

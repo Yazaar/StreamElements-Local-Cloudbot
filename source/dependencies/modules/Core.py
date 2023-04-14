@@ -17,12 +17,25 @@ aiohttp_jinja2.setup(app, enable_async=True, loader=jinja2.FileSystemLoader(Path
 
 routes = web.RouteTableDef()
 
-async def handleStreamElementsAPI(data : dict) -> tuple[bool, str | None]:
-    if not isinstance(data, dict): return False, 'The data has to be of type dict'
+async def handleStreamElementsAPI(data : dict):
+    '''
+    ** Exceptions (general) **
+    - TypeError: Invalid data type of data parameter, should me dict
+    - ValueError: Invalid values within the data dict
+
+    ** Exceptions **
+    - Errors.TypeError: Invalid type of parameter
+    - Errors.ValueError: Invalid value of parameter
+    - Errors.StreamElementsAPIConnectionErrorError: Unable to reach the end server
+    - Errors.StreamElementsAPIBadRequestError: The HTTP request is invalid
+    - Errors.StreamElementsAPIBadResponseError: Invalid API response, expected JSON data
+    '''
+
+    if not isinstance(data, dict): raise TypeError('The data has to be of type dict')
 
     streamelements = extensions.findStreamElements(alias=data.get('alias', None), id_=data.get('id', None))
     if streamelements == None: streamelements = extensions.defaultStreamElements()
-    if streamelements == None: return False, 'The dict requires the key alias or id'
+    if streamelements == None: raise ValueError('The dict requires the key alias or id')
 
     if 'options' in data and isinstance(data['options'], dict):
         options = data['options']
@@ -38,13 +51,25 @@ async def handleStreamElementsAPI(data : dict) -> tuple[bool, str | None]:
         includeJWT=data.get('includeJWT', False)
     )
 
-async def handleTwitchMessage(data : dict) -> tuple[bool, str | None]:
-    if not isinstance(data, dict): return False, 'data have to be of type dict'
-    if not 'message' in data or not isinstance(data['message'], str): return False, 'The dict require the string key "message"'
-    if not 'bot' in data or not isinstance(data['bot'], str): return False, 'The dict require the string key "bot"'
+async def handleTwitchMessage(data : dict):
+    '''
+    ** Exceptions (general) **
+    - ValueError: Invalid values within the data dict
+    - TypeError: Invalid data type of argument, should be dict
 
-    success = False
-    resp = None
+    ** Exceptions (local) **
+    - Errors.TwitchNotRunningError: Twitch not running
+    - TypeError: Invalid data type of message 
+    - Errors.TwitchChannelNotFoundError: Provided channel does not exist
+
+    ** Exceptions **
+    - TypeError: Invalid data type of message, should be string
+    - Errors.StreamElementsSendMessageError: Error occured during HTTP request
+    '''
+
+    if not isinstance(data, dict): raise TypeError('data have to be of type dict')
+    if not 'message' in data or not isinstance(data['message'], str): raise ValueError('The dict require the string key "message"')
+    if not 'bot' in data or not isinstance(data['bot'], str): raise ValueError('The dict require the string key "bot"')
 
     kwargs = {}
     if 'alias' in data and isinstance(data['alias'], str): kwargs['alias'] = data['alias']
@@ -53,16 +78,21 @@ async def handleTwitchMessage(data : dict) -> tuple[bool, str | None]:
     if data['bot'] in ['twitch', 'local']:
         twitch = extensions.findTwitch(**kwargs)
         if twitch == None: twitch = extensions.defaultTwitch()
-        if twitch == None: return False, 'The body requires the key alias or id'
-        success, resp = await twitch.sendMessage(data['message'], data.get('channel', None))
+        if twitch == None: raise ValueError('The body requires the key alias or id')
+        await twitch.sendMessage(data['message'], data.get('channel', None))
     elif data['bot'] == 'streamelements':
         streamelements = extensions.findStreamElements(**kwargs)
         if streamelements == None: streamelements = extensions.defaultStreamElements()
-        if streamelements == None: return False, 'The body requires the key alias or id'
-        success, resp = await streamelements.sendMessage(data['message'])
-    return success, resp
+        if streamelements == None: raise ValueError('The body requires the key alias or id')
+        await streamelements.sendMessage(data['message'])
 
-async def handleDiscordMessage(data : dict) -> tuple[bool, str | None]:
+async def handleDiscordMessage(data : dict):
+    '''
+    ** Exceptions (Discord) **
+    - Errors.Discord.InvalidTextChannel: ID does not exist (as a text channel)
+    - Errors.Discord.IllegalAccess: Not allowed to access
+    '''
+    
     if not isinstance(data, dict): return False, 'data have to be of type dict'
     if not 'message' in data or not isinstance(data['message'], str): return False, 'JSON require the string key "message"'
     if not 'textChannel' in data: return False, 'JSON require the key "textChannel"'
@@ -76,10 +106,7 @@ async def handleDiscordMessage(data : dict) -> tuple[bool, str | None]:
     if discordBot == None: return False, 'Unable to find dicord bot'
 
     channel = await discordBot.getTextChannel(data['textChannel'])
-    if channel == None: return False, 'Unable to find the specified channel'
     await channel.send(data['message'])
-
-    return True, None
 
 async def handleCrossTalk(data : dict) -> tuple[bool, str | None]:
     events = []
@@ -536,7 +563,7 @@ async def sio_restartExtensions(sid, data=''):
     await sio.emit('ResetExtensions', room=sid)
 
 @sio.on('StreamElementsAPI')
-async def sio_SEAPI(sid, data):
+async def sio_SEAPI(sid, data=''):
     try:
         data : dict = json.loads(data='')
         if not isinstance(data, dict): raise Exception()
@@ -544,10 +571,12 @@ async def sio_SEAPI(sid, data):
         await sio.emit('StreamElementsAPI', {'type': 'error', 'message': 'Please forward json... sio.emit("StreamElementsAPI", JSON_DATA)'}, room=sid)
         return
 
-    success, resp = handleStreamElementsAPI(data)
+    try: resp = await handleStreamElementsAPI(data)
+    except Exception as e:
+        await sio.emit('StreamElementsAPI', {'type':'error', 'success': False, 'message': e.args[0]})
+        return
 
-    if success: await sio.emit('StreamElementsAPI', {'type':'success', 'success': True, 'response': resp})
-    else: await sio.emit('StreamElementsAPI', {'type':'error', 'success': False, 'message': resp})
+    await sio.emit('StreamElementsAPI', {'type':'success', 'success': True, 'response': resp})
 
 @sio.on('ScriptTalk')
 async def sio_scriptTalk(sid, data=''):

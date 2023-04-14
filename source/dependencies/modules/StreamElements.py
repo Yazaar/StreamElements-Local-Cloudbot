@@ -1,5 +1,5 @@
 from .vendor.StructGuard import StructGuard
-from . import Misc
+from . import Misc, Errors
 import asyncio, json, time, typing, datetime, aiohttp
 
 if typing.TYPE_CHECKING:
@@ -27,7 +27,7 @@ class StreamElements:
         self.__id = id_
         self.alias = alias
 
-        self.__context = StreamElementsClientContext(self)
+        self.clientContext = StreamElementsClientContext(self)
         
         self.__extensions = extensions
 
@@ -95,16 +95,25 @@ class StreamElements:
     def disconnect(self):
         self.__taskId += 1
     
-    async def APIRequest(self, method : str, endpoint : str, *, body : str = None, headers : dict[str, str] = None, includeJWT : bool = False) -> tuple[bool, str | None]:
+    async def APIRequest(self, method : str, endpoint : str, *, body : str = None, headers : dict[str, str] = None, includeJWT : bool = False) -> dict:
+        '''
+        ** Exceptions **
+        - Errors.TypeError: Invalid type of parameter
+        - Errors.ValueError: Invalid value of parameter
+        - Errors.StreamElements.APIConnectionErrorError: Unable to reach the end server
+        - Errors.StreamElements.APIBadRequestError: The HTTP request is invalid
+        - Errors.StreamElements.APIBadResponseError: Invalid API response, expected JSON data
+        '''
+
         if headers == None: headers = {}
         elif isinstance(headers, dict): headers = headers.copy()
 
-        if not isinstance(endpoint, str): return False, 'The argument endpoint has to be a string'
+        if not isinstance(endpoint, str): raise TypeError('The argument endpoint has to be a string')
         
         validMethods = ['get', 'post', 'put', 'delete']
-        if not method.lower() in validMethods: return False, 'The method has to be one of the following: ' + ' '.join(validMethods)
+        if not method.lower() in validMethods: raise ValueError('The method has to be one of the following: ' + ' '.join(validMethods))
 
-        if not StructGuard.verifyDictStructure(headers, {str: str})[0]: return False, 'The headers has to be a dict with string keys and string values'
+        if not StructGuard.verifyDictStructure(headers, {str: str})[0]: raise ValueError('The headers has to be a dict with string keys and string values')
         
         kwargs = {'method': method, 'headers': headers}
         
@@ -118,11 +127,19 @@ class StreamElements:
             kwargs['headers']['Authorization'] = 'Bearer ' + self.__jwt
 
         resp, errorCode = await Misc.fetchUrl('https://api.streamelements.com/'+ endpoint.replace(':channel', self.__userId), **kwargs)
+        if errorCode == -1: raise Errors.StreamElements.APIConnectionErrorError('Unable to connect to streamelements.com')
+        elif errorCode == -2: raise Errors.StreamElements.APIBadRequestError('Invalid HTTP request')
 
-        return errorCode == 1, resp
+        try: return json.loads(resp)
+        except Exception: raise Errors.StreamElements.APIBadResponseError('Invalid API response, expected JSON data')
 
-    async def sendMessage(self, message : str) -> tuple[bool, str | None]:
-        if not isinstance(message, str): return False, 'message has to be a string'
+    async def sendMessage(self, message : str):
+        '''
+        ** Exceptions **
+        - TypeError: Invalid data type of message, should be string
+        - Errors.StreamElements.SendMessageError: Error occured during HTTP request
+        '''
+        if not isinstance(message, str): raise TypeError('message has to be a string')
 
         resp, errorcode = await Misc.fetchUrl('https://api.streamelements.com/kappa/v2/bot/' + self.__userId + '/say', method='post',
             headers={
@@ -131,7 +148,7 @@ class StreamElements:
             }, body=json.dumps({'message': message})
         )
 
-        return errorcode == 1, resp
+        if errorcode != 1: raise Errors.StreamElements.SendMessageError(resp)
 
     def validateApiStruct(content) -> tuple[bool, str | None]:
         if not isinstance(content, dict):
@@ -196,14 +213,14 @@ class StreamElements:
 
     async def __onEvent(self, data=''):
         if not isinstance(data, dict): return
-        event = StreamElementsGenericEvent(self.__context, data, False)
+        event = StreamElementsGenericEvent(self.clientContext, data, False)
         self.__extensions.streamElementsEvent(event)
         self.__eventHistory.append(event)
         if len(self.__eventHistory) > 100: self.__eventHistory.pop(0)
 
     async def __onTestEvent(self, data=''):
         if not isinstance(data, dict): return
-        event = StreamElementsGenericEvent(self.__context, data, True)
+        event = StreamElementsGenericEvent(self.clientContext, data, True)
         self.__extensions.streamElementsTestEvent(event)
 
     async def __onDisconnect(self, data=''):
@@ -291,13 +308,32 @@ class StreamElementsClientContext():
     @property
     def streamElementsId(self): return self.__streamElements.id
 
+    async def sendMessage(self, msg : str):
+        '''
+        ** Exceptions **
+        - TypeError: Invalid data type of message, should be string
+        - Errors.StreamElements.SendMessageError: Error occured during HTTP request
+        '''
+        await self.__streamElements.sendMessage(msg)
+    
+    async def APIRequest(self, method : str, endpoint : str, *, body : str = None, headers : dict[str, str] = None, includeJWT : bool = False):
+        '''
+        ** Exceptions **
+        - Errors.TypeError: Invalid type of parameter
+        - Errors.ValueError: Invalid value of parameter
+        - Errors.StreamElements.APIConnectionErrorError: Unable to reach the end server
+        - Errors.StreamElements.APIBadRequestError: The HTTP request is invalid
+        - Errors.StreamElements.APIBadResponseError: Invalid API response, expected JSON data
+        '''
+        await self.__streamElements.APIRequest(method, endpoint, body=body, headers=headers, includeJWT=includeJWT)
+
 class StreamElementsGenericEvent():
     def __init__(self, client : StreamElementsClientContext, data : dict, testEvent: bool):
         self.__clientContext = client
         self.UTCTimestamp = datetime.datetime.utcnow()
         self.raw = data
         self.testEvent = testEvent
-    
+
     @property
     def streamElementsContext(self): return self.__clientContext
 
