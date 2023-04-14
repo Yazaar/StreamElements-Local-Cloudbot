@@ -37,6 +37,8 @@ class Extension():
         self.__loadConfig()
         self.__loadModule()
         self.__loadMethods()
+
+        self.extensions.initialize(self)
     
     @property
     def twitchId(self):
@@ -100,6 +102,7 @@ class Extension():
         if isinstance(state, bool): self.__enabled = state
         else: self.__enabled = not self.__enabled
         self.__saveConfig()
+        self.extensions.toggle(self)
 
     def reload(self):
         if self.__module == None: self.__loadModule()
@@ -120,10 +123,10 @@ class Extension():
             self.errorData = e
             self.__module = None
             self.error = True
-    
+
     def __loadMethods(self):
         self.methods.clear()
-        
+
         if (self.error): return
 
         moduleItems = dir(self.__module)
@@ -308,6 +311,7 @@ class Extensions():
         self.__legacyThreads : list[threading.Thread] = []
 
         self.__extensionsPath = Path('extensions')
+        self.__extensionsPath.mkdir(parents=True, exist_ok=True)
 
         self.logs = []
 
@@ -318,9 +322,8 @@ class Extensions():
 
         self.__loadExtensions(self.__extensionsPath)
 
-        self.__loop = asyncio.get_event_loop()
-
-        self.__loop.create_task(self.__ticker())
+        loop = asyncio.get_event_loop()
+        loop.create_task(self.__ticker())
 
     def calculateTickrate(self): self.__tickTimeout = 1.0 / self.settings.tickrate
     
@@ -550,60 +553,68 @@ class Extensions():
         if not extensionMethod.extension.enabled: return False
         if extensionMethod.extension.streamelements is None: return False
         return extensionMethod.extension.streamelements.id == streamElements.id
-        
+
     def initialize(self, extension : Extension):
         ep = extension.getEndpoint('initialize')
         if ep == None: return
-        if ep.asyncMethod: self.__loop.create_task(self.__addTask(ep, tuple()))
-        else: self.__addLegacy([ep], tuple())
+        initArg = MinorExtensionArgs.Initialize(extension)
+
+        if ep.asyncMethod:
+            loop = asyncio.get_event_loop()
+            loop.create_task(self.__addTask(ep, (initArg,), bypassDisabled=True))
+        else:
+            self.__addLegacy([ep], initArg.legacy(), bypassDisabled=True)
 
     def twitchMessage(self, message : Twitch.TwitchMessage):
         twitch = self.findTwitch(id_=message.twitchContext.twitchId)
 
         self.__addLegacy([i for i in self.__legacyCallbacks.get('twitchMessage', []) if self.__triggerFilterTwitch(i, twitch)], (message.legacy(),))
 
+        loop = asyncio.get_event_loop()
         for extMethod in self.__callbacks.get('twitchMessage', []):
             if self.__triggerFilterTwitch(extMethod, twitch):
-                self.__loop.create_task(self.__addTask(extMethod, (message,)))
+                loop.create_task(self.__addTask(extMethod, (message,)))
 
     def streamElementsEvent(self, event : StreamElements.StreamElementsGenericEvent):
         streamElements = self.findStreamElements(id_=event.streamElementsContext.streamElementsId)
         self.__addLegacy([i for i in self.__legacyCallbacks.get('streamElementsEvent', []) if self.__triggerFilterSE(i, streamElements)], (event.legacy(),))
 
+        loop = asyncio.get_event_loop()
         for extMethod in self.__callbacks.get('streamElementsEvent', []):
             if self.__triggerFilterSE(extMethod, streamElements):
-                self.__loop.create_task(self.__addTask(extMethod, (event,)))
+                loop.create_task(self.__addTask(extMethod, (event,)))
 
     def streamElementsTestEvent(self, event : StreamElements.StreamElementsGenericEvent):
         streamElements = self.findStreamElements(id_=event.streamElementsContext.streamElementsId)
         self.__addLegacy([i for i in self.__legacyCallbacks.get('streamElementsTestEvent', []) if self.__triggerFilterSE(i, streamElements)], (event.legacy(),))
 
+        loop = asyncio.get_event_loop()
         for extMethod in self.__callbacks.get('streamElementsTestEvent', []):
             if self.__triggerFilterSE(extMethod, streamElements):
-                self.__loop.create_task(self.__addTask(extMethod, (event,)))
+                loop.create_task(self.__addTask(extMethod, (event,)))
 
     def webhook(self, moduleName : str, wh : Web.Webhook):
+        loop = asyncio.get_event_loop()
         for extMethod in self.__callbacks.get('webhook', []):
             if extMethod.extension.moduleName == moduleName:
-                if extMethod.extension.enabled: self.__loop.create_task(self.__addTask(extMethod, (wh, )))
+                if extMethod.extension.enabled: loop.create_task(self.__addTask(extMethod, (wh, )))
                 return
-        
+
         for extMethod in self.__legacyCallbacks.get('webhook', []):
             if extMethod.extension.moduleName == moduleName:
                 if extMethod.extension.enabled: self.__addLegacy([extMethod], wh.legacy())
                 return
 
-    def toggle(self, script : str, toggleStatus : bool):
-        toggleArg = MinorExtensionArgs.Toggle(toggleStatus)
+    def toggle(self, ext : Extension):
+        toggleArg = MinorExtensionArgs.Toggle(ext.enabled)
+        toggleMethod = ext.getEndpoint('toggle')
+        if toggleMethod is None: return
 
-        for extMethod in self.__callbacks.get('toggle', []):
-            if extMethod.extension.moduleName == script:
-                self.__loop.create_task(self.__addTask(extMethod, (toggleArg,)))
-                return
-        for extMethod in self.__legacyCallbacks.get('toggle', []):
-            if extMethod.extension.moduleName == script:
-                self.__addLegacy([extMethod], toggleArg.legacy())
-                return
+        if toggleMethod.asyncMethod:
+            loop = asyncio.get_event_loop()
+            loop.create_task(self.__addTask(toggleMethod, (toggleArg,), bypassDisabled=True))
+        else:
+            self.__addLegacy([toggleMethod], toggleArg.legacy(), bypassDisabled=True)
 
     def crossTalk(self, data : Web.CrossTalk, scripts : list[str], events : list[str]) -> tuple[bool, str | None]:
         structs = [str]
@@ -613,17 +624,18 @@ class Extensions():
         if StructGuard.verifyListStructure(scripts, structs, rebuild=False)[0] != StructGuard.NO_CHANGES: return False, 'Invalid scripts, should be a list with string items'
         if StructGuard.verifyListStructure(events, structs, rebuild=False)[0] != StructGuard.NO_CHANGES: return False, 'Invalid events, should be a list with string items'
 
-        for event in events: self.__loop.create_task(self.__websio.emit(event, data, broadcast=True))
+        loop = asyncio.get_event_loop()
+        for event in events: loop.create_task(self.__websio.emit(event, data, broadcast=True))
 
         if len(scripts) == 0: return True, None
 
         for extMethod in self.__callbacks.get('crossTalk', []):
-            if extMethod.extension.enabled and extMethod.extension.moduleName in scripts: self.__loop.create_task(self.__addTask(extMethod, (data, )))
-        
+            if extMethod.extension.enabled and extMethod.extension.moduleName in scripts: loop.create_task(self.__addTask(extMethod, (data, )))
+
         legacyCallbacks = []
         for extMethod in self.__legacyCallbacks.get('crossTalk', []):
             if extMethod.extension.enabled and extMethod.extension.moduleName in scripts: legacyCallbacks.append(extMethod)
-        
+
         if len(legacyCallbacks) != 0: self.__addLegacy(legacyCallbacks, data.legacy())
 
         return True, None
@@ -631,106 +643,139 @@ class Extensions():
     def newSettings(self, changedSettingsUI : SettingsUI.SettingsUI):
         changedSettings = SettingsUI.Settings(changedSettingsUI)
         settingObj = changedSettings.settings
-        for event in changedSettingsUI.events: self.__loop.create_task(self.__websio.emit(event, settingObj, broadcast=True))
+
+        loop = asyncio.get_event_loop()
+        for event in changedSettingsUI.events: loop.create_task(self.__websio.emit(event, settingObj, broadcast=True))
+
         legacies = []
         for extName in changedSettingsUI.scripts:
             extObj = self.__extensionByName(extName)
             if not extObj: continue
             extMethod = extObj.getEndpoint('newSettings')
             if not extMethod: continue
-            if extMethod.asyncMethod: self.__loop.create_task(self.__addTask(extMethod, (changedSettings,)))
+            if extMethod.asyncMethod: loop.create_task(self.__addTask(extMethod, (changedSettings,)))
             else: legacies.append(extMethod)
         if len(legacies) > 0: self.__addLegacy(legacies, (changedSettings.legacy(),))
 
     def discordMessage(self, data : Discord.DiscordMessage):
         discord = self.findDiscord(id_=data.discordContext.discordId)
+
+        loop = asyncio.get_event_loop()
         for extMethod in self.__callbacks.get('discordMessage', []):
             if self.__triggerFilterDiscord(extMethod, discord):
-                self.__loop.create_task(self.__addTask(extMethod, (data,)))
+                loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMessageDeleted(self, data : Discord.DiscordMessageDeleted):
         discord = self.findDiscord(id_=data.discordContext.discordId)
+
+        loop = asyncio.get_event_loop()
         for extMethod in self.__callbacks.get('discordMessageDeleted', []):
             if self.__triggerFilterDiscord(extMethod, discord):
-                self.__loop.create_task(self.__addTask(extMethod, (data,)))
+                loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMessageEdited(self, data : Discord.DiscordMessageEdited):
         discord = self.findDiscord(id_=data.discordContext.discordId)
+
+        loop = asyncio.get_event_loop()
         for extMethod in self.__callbacks.get('discordMessageEdited', []):
             if self.__triggerFilterDiscord(extMethod, discord):
-                self.__loop.create_task(self.__addTask(extMethod, (data,)))
+                loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMessageNewReaction(self, data : Discord.DiscordMessageNewReaction):
         discord = self.findDiscord(id_=data.discordContext.discordId)
+
+        loop = asyncio.get_event_loop()
         for extMethod in self.__callbacks.get('discordMessageNewReaction', []):
             if self.__triggerFilterDiscord(extMethod, discord):
-                self.__loop.create_task(self.__addTask(extMethod, (data,)))
+                loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMessageRemovedReaction(self, data : Discord.DiscordMessageRemovedReaction):
         discord = self.findDiscord(id_=data.discordContext.discordId)
+
+        loop = asyncio.get_event_loop()
         for extMethod in self.__callbacks.get('discordMessageRemovedReaction', []):
             if self.__triggerFilterDiscord(extMethod, discord):
-                self.__loop.create_task(self.__addTask(extMethod, (data,)))
+                loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMessageReactionsCleared(self, data : Discord.DiscordMessageReactionsCleared):
         discord = self.findDiscord(id_=data.discordContext.discordId)
+
+        loop = asyncio.get_event_loop()
         for extMethod in self.__callbacks.get('discordMessageReactionsCleared', []):
             if self.__triggerFilterDiscord(extMethod, discord):
-                self.__loop.create_task(self.__addTask(extMethod, (data,)))
+                loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMessageReactionEmojiCleared(self, data : Discord.DiscordMessageReactionEmojiCleared):
         discord = self.findDiscord(id_=data.discordContext.discordId)
+
+        loop = asyncio.get_event_loop()
         for extMethod in self.__callbacks.get('discordMessageReactionEmojiCleared', []):
             if self.__triggerFilterDiscord(extMethod, discord):
-                self.__loop.create_task(self.__addTask(extMethod, (data,)))
+                loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMemberJoined(self, data : Discord.DiscordMemberJoined):
         discord = self.findDiscord(id_=data.discordContext.discordId)
+
+        loop = asyncio.get_event_loop()
         for extMethod in self.__callbacks.get('discordMemberJoined', []):
             if self.__triggerFilterDiscord(extMethod, discord):
-                self.__loop.create_task(self.__addTask(extMethod, (data,)))
+                loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMemberRemoved(self, data : Discord.DiscordMemberRemoved):
         discord = self.findDiscord(id_=data.discordContext.discordId)
+
+        loop = asyncio.get_event_loop()
         for extMethod in self.__callbacks.get('discordMemberRemoved', []):
             if self.__triggerFilterDiscord(extMethod, discord):
-                self.__loop.create_task(self.__addTask(extMethod, (data,)))
+                loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMemberUpdated(self, data : Discord.DiscordMemberUpdated):
         discord = self.findDiscord(id_=data.discordContext.discordId)
+
+        loop = asyncio.get_event_loop()
         for extMethod in self.__callbacks.get('discordMemberUpdated', []):
             if self.__triggerFilterDiscord(extMethod, discord):
-                self.__loop.create_task(self.__addTask(extMethod, (data,)))
+                loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMemberBanned(self, data : Discord.DiscordMemberBanned):
         discord = self.findDiscord(id_=data.discordContext.discordId)
+
+        loop = asyncio.get_event_loop()
         for extMethod in self.__callbacks.get('discordMemberBanned', []):
             if self.__triggerFilterDiscord(extMethod, discord):
-                self.__loop.create_task(self.__addTask(extMethod, (data,)))
+                loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordMemberUnbanned(self, data : Discord.DiscordMemberUnbanned):
         discord = self.findDiscord(id_=data.discordContext.discordId)
+
+        loop = asyncio.get_event_loop()
         for extMethod in self.__callbacks.get('discordMemberUnbanned', []):
             if self.__triggerFilterDiscord(extMethod, discord):
-                self.__loop.create_task(self.__addTask(extMethod, (data,)))
+                loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordGuildJoined(self, data : Discord.DiscordGuildJoined):
         discord = self.findDiscord(id_=data.discordContext.discordId)
+
+        loop = asyncio.get_event_loop()
         for extMethod in self.__callbacks.get('discordGuildJoined', []):
             if self.__triggerFilterDiscord(extMethod, discord):
-                self.__loop.create_task(self.__addTask(extMethod, (data,)))
+                loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordGuildRemoved(self, data : Discord.DiscordGuildRemoved):
         discord = self.findDiscord(id_=data.discordContext.discordId)
+
+        loop = asyncio.get_event_loop()
         for extMethod in self.__callbacks.get('discordGuildRemoved', []):
             if self.__triggerFilterDiscord(extMethod, discord):
-                self.__loop.create_task(self.__addTask(extMethod, (data,)))
+                loop.create_task(self.__addTask(extMethod, (data,)))
 
     def discordVoiceStateUpdate(self, data : Discord.DiscordVoiceStateUpdate):
         discord = self.findDiscord(id_=data.discordContext.discordId)
+
+        loop = asyncio.get_event_loop()
         for extMethod in self.__callbacks.get('discordVoiceStateUpdate', []):
             if self.__triggerFilterDiscord(extMethod, discord):
-                self.__loop.create_task(self.__addTask(extMethod, (data,)))
+                loop.create_task(self.__addTask(extMethod, (data,)))
     
     def __loadMethods(self, extension : Extension):
         self.__unloadMethods(extension)
@@ -819,15 +864,15 @@ class Extensions():
         self.toggleExtension(ext.moduleName, False)
         self.logs.append(newLog)
 
-    async def __addTask(self, extMethod : ExtensionMethod, args : tuple):
-        if not extMethod.extension.enabled: return
+    async def __addTask(self, extMethod : ExtensionMethod, args : tuple, *, bypassDisabled=False):
+        if (not extMethod.extension.enabled) and (not bypassDisabled): return
         try: await extMethod.callback(*args)
         except Exception as e: self.__handleExtensionError(extMethod.extension, e, extMethod.name)
 
-    def __addLegacy(self, extMethods : list[ExtensionMethod], args : tuple):
+    def __addLegacy(self, extMethods : list[ExtensionMethod], args : tuple, *, bypassDisabled=False):
         callbacks : list[ExtensionMethod] = []
         for extMethod in extMethods:
-            if (not extMethod.asyncMethod) and extMethod.extension.enabled:
+            if (not extMethod.asyncMethod) and (extMethod.extension.enabled or bypassDisabled):
                 callbacks.append(extMethod)
 
         if len(callbacks) == 0: return

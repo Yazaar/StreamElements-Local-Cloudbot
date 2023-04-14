@@ -1,154 +1,188 @@
-from . import Web
-
-import typing, discord, asyncio
+from . import StreamElements
+import asyncio, typing
 
 if typing.TYPE_CHECKING:
-    from .Extensions import Extensions
+    from . import Extensions
 
 class AsyncExtensionCrossover():
-    def __init__(self, extensions : 'Extensions'):
-        self.__extensions = extensions
-    
+    def __init__(self, extension : 'Extensions.Extension'):
+        self.__extension = extension
+
     @property
-    def serverPort(self): return 80
+    def port(self): return self.__extension.extensions.settings.currentPort
+
     @property
-    def port(self): return self.serverPort
-    
-    async def twitchMessage(self, message : str, channel : str, *, alias : str = None, id_ : str = None) -> tuple[bool, str | None]:
-        twitch = self.__extensions.findTwitch(alias=alias, id_=id_)
-        if twitch == None: return False, 'Unable to find the specified Twitch (alias or id)'
-        return await twitch.sendMessage(message, channel)
-    
-    async def streamElementsMessage(self, message : str, *, alias : str = None, id_ : str = None) -> tuple[bool, str | None]:
-        se = self.__extensions.findStreamElements(alias=alias, id_=id_)
-        if se == None: return False, 'Unable to find the specified StreamElements (alias or id)'
-        return await se.sendMessage(message)
-    
-    async def discordMessage(self, channel : str, message : str = None, embed : discord.Embed = None, *, alias : str = None, id_ : str = None) -> tuple[bool, str | None]:
-        bot = self.__extensions.findDiscord(alias=alias, id_=id_)
-        if bot == None: return False, 'Unable to find the specified Discord (alias or id)'
-        textChannel, resp = await bot.getTextChannel(channel)
-        if channel == None: return False, resp
-        
-        try: await textChannel.send(content=message, embed=embed)
-        except discord.Forbidden: return False, 'Not allowed to send messages in the specified channel'
-        return True, None
-    
-    async def streamElementsAPI(self, endpoint : str, *, body : str = None, headers : dict[str, str] = None, method : str = 'get', includeJWT : bool = False, alias : str = None, id_ : str = None) -> tuple[bool, str | None]:
-        se = self.__extensions.findStreamElements(alias=alias, id_=id_)
-        if se == None: return False, 'Unable to find the specified StreamElements (alias or id)'
-        return se.APIRequest(endpoint, body=body, headers=headers, method=method, includeJWT=includeJWT)
-    
-    async def crossTalk(self, data, *, scripts : list[str] = None, events : list[str] = None):
-        ct = Web.CrossTalk(data)
-        return self.__extensions.crossTalk(ct, scripts, events)
-    
+    def twitch(self):
+        if self.__extension.twitch is None: return None
+        return self.__extension.twitch.clientContext
+
+    @property
+    def streamElements(self):
+        if self.__extension.streamelements is None: return
+        return self.__extension.streamelements.clientContext
+
+    async def toPy(self):
+        pass
+
+    async def toWeb(self):
+        pass
+
     async def deleteRegular(self, userId: str, regularGroupName: str, platform: str):
-        return self.__extensions.regulars.removeRegular(userId, regularGroupName, platform)
-    
+        return self.__extension.extensions.regulars.removeRegular(userId, regularGroupName, platform)
+
     async def addRegular(self, alias: str, userId: str, regularGroupName: str, platform: str):
-        return self.__extensions.regulars.addRegular(alias, userId, regularGroupName, platform)
+        return self.__extension.extensions.regulars.addRegular(alias, userId, regularGroupName, platform)
+
+    def legacy(self): return LegacyExtensionCrossover(self, self.__extension)
 
 class LegacyExtensionCrossover():
-    def __init__(self, extensions : 'Extensions'):
-        self.__extensions = extensions
-        self.__asyncExtensionCrossover = AsyncExtensionCrossover(extensions)
-        self.__loop = asyncio.get_event_loop()
-    
-    @property
-    def twitchBotName(self):
-        twitch = self.__extensions.defaultTwitch()
-        return twitch.botname
+    def __init__(self, asyncExtensionCrossover : AsyncExtensionCrossover, extension : 'Extensions.Extension'):
+        self.__asyncExtensionCrossover = asyncExtensionCrossover
+        self.__extension = extension
 
-    @property
-    def twitchChannel(self):
-        twitch = self.__extensions.defaultTwitch()
-        if twitch == None: return
-        channels = twitch.allChannels()
-        if len(channels) > 0: return channels[0]
-    
-    @property
-    def serverPort(self): return self.__asyncExtensionCrossover.serverPort
-    
-    @property
-    def port(self): return self.__asyncExtensionCrossover.port
-    
-    def SendMessage(self, data : dict = None):
-        if not isinstance(data, dict): return {'type': 'error', 'success': False, 'message': 'The input has to be a dictionary'}
+    def SendMessage(self, data=None):
+        '''
+        Send a twitch message.
+        argument: dict with the keys "bot" and "message"
+        bot = "local"/"StreamElements" (depends on your bot target, local is recommended)
+        message = Your message that you wish to send in twitch chat (str)
+        returns a dict with the key "type", value = "error"/"success" (DEPRICATED)
+        returns a dict with the key "success", value = True/False
+        returns a dict with the key "message" on error, value = error message
+        '''
+        if not isinstance(data, dict):
+            return {'type':'error', 'success': False, 'message':'The input has to be a dictionary'}
 
-        message = data.get('message', None)
-        bot = data.get('bot', '').lower()
+        if not 'message' in data:
+            return {'type':'error', 'success': False, 'message':'The dict has to include the key message'}
+        if not 'bot' in data:
+            return {'type':'error', 'success': False, 'message':'The dict has to include the key bot with the value "local" or "streamelements"'}
 
-        if not isinstance(message, str): return {'type': 'error', 'success': False, 'message': 'The message has to be a string'}
-        
-        if bot in ['local', 'twitch']:
-            twitch = self.__extensions.defaultTwitch()
-            if twitch == None: return {'type': 'error', 'success': False, 'message': 'No twitch bot is connected'}
-            self.__loop.create_task(self.__asyncExtensionCrossover.twitchMessage(message, twitch.defaultChannel(), id_=twitch.id))
-        
-        elif bot == 'streamelements':
-            se = self.__extensions.defaultStreamElements()
-            if se == None: return {'type': 'error', 'success': False, 'message': 'No StreamElements is connected'}
-            self.__loop.create_task(self.__asyncExtensionCrossover.streamElementsMessage(message, id_=se.id))
+        if not isinstance(data['bot'], str):
+            return {'type':'error', 'success': False, 'message':'The dict has to include the key bot with the value "local" or "streamelements"'}
 
-        else: return {'type': 'error', 'success': False, 'message': 'The dict has to include the key bot with the value "local", "twitch" or "streamelements"'}
+        msg : str | None = None
+        if isinstance(data['message'], str): msg = data['message']
+        else:
+            try: msg = str(data['message'])
+            except Exception: return {'type':'error', 'success': False, 'message':'The dict has to include the key message containing a message'}
+
+        if len(msg) == 0: return {'type':'error', 'success': False, 'message':'The dict has to include the key message containing a message'}
+
+        loop = asyncio.get_event_loop()
+
+        bot = data['bot'].lower()
+        if bot == 'streamelements': loop.create_task(self.__safeStreamElementsMessage(msg))
+        elif bot == 'local': loop.create_task(self.__safeTwitchMessage(msg))
+        else: return {'type':'error', 'success': False, 'message':'The dict has to include the key bot with the value "local" or "streamelements"'}
+
         return {'type':'success', 'success': True}
-    
-    def StreamElementsAPI(self, data : dict = None):
-        if not isinstance(data, dict): return {'type': 'error', 'success': False, 'message': 'The input has to be a dictionary'}
 
-        data = data.copy()
+    def StreamElementsAPI(self, data=None):
+        '''
+        Send an API request to StreamElements servers.
+        argument: dict with the keys "endpoint" (str) and "options" (dict)
+        returns a dict with the key "type", value = "error"/"success" (DEPRICATED)
+        returns a dict with the key "success", value = True/False
+        returns a dict with the key "message" on error, value = error message
+        '''
 
-        if 'options' in data and isinstance(data['options'], dict):
-            options = data['options']
-            if 'type' in options: data['method'] = options['type']
-            if 'include_jwt' in options: data['includeJWT'] = options['include_jwt']
-            if 'headers' in options: data['headers'] = options['headers']
+        success, msg = StreamElements.StreamElements.validateApiStruct(data)
+
+        if not success: return {'type': 'error', 'success': False, 'message': msg}
+
+        endpoint = data['endpoint']
+        options = data['options']
+
+        loop = asyncio.get_event_loop()
+        loop.create_task(self.__safeStreamElementsAPI(endpoint, options))
+        return {'type':'success', 'success': True}
+
+    def ScriptTalk(self, data=None):
+        '''
+        Send data between python scripts.
+        argument: dict with the keys "module" (str) and "data" (any)
+        module = Your target, example: "example.test_LSE"
+        data = Your data to forward over
+        returns a dict with the key "type", value = "error"/"success" (DEPRICATED)
+        returns a dict with the key "success", value = True/False
+        returns a dict with the key "message" on error, value = error message
+        '''
+        if not isinstance(data,  dict):
+            return {'type':'error', 'message':'The input has to be a dict'}
+
+        if not 'module' in data:
+            return {'type':'error', 'success': False, 'message':'No module found, please include the key module'}
+        if not 'data' in data:
+            return {'type':'error', 'success': False, 'message':'No data found, please include the key data'}
+
+        if not isinstance(data['module'], str) or len(data['module']) == 0:
+            return {'type':'error', 'success': False, 'message':'Invalid module, please forward a valid module'}
+
+        module = data['module']
+        sendData = data['data']
+
+        loop = asyncio.get_event_loop()
+        loop.create_task(self.__asyncExtensionCrossover.toPy(module, sendData))
+        return {'type':'success', 'success': True}
+
+    def CrossTalk(self, data=None):
+        '''
+        Send data to HTML/JavaScript.
+        argument: dict with the keys "event" (str) and "data" (any)
+        event = Your target, has to start with "p-", example: "p-MyTestEvent"
+        data = Your data to forward over
+        returns a dict with the key "type", value = "error"/"success" (DEPRICATED)
+        returns a dict with the key "success", value = True/False
+        returns a dict with the key "message" on error, value = error message
+        '''
+        if not isinstance(data, dict):
+            return {'type':'error', 'success': False, 'message':'The input has to be a dict'}
         
-        method = data.get('method', '').lower()
-        if method in ['get', 'post', 'put', 'delete']: return {'type': 'error', 'success': False, 'message': 'The method has to be get, post, put or delete'}
+        if not 'event' in data:
+            return {'type':'error', 'success': False, 'message':'json require the key "event"'}
+        if not 'data' in data:
+            return {'type':'error', 'success': False, 'message':'json require the key "data"'}
 
-        endpoint = data.get('endpoint', None)
-        if not isinstance(endpoint, str): return {'type': 'error', 'success': False, 'message': 'The endpoint has to be a string'}
+        if not isinstance(data['event'], str):
+            return {'type':'error', 'success': False, 'message':'The value for the key "event" has to be a string'}
+        if not data['event'].startswith('p-'):
+            return {'type':'error', 'success': False, 'message':'The value for the key "event" has to start with "p-", for example: p-example'}
 
-        self.__loop.create_task(self.__asyncExtensionCrossover.streamElementsAPI(
-            method=method,
-            endpoint=endpoint,
-            headers=data.get('headers', None),
-            body=data.get('body', None),
-            includeJWT=data.get('includeJWT', False)
-        ))
+        event = data['event']
+        sendData = data['data']
+
+        loop = asyncio.get_event_loop()
+        loop.create_task(self.__asyncExtensionCrossover.toWeb(event, sendData))
         return {'type':'success', 'success': True}
-    
-    def ScriptTalk(self, data : dict = None):
-        if not isinstance(data, dict): return {'type': 'error', 'success': False, 'message': 'The input has to be a dictionary'}
 
-        if not 'module' in data: return {'type':'error', 'success': False, 'message':'No module found, please include the key module'}
-        if not 'data' in data: return {'type':'error', 'success': False, 'message':'No data found, please include the key data'}
-
-        if not isinstance(data['module'], str): return {'type':'error', 'success': False, 'message':'The module has to be a string'}
-
-        self.__loop.create_task(self.__asyncExtensionCrossover.crossTalk(data=data['data'], scripts=[data['module']]))
-        return {'type':'success', 'success': True}
-    
-    def CrossTalk(self, data : dict = None):
-        if not isinstance(data, dict): return {'type': 'error', 'success': False, 'message': 'The input has to be a dictionary'}
-        
-        if not 'event' in data: return {'type':'error', 'success': False, 'message':'No event found, please include the key event'}
-        if not 'data' in data: return {'type':'error', 'success': False, 'message':'No data found, please include the key data'}
-
-        if not isinstance(data['event'], str): return {'type':'error', 'success': False, 'message':'The event has to be a string'}
-        if not data['event'][:2] == 'p-': return {'type':'error', 'success': False, 'message':'The value for the key "event" has to start with "p-", for example: p-example'}
-
-        self.__loop.create_task(self.__asyncExtensionCrossover.crossTalk(data=data['data'], events=[data['event']]))
-        return {'type':'success', 'success': True}
-    
     def DeleteRegular(self, data : str = None):
         if not isinstance(data, str): return {'type': 'error', 'success': False, 'message': 'The input has to be a string'}
-        self.__loop.create_task(self.__asyncExtensionCrossover.deleteRegular(data, 'default', 'twitch'))
+        loop = asyncio.get_event_loop()
+        loop.create_task(self.__asyncExtensionCrossover.deleteRegular(data, 'default', 'twitch'))
         return {'type':'success', 'success': True}
-    
+
     def AddRegular(self, data : dict = None):
         if not isinstance(data, str): return {'type': 'error', 'success': False, 'message': 'The input has to be a string'}
-        self.__loop.create_task(self.__asyncExtensionCrossover.addRegular(data, data, 'default', 'twitch'))
+        loop = asyncio.get_event_loop()
+        loop.create_task(self.__asyncExtensionCrossover.addRegular(data, data, 'default', 'twitch'))
         return {'type':'success', 'success': True}
+
+    async def __safeTwitchMessage(self, msg : str):
+        t = self.__asyncExtensionCrossover.twitch
+        if t is None: return
+
+        try: t.sendMessage(msg, t.defaultChannel)
+        except Exception: pass
+
+    async def __safeStreamElementsMessage(self, msg : str):
+        se = self.__asyncExtensionCrossover.streamElements
+        if se is None: return
+        try: await se.sendMessage(msg)
+        except Exception: pass
+
+    async def __safeStreamElementsAPI(self, method: str, endpoint: str, *, body: str = None, headers: dict[str, str] = None, includeJWT: bool = False):
+        se = self.__asyncExtensionCrossover.streamElements
+        if se is None: return
+        try: await se.APIRequest(method, endpoint, body=body, headers=headers, includeJWT=includeJWT)
+        except Exception: pass
