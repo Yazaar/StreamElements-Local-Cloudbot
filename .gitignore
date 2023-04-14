@@ -1,12 +1,7 @@
-source/dependencies/modules/__pycache__
-source/extensions/extension/__pycache__
-source/dependencies/modules/vendor/StructGuard/__pycache__
-
-source/dependencies/data
+__pycache__/
+source/dependencies/data/
+source/extensions/
 
 source/website.html
 source/test.py
-
-source/extensions
-
 LSE.code-workspace
