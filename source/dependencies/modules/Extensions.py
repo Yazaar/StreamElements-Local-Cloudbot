@@ -1,6 +1,6 @@
 from .vendor.StructGuard import StructGuard
-from . import Discord, Twitch, StreamElements, Settings, Regulars, Web, ExtensionCrossover, SettingsUI, MinorExtensionArgs, Misc
-import importlib, inspect, asyncio, threading, socketio, json, time
+from . import Discord, ExtensionCrossover, ExtensionCrossover, Twitch, StreamElements, Settings, Regulars, Web, SettingsUI, MinorExtensionArgs
+import importlib, inspect, asyncio, threading, socketio, json, time, typing
 from pathlib import Path
 
 class Extension():
@@ -263,18 +263,16 @@ class ExtensionMethod():
         }
     }
 
-    def __init__(self, func, extension : Extension):
+    def __init__(self, func : typing.Callable, extension : Extension):
         self.extension = extension
         self.callback = func
         self.asyncMethod : bool = None
         self.name : str = ExtensionMethod.getFuncName(self.callback.__name__)
         if self.name == None: return
 
-        if ExtensionMethod.isLegacy(func):
-            self.asyncMethod = False
-        elif ExtensionMethod.isAsync(func):
-            self.asyncMethod = True
+        self.asyncMethod = ExtensionMethod.isAsync(func)
 
+    @staticmethod
     def getFuncName(funcName : str):
         match : str = ExtensionMethod.ENDPOINTS.get(funcName, None)
         if match != None: return funcName
@@ -283,14 +281,16 @@ class ExtensionMethod():
                 if funcAlias == funcName: return realFuncName
         return None
     
-    def isFuncOrMethod(func):
+    @staticmethod
+    def isFuncOrMethod(func : typing.Callable):
         return inspect.isfunction(func) or inspect.ismethod(func)
 
-    def isLegacy(func):
+    @staticmethod
+    def isLegacy(func : typing.Callable):
         return ExtensionMethod.isFuncOrMethod(func) and not inspect.iscoroutinefunction(func)
 
-    def isAsync(func):
-        return inspect.iscoroutinefunction(func)
+    @staticmethod
+    def isAsync(func : typing.Callable): return inspect.iscoroutinefunction(func)
 
 class Extensions():
     def __init__(self, websio : socketio.AsyncServer):
