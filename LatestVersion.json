@@ -1,5 +1,5 @@
 {
-    "log": "2023-02-26:\n- StreamElements patch, fixed connection issues\n\n2023-01-26:\n- Delete button for connected accounts in UI\n\n2023-01-13:\n- Bugfix for running as a service without available console\n\n2022.12.28:\n- Less verbose\n- Settings update fix\n- StreamElements bugfix\n\n2022.12.21:\n- Big update/rewrite\n    - Discord support\n    - Async flow support\n    - Multi instance of Twitch, StreamElements, Discord support",
+    "log": "2023-04-14:\n- Extensions bugfixes\n\n2023-02-26:\n- StreamElements patch, fixed connection issues\n\n2023-01-26:\n- Delete button for connected accounts in UI\n\n2023-01-13:\n- Bugfix for running as a service without available console\n\n2022.12.28:\n- Less verbose\n- Settings update fix\n- StreamElements bugfix\n\n2022.12.21:\n- Big update/rewrite\n    - Discord support\n    - Async flow support\n    - Multi instance of Twitch, StreamElements, Discord support",
     "files": {
         "dependencies/modules/App.py": {
             "hash": "278bc4b04ae0baf741427a3c8f3eb20d",
@@ -77,6 +77,18 @@
             "hash": "c3e4b0d51d414e0603df387f37fe1d20",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/vendor/StructGuard/StructGuard.py"
         },
+        "dependencies/modules/CustomErrors/DiscordErrors.py": {
+            "hash": "b724eea8baa2e7de985a77d0640bcabd",
+            "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/CustomErrors/DiscordErrors.py"
+        },
+        "dependencies/modules/CustomErrors/StreamElementsErrors.py": {
+            "hash": "da26c951560d01afa787b0e82451807e",
+            "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/CustomErrors/StreamElementsErrors.py"
+        },
+        "dependencies/modules/CustomErrors/TwitchErrors.py": {
+            "hash": "1ba5c1f6536ddde802626d5b5adb6cb7",
+            "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/CustomErrors/TwitchErrors.py"
+        },
         "dependencies/web/HTML/index.html": {
             "hash": "f292fc31ac84bae7d915bd7d3bb09957",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/web/HTML/index.html"
@@ -90,7 +102,7 @@
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/web/static/styles/index.css"
         },
         "LocalStreamElements.py": {
-            "hash": "40f02697f3a5fa5c18a5a40c66335384",
+            "hash": "aa5f0a616b88bdd7d2b23d0848d159db",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/LocalStreamElements.py"
         },
         "requirements.txt": {

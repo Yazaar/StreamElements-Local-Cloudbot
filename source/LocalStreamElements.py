@@ -54,6 +54,7 @@ def makeLatestVersionsFile():
     matchDirs = [
         'dependencies/modules',
         'dependencies/modules/vendor/StructGuard',
+        'dependencies/modules/CustomErrors',
         'dependencies/web/HTML',
         'dependencies/web/static/scripts',
         'dependencies/web/static/styles'
