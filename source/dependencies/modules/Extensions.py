@@ -1,5 +1,5 @@
 from .vendor.StructGuard import StructGuard
-from . import Discord, ExtensionCrossover, ExtensionCrossover, Twitch, StreamElements, Settings, Regulars, Web, SettingsUI, MinorExtensionArgs
+from . import Discord, ExtensionCrossover, Twitch, StreamElements, Settings, Regulars, Web, SettingsUI, MinorExtensionArgs
 import importlib, inspect, asyncio, threading, socketio, json, time, typing
 from pathlib import Path
 
@@ -616,18 +616,22 @@ class Extensions():
         else:
             self.__addLegacy([toggleMethod], toggleArg.legacy(), bypassDisabled=True)
 
-    def crossTalk(self, data : Web.CrossTalk, scripts : list[str], events : list[str]) -> tuple[bool, str | None]:
+    def crossTalk(self, data : Web.CrossTalk, scripts : list[str], events : list[str]):
+        '''
+        ** Exceptions **
+        - TypeError: Invalid data type of scripts or events (should be lists of strings)
+        '''
         structs = [str]
         if isinstance(scripts, list): scripts = scripts.copy()
         if isinstance(events, list): events = events.copy()
 
-        if StructGuard.verifyListStructure(scripts, structs, rebuild=False)[0] != StructGuard.NO_CHANGES: return False, 'Invalid scripts, should be a list with string items'
-        if StructGuard.verifyListStructure(events, structs, rebuild=False)[0] != StructGuard.NO_CHANGES: return False, 'Invalid events, should be a list with string items'
+        if StructGuard.verifyListStructure(scripts, structs, rebuild=False)[0] != StructGuard.NO_CHANGES: raise TypeError('Invalid scripts, should be a list with string items')
+        if StructGuard.verifyListStructure(events, structs, rebuild=False)[0] != StructGuard.NO_CHANGES: raise TypeError('Invalid events, should be a list with string items')
 
         loop = asyncio.get_event_loop()
-        for event in events: loop.create_task(self.__websio.emit(event, data, broadcast=True))
+        for event in events: loop.create_task(self.__websio.emit(event, data.data, broadcast=True))
 
-        if len(scripts) == 0: return True, None
+        if len(scripts) == 0: return
 
         for extMethod in self.__callbacks.get('crossTalk', []):
             if extMethod.extension.enabled and extMethod.extension.moduleName in scripts: loop.create_task(self.__addTask(extMethod, (data, )))
@@ -637,8 +641,6 @@ class Extensions():
             if extMethod.extension.enabled and extMethod.extension.moduleName in scripts: legacyCallbacks.append(extMethod)
 
         if len(legacyCallbacks) != 0: self.__addLegacy(legacyCallbacks, data.legacy())
-
-        return True, None
 
     def newSettings(self, changedSettingsUI : SettingsUI.SettingsUI):
         changedSettings = SettingsUI.Settings(changedSettingsUI)

@@ -1,4 +1,4 @@
-from . import StreamElements
+from . import StreamElements, Web
 import asyncio, typing
 
 if typing.TYPE_CHECKING:
@@ -21,11 +21,23 @@ class AsyncExtensionCrossover():
         if self.__extension.streamelements is None: return
         return self.__extension.streamelements.clientContext
 
-    async def toPy(self):
-        pass
+    async def toPy(self, extName : str | list[str], payload):
+        '''
+        ** Exceptions **
+        - TypeError: Invalid data type of scripts or events (should be lists of strings)
+        '''
+        ct = Web.CrossTalk(payload)
+        if isinstance(extName, str): extName = [extName]
+        self.__extension.extensions.crossTalk(ct, extName, [])
 
-    async def toWeb(self):
-        pass
+    async def toWeb(self, eventName : str | list[str], payload):
+        '''
+        ** Exceptions **
+        - TypeError: Invalid data type of scripts or events (should be lists of strings)
+        '''
+        ct = Web.CrossTalk(payload)
+        if isinstance(eventName, str): eventName = [eventName]
+        self.__extension.extensions.crossTalk(ct, [], eventName)
 
     async def deleteRegular(self, userId: str, regularGroupName: str, platform: str):
         return self.__extension.extensions.regulars.removeRegular(userId, regularGroupName, platform)
@@ -123,7 +135,7 @@ class LegacyExtensionCrossover():
         sendData = data['data']
 
         loop = asyncio.get_event_loop()
-        loop.create_task(self.__asyncExtensionCrossover.toPy(module, sendData))
+        loop.create_task(self.__safeToPy(module, sendData))
         return {'type':'success', 'success': True}
 
     def CrossTalk(self, data=None):
@@ -153,7 +165,7 @@ class LegacyExtensionCrossover():
         sendData = data['data']
 
         loop = asyncio.get_event_loop()
-        loop.create_task(self.__asyncExtensionCrossover.toWeb(event, sendData))
+        loop.create_task(self.__safeToWeb(event, sendData))
         return {'type':'success', 'success': True}
 
     def DeleteRegular(self, data : str = None):
@@ -185,4 +197,12 @@ class LegacyExtensionCrossover():
         se = self.__asyncExtensionCrossover.streamElements
         if se is None: return
         try: await se.APIRequest(method, endpoint, body=body, headers=headers, includeJWT=includeJWT)
+        except Exception: pass
+    
+    async def __safeToPy(self, extName : str | list[str], payload):
+        try: await self.__asyncExtensionCrossover.toPy(extName, payload)
+        except Exception: pass
+    
+    async def __safeToWeb(self, eventName : str | list[str], payload):
+        try: await self.__asyncExtensionCrossover.toWeb(eventName, payload)
         except Exception: pass

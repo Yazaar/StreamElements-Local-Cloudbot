@@ -1,5 +1,5 @@
 {
-    "log": "2023-04-14:\n- Extensions bugfixes\n\n2023-02-26:\n- StreamElements patch, fixed connection issues\n\n2023-01-26:\n- Delete button for connected accounts in UI\n\n2023-01-13:\n- Bugfix for running as a service without available console\n\n2022.12.28:\n- Less verbose\n- Settings update fix\n- StreamElements bugfix\n\n2022.12.21:\n- Big update/rewrite\n    - Discord support\n    - Async flow support\n    - Multi instance of Twitch, StreamElements, Discord support",
+    "log": "2023-04-14, 2023-04-15:\n- Extensions bugfixes\n\n2023-02-26:\n- StreamElements patch, fixed connection issues",
     "files": {
         "dependencies/modules/App.py": {
             "hash": "278bc4b04ae0baf741427a3c8f3eb20d",
@@ -22,11 +22,11 @@
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/Errors.py"
         },
         "dependencies/modules/ExtensionCrossover.py": {
-            "hash": "dfba8798acceea9916aafe451e416b9f",
+            "hash": "cafcb56e04090ac700d38dd7fdd3b12d",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/ExtensionCrossover.py"
         },
         "dependencies/modules/Extensions.py": {
-            "hash": "e7d87865c26130db8711d8a0c4a2f3ac",
+            "hash": "b52a0ffeb9d30a1d10f31c8498389efc",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/modules/Extensions.py"
         },
         "dependencies/modules/MinorExtensionArgs.py": {
