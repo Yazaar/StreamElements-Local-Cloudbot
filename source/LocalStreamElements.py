@@ -57,6 +57,7 @@ def makeLatestVersionsFile():
         'dependencies/modules/CustomErrors',
         'dependencies/web/HTML',
         'dependencies/web/static/scripts',
+        'dependencies/web/static/scripts/SocketIO',
         'dependencies/web/static/styles'
     ]
 

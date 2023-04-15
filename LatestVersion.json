@@ -1,5 +1,5 @@
 {
-    "log": "2023-04-14, 2023-04-15:\n- Extensions bugfixes\n\n2023-02-26:\n- StreamElements patch, fixed connection issues",
+    "log": "2023-04-14, 2023-04-15:\n- Extensions and communications bugfixes\n\n2023-02-26:\n- StreamElements patch, fixed connection issues",
     "files": {
         "dependencies/modules/App.py": {
             "hash": "278bc4b04ae0baf741427a3c8f3eb20d",
@@ -97,12 +97,20 @@
             "hash": "93caed2b9609411d7bdce6d5cc9268b4",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/web/static/scripts/index.js"
         },
+        "dependencies/web/static/scripts/SocketIO/LICENSE": {
+            "hash": "b1ac313259724ac7c276e3528488fb7e",
+            "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/web/static/scripts/SocketIO/LICENSE"
+        },
+        "dependencies/web/static/scripts/SocketIO/socket.io.js": {
+            "hash": "841287fce6e251a61696e27abe7f712e",
+            "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/web/static/scripts/SocketIO/socket.io.js"
+        },
         "dependencies/web/static/styles/index.css": {
             "hash": "0bc6c659a88da803594b2fb417ffd19a",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/dependencies/web/static/styles/index.css"
         },
         "LocalStreamElements.py": {
-            "hash": "aa5f0a616b88bdd7d2b23d0848d159db",
+            "hash": "046272951e66002abb5ded0e5e02beef",
             "url": "https://raw.githubusercontent.com/Yazaar/StreamElements-Local-Cloudbot/master/source/LocalStreamElements.py"
         },
         "requirements.txt": {
